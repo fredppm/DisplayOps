@@ -98,6 +98,7 @@ export interface OpenDashboardCommand {
   url: string;
   monitorIndex: number;
   fullscreen: boolean;
+  refreshInterval?: number; // in milliseconds
 }
 
 export interface SyncCookiesCommand {

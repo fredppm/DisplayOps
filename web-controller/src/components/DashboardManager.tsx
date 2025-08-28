@@ -8,7 +8,10 @@ import {
   Play, 
   Pause,
   RotateCcw,
-  AlertCircle
+  AlertCircle,
+  CheckCircle,
+  X,
+  Loader
 } from 'lucide-react';
 
 interface DashboardManagerProps {
@@ -40,20 +43,89 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ hosts }) => 
   const [selectedDashboard, setSelectedDashboard] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [assignments, setAssignments] = useState<Record<string, { hostId: string, tvId: string, dashboardId: string }>>({});
+  
+  // Loading and notification states
+  const [loadingDeployments, setLoadingDeployments] = useState<Set<string>>(new Set());
+  const [notifications, setNotifications] = useState<Array<{
+    id: string;
+    type: 'success' | 'error' | 'warning' | 'info';
+    title: string;
+    message: string;
+    timestamp: Date;
+  }>>([]);
+
+  // Helper function to add notifications
+  const addNotification = (type: 'success' | 'error' | 'warning' | 'info', title: string, message: string) => {
+    const notification = {
+      id: Math.random().toString(36).substr(2, 9),
+      type,
+      title,
+      message,
+      timestamp: new Date()
+    };
+    setNotifications(prev => [notification, ...prev.slice(0, 4)]); // Keep only 5 most recent
+    
+    // Auto-remove after 8 seconds
+    setTimeout(() => {
+      setNotifications(prev => prev.filter(n => n.id !== notification.id));
+    }, 8000);
+  };
+
+  // Helper function to remove notification
+  const removeNotification = (id: string) => {
+    setNotifications(prev => prev.filter(n => n.id !== id));
+  };
 
   const handleDeployDashboard = async (dashboardId: string, hostId: string, tvId: string) => {
     const dashboard = dashboards.find(d => d.id === dashboardId);
     const host = hosts.find(h => h.id === hostId);
     
     if (!dashboard || !host) {
-      console.error('Dashboard or host not found');
+      addNotification('error', 'Deployment Failed', 'Dashboard or host not found');
       return;
     }
+
+    const deploymentKey = `${hostId}-${tvId}`;
+    
+    // Set loading state
+    setLoadingDeployments(prev => new Set([...prev, deploymentKey]));
 
     try {
       console.log(`Deploying ${dashboard.name} to ${host.name} - ${tvId}`);
       
-      // TODO: Implement actual API call to host agent
+      // First validate the URL
+      addNotification('info', 'Validating URL', `Checking ${dashboard.name} accessibility...`);
+      
+      const validateResponse = await fetch(`http://${host.ipAddress}:${host.port}/api/validate-url`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          url: dashboard.url,
+          timeout: 10000
+        })
+      });
+
+      if (validateResponse.ok) {
+        const validateResult = await validateResponse.json();
+        
+        if (!validateResult.success) {
+          addNotification('error', 'URL Validation Failed', validateResult.error || 'Unknown validation error');
+          return;
+        }
+
+        const validation = validateResult.data?.validation;
+        if (!validation?.isReachable) {
+          addNotification('warning', 'URL Not Reachable', 
+            `The URL ${dashboard.name} is not reachable: ${validation?.error || 'Connection failed'}`);
+          // Continue anyway - the user might want to deploy it
+        }
+      }
+
+      // Deploy the dashboard
+      addNotification('info', 'Deploying Dashboard', `Opening ${dashboard.name} on ${tvId.replace('display-', 'TV ')}...`);
+      
       const response = await fetch(`http://${host.ipAddress}:${host.port}/api/command`, {
         method: 'POST',
         headers: {
@@ -66,35 +138,82 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ hosts }) => 
             dashboardId: dashboard.id,
             url: dashboard.url,
             monitorIndex: parseInt(tvId.replace('display-', '')) - 1,
-            fullscreen: true
+            fullscreen: true,
+            refreshInterval: dashboard.refreshInterval ? dashboard.refreshInterval * 1000 : 300000
           },
           timestamp: new Date()
         })
       });
 
       if (response.ok) {
-        // Update assignments
-        const assignmentKey = `${hostId}-${tvId}`;
-        setAssignments(prev => ({
-          ...prev,
-          [assignmentKey]: { hostId, tvId, dashboardId }
-        }));
+        const result = await response.json();
         
-        console.log('Dashboard deployed successfully');
+        if (result.success) {
+          // Update assignments
+          const assignmentKey = `${hostId}-${tvId}`;
+          setAssignments(prev => ({
+            ...prev,
+            [assignmentKey]: { hostId, tvId, dashboardId }
+          }));
+          
+          addNotification('success', 'Dashboard Deployed Successfully', 
+            `${dashboard.name} is now displaying on ${host.name} - ${tvId.replace('display-', 'TV ')}`);
+        } else {
+          addNotification('error', 'Deployment Failed', 
+            result.error || 'Unknown error occurred during deployment');
+        }
       } else {
-        console.error('Failed to deploy dashboard');
+        // Try to get error details from response
+        let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        try {
+          const errorData = await response.json();
+          if (errorData.error) {
+            errorMessage = errorData.error;
+          }
+        } catch {
+          // Ignore JSON parsing errors
+        }
+        
+        addNotification('error', 'Deployment Request Failed', errorMessage);
       }
-    } catch (error) {
+    } catch (error: any) {
+      let errorMessage = 'Unknown error occurred';
+      
+      if (error.name === 'TypeError' && error.message.includes('fetch')) {
+        errorMessage = `Cannot connect to host ${host.name} (${host.ipAddress}:${host.port})`;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      addNotification('error', 'Connection Error', errorMessage);
       console.error('Error deploying dashboard:', error);
+    } finally {
+      // Remove loading state
+      setLoadingDeployments(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(deploymentKey);
+        return newSet;
+      });
     }
   };
 
   const handleRefreshDashboard = async (hostId: string, tvId: string) => {
     const host = hosts.find(h => h.id === hostId);
-    if (!host) return;
+    if (!host) {
+      addNotification('error', 'Refresh Failed', 'Host not found');
+      return;
+    }
+
+    const assignmentKey = `${hostId}-${tvId}`;
+    const assignment = assignments[assignmentKey];
+    const dashboardName = assignment ? 
+      dashboards.find(d => d.id === assignment.dashboardId)?.name || 'Dashboard' : 
+      'Dashboard';
 
     try {
-      await fetch(`http://${host.ipAddress}:${host.port}/api/command`, {
+      addNotification('info', 'Refreshing Dashboard', `Refreshing ${dashboardName} on ${tvId.replace('display-', 'TV ')}...`);
+      
+      const response = await fetch(`http://${host.ipAddress}:${host.port}/api/command`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -105,13 +224,93 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ hosts }) => 
           timestamp: new Date()
         })
       });
-    } catch (error) {
+
+      if (response.ok) {
+        const result = await response.json();
+        
+        if (result.success) {
+          addNotification('success', 'Dashboard Refreshed', 
+            `${dashboardName} has been refreshed on ${host.name} - ${tvId.replace('display-', 'TV ')}`);
+        } else {
+          addNotification('error', 'Refresh Failed', 
+            result.error || 'Unknown error occurred during refresh');
+        }
+      } else {
+        let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        try {
+          const errorData = await response.json();
+          if (errorData.error) {
+            errorMessage = errorData.error;
+          }
+        } catch {
+          // Ignore JSON parsing errors
+        }
+        
+        addNotification('error', 'Refresh Request Failed', errorMessage);
+      }
+    } catch (error: any) {
+      let errorMessage = 'Unknown error occurred';
+      
+      if (error.name === 'TypeError' && error.message.includes('fetch')) {
+        errorMessage = `Cannot connect to host ${host.name} (${host.ipAddress}:${host.port})`;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      addNotification('error', 'Connection Error', errorMessage);
       console.error('Error refreshing dashboard:', error);
     }
   };
 
   return (
     <div className="space-y-6">
+      {/* Notifications */}
+      {notifications.length > 0 && (
+        <div className="fixed top-4 right-4 z-50 space-y-2 max-w-md">
+          {notifications.map((notification) => (
+            <div
+              key={notification.id}
+              className={`rounded-lg shadow-lg p-4 border-l-4 bg-white ${
+                notification.type === 'success' ? 'border-green-500' :
+                notification.type === 'error' ? 'border-red-500' :
+                notification.type === 'warning' ? 'border-yellow-500' :
+                'border-blue-500'
+              }`}
+            >
+              <div className="flex items-start justify-between">
+                <div className="flex items-start space-x-3">
+                  <div className={`mt-0.5 ${
+                    notification.type === 'success' ? 'text-green-500' :
+                    notification.type === 'error' ? 'text-red-500' :
+                    notification.type === 'warning' ? 'text-yellow-500' :
+                    'text-blue-500'
+                  }`}>
+                    {notification.type === 'success' && <CheckCircle className="w-5 h-5" />}
+                    {notification.type === 'error' && <AlertCircle className="w-5 h-5" />}
+                    {notification.type === 'warning' && <AlertCircle className="w-5 h-5" />}
+                    {notification.type === 'info' && <AlertCircle className="w-5 h-5" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="text-sm font-medium text-gray-900">
+                      {notification.title}
+                    </h4>
+                    <p className="text-sm text-gray-600 mt-1">
+                      {notification.message}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => removeNotification(notification.id)}
+                  className="text-gray-400 hover:text-gray-600 ml-2"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -256,23 +455,32 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ hosts }) => 
 
                         <div className="flex items-center space-x-2">
                           {/* Dashboard Selection */}
-                          <select
-                            value={assignment?.dashboardId || ''}
-                            onChange={(e) => {
-                              if (e.target.value) {
-                                handleDeployDashboard(e.target.value, host.id, tvId);
-                              }
-                            }}
-                            className="text-sm border border-gray-300 rounded px-2 py-1"
-                            disabled={!host.status.online}
-                          >
-                            <option value="">Select dashboard...</option>
-                            {dashboards.map((dashboard) => (
-                              <option key={dashboard.id} value={dashboard.id}>
-                                {dashboard.name}
-                              </option>
-                            ))}
-                          </select>
+                          <div className="relative">
+                            <select
+                              value={assignment?.dashboardId || ''}
+                              onChange={(e) => {
+                                if (e.target.value) {
+                                  handleDeployDashboard(e.target.value, host.id, tvId);
+                                }
+                              }}
+                              className="text-sm border border-gray-300 rounded px-2 py-1 pr-8"
+                              disabled={!host.status.online || loadingDeployments.has(`${host.id}-${tvId}`)}
+                            >
+                              <option value="">Select dashboard...</option>
+                              {dashboards.map((dashboard) => (
+                                <option key={dashboard.id} value={dashboard.id}>
+                                  {dashboard.name}
+                                </option>
+                              ))}
+                            </select>
+                            
+                            {/* Loading indicator */}
+                            {loadingDeployments.has(`${host.id}-${tvId}`) && (
+                              <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
+                                <Loader className="w-3 h-3 animate-spin text-gray-500" />
+                              </div>
+                            )}
+                          </div>
 
                           {/* Control Buttons */}
                           {assignment && (

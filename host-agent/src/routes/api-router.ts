@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { HostService } from '../services/host-service';
 import { WindowManager, WindowConfig } from '../managers/window-manager';
+import { URLValidator } from '../services/url-validator';
 import { 
   ApiCommand, 
   CommandType, 
@@ -35,6 +36,12 @@ export class ApiRouter {
     this.router.delete('/windows/:windowId', this.closeWindow.bind(this));
     this.router.put('/windows/:windowId/navigate', this.navigateWindow.bind(this));
     this.router.post('/windows/:windowId/refresh', this.refreshWindow.bind(this));
+    this.router.get('/windows/:windowId/health', this.getWindowHealth.bind(this));
+    this.router.put('/windows/:windowId/refresh-interval', this.updateRefreshInterval.bind(this));
+    this.router.post('/windows/:windowId/manual-refresh', this.triggerManualRefresh.bind(this));
+    
+    // URL validation
+    this.router.post('/validate-url', this.validateURL.bind(this));
 
     // TV/Display status
     this.router.get('/displays', this.getDisplays.bind(this));
@@ -130,7 +137,8 @@ export class ApiRouter {
       id: `dashboard-${payload.dashboardId}-${Date.now()}`,
       url: payload.url,
       monitorIndex: payload.monitorIndex,
-      fullscreen: payload.fullscreen
+      fullscreen: payload.fullscreen,
+      refreshInterval: payload.refreshInterval
     };
 
     const windowId = await this.windowManager.createWindow(windowConfig);
@@ -296,6 +304,105 @@ export class ApiRouter {
       }
 
       const response = this.hostService.createApiResponse(true, status);
+      res.json(response);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const response = this.hostService.createApiResponse(false, undefined, errorMessage);
+      res.status(500).json(response);
+    }
+  }
+
+  private async getWindowHealth(req: Request, res: Response): Promise<void> {
+    try {
+      const { windowId } = req.params;
+      const health = this.windowManager.getWindowHealth(windowId);
+      
+      if (!health) {
+        const response = this.hostService.createApiResponse(false, undefined, `Window ${windowId} not found`);
+        res.status(404).json(response);
+        return;
+      }
+
+      const response = this.hostService.createApiResponse(true, health);
+      res.json(response);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const response = this.hostService.createApiResponse(false, undefined, errorMessage);
+      res.status(500).json(response);
+    }
+  }
+
+  private async updateRefreshInterval(req: Request, res: Response): Promise<void> {
+    try {
+      const { windowId } = req.params;
+      const { refreshInterval } = req.body;
+
+      if (!refreshInterval || typeof refreshInterval !== 'number') {
+        const response = this.hostService.createApiResponse(false, undefined, 'Valid refresh interval (number) is required');
+        res.status(400).json(response);
+        return;
+      }
+
+      const success = this.windowManager.updateRefreshInterval(windowId, refreshInterval);
+      
+      const response = this.hostService.createApiResponse(success, { 
+        windowId, 
+        refreshInterval,
+        updated: success 
+      });
+      
+      if (success) {
+        res.json(response);
+      } else {
+        res.status(404).json(response);
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const response = this.hostService.createApiResponse(false, undefined, errorMessage);
+      res.status(500).json(response);
+    }
+  }
+
+  private async triggerManualRefresh(req: Request, res: Response): Promise<void> {
+    try {
+      const { windowId } = req.params;
+      const success = this.windowManager.triggerManualRefresh(windowId);
+      
+      const response = this.hostService.createApiResponse(success, { 
+        windowId,
+        refreshTriggered: success 
+      });
+      
+      if (success) {
+        res.json(response);
+      } else {
+        res.status(404).json(response);
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const response = this.hostService.createApiResponse(false, undefined, errorMessage);
+      res.status(500).json(response);
+    }
+  }
+
+  private async validateURL(req: Request, res: Response): Promise<void> {
+    try {
+      const { url, timeout } = req.body;
+
+      if (!url || typeof url !== 'string') {
+        const response = this.hostService.createApiResponse(false, undefined, 'Valid URL is required');
+        res.status(400).json(response);
+        return;
+      }
+
+      console.log(`Validating URL: ${URLValidator.sanitizeURLForLogging(url)}`);
+      const validation = await URLValidator.validateDashboardURL(url, timeout);
+      
+      const response = this.hostService.createApiResponse(true, {
+        url: URLValidator.sanitizeURLForLogging(url),
+        validation
+      });
+      
       res.json(response);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
