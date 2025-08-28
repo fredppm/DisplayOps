@@ -1,15 +1,15 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { DiscoveryService } from '@/lib/discovery-service';
+import { WindowsDiscoveryService } from '@/lib/windows-discovery-service';
 import { MiniPC, ApiResponse } from '@/types/types';
 
 // Global discovery service instance
-let discoveryService: DiscoveryService | null = null;
+let discoveryService: WindowsDiscoveryService | null = null;
 let discoveredHosts: MiniPC[] = [];
 
 // Initialize discovery service
 const initializeDiscoveryService = async () => {
   if (!discoveryService) {
-    discoveryService = new DiscoveryService();
+    discoveryService = new WindowsDiscoveryService();
     
     // Set up event handlers
     discoveryService.onHostDiscovered((host) => {

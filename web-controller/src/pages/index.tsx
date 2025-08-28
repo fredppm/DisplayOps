@@ -3,7 +3,8 @@ import Head from 'next/head';
 import { HostsList } from '@/components/HostsList';
 import { DashboardManager } from '@/components/DashboardManager';
 import { SystemStatus } from '@/components/SystemStatus';
-import { DiscoveryService } from '@/lib/discovery-service';
+import { WindowsDiscoveryService } from '@/lib/windows-discovery-service';
+import { InstantDiscovery } from '@/lib/instant-discovery';
 import { MiniPC } from '@/types/types';
 
 export default function Home() {
@@ -12,12 +13,21 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<'hosts' | 'dashboards' | 'status'>('hosts');
 
   useEffect(() => {
-    // Initialize discovery service
-    const discoveryService = new DiscoveryService();
-    
+    let discoveryService: WindowsDiscoveryService | null = null;
+
     const startDiscovery = async () => {
       setIsDiscovering(true);
+      
       try {
+        // 1. Try instant discovery first (very fast)
+        const instantHost = await InstantDiscovery.findLocalhost();
+        if (instantHost) {
+          setDiscoveredHosts([instantHost]);
+          console.log('🚀 Instant host discovery successful!');
+        }
+
+        // 2. Start continuous discovery service
+        discoveryService = new WindowsDiscoveryService();
         await discoveryService.startDiscovery();
         
         // Listen for discovered hosts
@@ -30,8 +40,19 @@ export default function Home() {
               updated[existingIndex] = host;
               return updated;
             } else {
-              // Add new host
-              return [...prev, host];
+              // Check if we already have this host from instant discovery
+              const duplicateIndex = prev.findIndex(h => 
+                h.ipAddress === host.ipAddress && h.port === host.port
+              );
+              if (duplicateIndex >= 0) {
+                // Replace the instant discovery version with the full one
+                const updated = [...prev];
+                updated[duplicateIndex] = host;
+                return updated;
+              } else {
+                // Add new host
+                return [...prev, host];
+              }
             }
           });
         });
@@ -51,7 +72,9 @@ export default function Home() {
     startDiscovery();
 
     return () => {
-      discoveryService.stopDiscovery();
+      if (discoveryService) {
+        discoveryService.stopDiscovery();
+      }
     };
   }, []);
 
