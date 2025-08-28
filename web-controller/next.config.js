@@ -21,7 +21,7 @@ const nextConfig = {
     ];
   },
   webpack: (config, { isServer }) => {
-    // Fix for bonjour-service on the client side
+    // Removed bonjour-service dependency
     if (!isServer) {
       config.resolve.fallback = {
         ...config.resolve.fallback,

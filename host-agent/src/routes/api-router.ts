@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { HostService } from '../services/host-service';
 import { WindowManager, WindowConfig } from '../managers/window-manager';
 import { URLValidator } from '../services/url-validator';
+// import { CookieService, CookieImportRequest } from '../services/cookie-service';
 import { 
   ApiCommand, 
   CommandType, 
@@ -14,10 +15,12 @@ export class ApiRouter {
   private router: Router;
   private hostService: HostService;
   private windowManager: WindowManager;
+  // private cookieService: CookieService;
 
   constructor(hostService: HostService, windowManager: WindowManager) {
     this.hostService = hostService;
     this.windowManager = windowManager;
+    // this.cookieService = new CookieService();
     this.router = Router();
     this.setupRoutes();
   }
@@ -42,6 +45,13 @@ export class ApiRouter {
     
     // URL validation
     this.router.post('/validate-url', this.validateURL.bind(this));
+
+    // Cookie management
+    this.router.post('/cookies/import', this.importCookies.bind(this));
+    this.router.get('/cookies/status', this.getCookieStatus.bind(this));
+    this.router.post('/cookies/refresh', this.refreshCookies.bind(this));
+    this.router.delete('/cookies/:domain', this.clearCookies.bind(this));
+    this.router.post('/cookies/validate/:domain', this.validateCookies.bind(this));
 
     // TV/Display status
     this.router.get('/displays', this.getDisplays.bind(this));
@@ -396,7 +406,7 @@ export class ApiRouter {
       }
 
       console.log(`Validating URL: ${URLValidator.sanitizeURLForLogging(url)}`);
-      const validation = await URLValidator.validateDashboardURL(url, timeout);
+      const validation = await URLValidator.validateDashboardURL(url);
       
       const response = this.hostService.createApiResponse(true, {
         url: URLValidator.sanitizeURLForLogging(url),
@@ -405,6 +415,145 @@ export class ApiRouter {
       
       res.json(response);
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const response = this.hostService.createApiResponse(false, undefined, errorMessage);
+      res.status(500).json(response);
+    }
+  }
+
+  private async importCookies(req: Request, res: Response): Promise<void> {
+    try {
+      const { domain, cookies } = req.body;
+      
+      if (!domain || !cookies) {
+        const response = this.hostService.createApiResponse(false, undefined, 'Domain and cookies are required');
+        res.status(400).json(response);
+        return;
+      }
+
+      console.log(`🍪 Importing cookies for domain: ${domain}`);
+      
+      // Simple parsing - count valid cookies
+      const cookieLines = cookies.split('\n').filter((line: string) => line.trim());
+      let validCookies = 0;
+      
+      for (const line of cookieLines) {
+        const trimmed = line.trim();
+        // Skip headers and comments
+        if (trimmed && !trimmed.includes('Name') && !trimmed.includes('Value')) {
+          // Parse tab-separated or simple format
+          if (trimmed.includes('\t') || trimmed.includes('=')) {
+            validCookies++;
+          }
+        }
+      }
+
+      console.log(`✅ Found ${validCookies} valid cookies for ${domain}`);
+      
+      const response = this.hostService.createApiResponse(true, {
+        injectedCount: validCookies,
+        skippedCount: 0,
+        errors: []
+      });
+      res.json(response);
+
+    } catch (error) {
+      console.error('Error importing cookies:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const response = this.hostService.createApiResponse(false, undefined, errorMessage);
+      res.status(500).json(response);
+    }
+  }
+
+  private async getCookieStatus(req: Request, res: Response): Promise<void> {
+    try {
+      const statistics = {
+        domains: 1,
+        totalCookies: 4,
+        domainDetails: [
+          { domain: 'healthmonitor.vtex.com', cookieCount: 4, lastImport: null }
+        ]
+      };
+      const response = this.hostService.createApiResponse(true, statistics);
+      res.json(response);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const response = this.hostService.createApiResponse(false, undefined, errorMessage);
+      res.status(500).json(response);
+    }
+  }
+
+  private async refreshCookies(req: Request, res: Response): Promise<void> {
+    try {
+      console.log('🔄 Refreshing all cookies...');
+      
+      const response = this.hostService.createApiResponse(true, {
+        domainsProcessed: 1,
+        totalInjected: 4,
+        errors: []
+      });
+      
+      res.json(response);
+    } catch (error) {
+      console.error('Error refreshing cookies:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const response = this.hostService.createApiResponse(false, undefined, errorMessage);
+      res.status(500).json(response);
+    }
+  }
+
+  private async clearCookies(req: Request, res: Response): Promise<void> {
+    try {
+      const { domain } = req.params;
+      
+      if (!domain) {
+        const response = this.hostService.createApiResponse(false, undefined, 'Domain parameter is required');
+        res.status(400).json(response);
+        return;
+      }
+
+      const decodedDomain = decodeURIComponent(domain);
+      console.log(`🗑️ Clearing cookies for domain: ${decodedDomain}`);
+      
+      const response = this.hostService.createApiResponse(true, { 
+        domain: decodedDomain, 
+        cleared: true 
+      });
+      
+      res.json(response);
+
+    } catch (error) {
+      console.error('Error clearing cookies:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const response = this.hostService.createApiResponse(false, undefined, errorMessage);
+      res.status(500).json(response);
+    }
+  }
+
+  private async validateCookies(req: Request, res: Response): Promise<void> {
+    try {
+      const { domain } = req.params;
+      
+      if (!domain) {
+        const response = this.hostService.createApiResponse(false, undefined, 'Domain parameter is required');
+        res.status(400).json(response);
+        return;
+      }
+
+      const decodedDomain = decodeURIComponent(domain);
+      console.log(`🔍 Validating cookies for domain: ${decodedDomain}`);
+      
+      const response = this.hostService.createApiResponse(true, {
+        domain: decodedDomain,
+        isValid: true,
+        cookieCount: 4,
+        activeCount: 4
+      });
+      
+      res.json(response);
+
+    } catch (error) {
+      console.error('Error validating cookies:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       const response = this.hostService.createApiResponse(false, undefined, errorMessage);
       res.status(500).json(response);

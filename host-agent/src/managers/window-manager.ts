@@ -29,7 +29,7 @@ export interface ManagedWindow {
 export class WindowManager {
   private windows: Map<string, ManagedWindow> = new Map();
   private displays: Display[] = [];
-  private refreshManager: RefreshManager;
+  private refreshManager!: RefreshManager;
 
   public initialize(): void {
     console.log('Initializing Window Manager...');

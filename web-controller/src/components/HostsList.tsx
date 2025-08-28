@@ -23,16 +23,30 @@ export const HostsList: React.FC<HostsListProps> = ({ hosts, isDiscovering }) =>
     return 'Online';
   };
 
+  const formatLastSeen = (lastHeartbeat: Date | string | undefined): string => {
+    if (!lastHeartbeat) return 'Never';
+    
+    try {
+      const date = typeof lastHeartbeat === 'string' ? new Date(lastHeartbeat) : lastHeartbeat;
+      if (isNaN(date.getTime())) return 'Never';
+      return formatDistanceToNow(date);
+    } catch {
+      return 'Never';
+    }
+  };
+
   const handleRefreshHost = async (host: MiniPC) => {
     try {
-      console.log(`Refreshing host: ${host.id}`);
-      // TODO: Implement host refresh API call
-      const response = await fetch(`http://${host.ipAddress}:${host.port}/api/health`);
+
+      
+      const response = await fetch(`http://${host.ipAddress}:${host.port}/health`);
       if (response.ok) {
-        console.log(`Host ${host.id} is responding`);
+
+      } else {
+
       }
     } catch (error) {
-      console.error(`Error refreshing host ${host.id}:`, error);
+
     }
   };
 
@@ -172,7 +186,7 @@ export const HostsList: React.FC<HostsListProps> = ({ hosts, isDiscovering }) =>
 
               {/* Last Seen */}
               <div className="text-xs text-gray-500">
-                Last seen {formatDistanceToNow(host.lastHeartbeat)} ago
+                Last seen {formatLastSeen(host.lastHeartbeat)} ago
               </div>
 
               {/* Error Display */}
@@ -214,7 +228,7 @@ export const HostsList: React.FC<HostsListProps> = ({ hosts, isDiscovering }) =>
                         Last Discovered
                       </div>
                       <div className="text-sm text-gray-900">
-                        {formatDistanceToNow(host.lastDiscovered)} ago
+                        {formatLastSeen(host.lastDiscovered)} ago
                       </div>
                     </div>
                   </div>

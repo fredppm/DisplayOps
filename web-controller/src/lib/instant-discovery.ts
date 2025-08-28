@@ -11,28 +11,23 @@ export class InstantDiscovery {
     try {
       console.log('🚀 Instant discovery: Checking localhost...');
       
-      // Quick check for localhost:8080
-      const healthResponse = await axios.get('http://localhost:8080/health', {
-        timeout: 1000 // Very fast
+      // Quick status check
+      const response = await axios.get('http://localhost:8080/api/status', {
+        timeout: 2000
       });
 
-      if (healthResponse.data?.success) {
+      if (response.data && response.data.success) {
         console.log('✅ Found localhost host instantly!');
         
-        // Get detailed info
-        const statusResponse = await axios.get('http://localhost:8080/api/status', {
-          timeout: 1000
-        });
-
         const hostStatus: HostStatus = {
           online: true,
-          cpuUsage: statusResponse.data?.data?.hostStatus?.cpuUsage || 0,
-          memoryUsage: statusResponse.data?.data?.hostStatus?.memoryUsage || 0,
-          browserProcesses: statusResponse.data?.data?.hostStatus?.browserProcesses || 0
+          cpuUsage: response.data.data?.hostStatus?.cpuUsage || 0,
+          memoryUsage: response.data.data?.hostStatus?.memoryUsage || 0,
+          browserProcesses: response.data.data?.hostStatus?.browserProcesses || 0
         };
 
         const host: MiniPC = {
-          id: 'agent-127-0-0-1-8080', // Same ID pattern as WindowsDiscoveryService
+          id: 'agent-127-0-0-1-8080',
           name: 'Office TV Host',
           hostname: '127.0.0.1',
           ipAddress: '127.0.0.1',
@@ -40,7 +35,7 @@ export class InstantDiscovery {
           status: hostStatus,
           lastHeartbeat: new Date(),
           lastDiscovered: new Date(),
-          version: healthResponse.data?.data?.version || '1.0.0',
+          version: response.data.data?.version || '1.0.0',
           tvs: ['display-1', 'display-2']
         };
 

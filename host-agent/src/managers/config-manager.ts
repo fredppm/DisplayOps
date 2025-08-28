@@ -52,8 +52,8 @@ const DEFAULT_CONFIG: AgentConfig = {
   ],
   settings: {
     maxWindows: 4,
-    healthCheckInterval: 30000,
-    mdnsUpdateInterval: 60000,
+    healthCheckInterval: 120000, // 2 minutes instead of 30 seconds
+    mdnsUpdateInterval: 300000, // 5 minutes instead of 1 minute
     autoStart: true,
     debugMode: false
   }

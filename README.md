@@ -56,20 +56,31 @@ This system provides:
 
 ### Quick Start (Development)
 
-Use the provided scripts to start both services quickly:
+From the root directory:
 
-**Windows:**
 ```bash
-cd scripts
-start-dev.bat
+# Install all dependencies
+npm install
+
+# Start both services in development mode
+npm run dev
 ```
 
-**Linux/Mac:**
-```bash
-cd scripts
-chmod +x start-dev.sh
-./start-dev.sh
-```
+This will automatically:
+- Install dependencies for both web-controller and host-agent
+- Start both services concurrently with colored output
+- Web Controller: http://localhost:3000
+- Host Agent API: http://localhost:8080
+
+### Available Commands
+
+From the root directory:
+- `npm run dev` - Start both services in development mode
+- `npm run dev:web` - Start only web-controller
+- `npm run dev:host` - Start only host-agent
+- `npm run build` - Build both services for production
+- `npm run start` - Start both services in production mode
+- `npm run lint` - Run linting on both services
 
 ### Manual Setup
 

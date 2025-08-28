@@ -26,8 +26,34 @@ export const SystemStatus: React.FC<SystemStatusProps> = ({ hosts }) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
 
-  const fetchHealthData = async () => {
+  const formatSafeDate = (dateValue: string | Date | undefined): string => {
+    if (!dateValue) return 'Never';
+    
+    try {
+      const date = typeof dateValue === 'string' ? new Date(dateValue) : dateValue;
+      if (isNaN(date.getTime())) return 'Never';
+      return formatDistanceToNow(date);
+    } catch {
+      return 'Never';
+    }
+  };
+
+  const fetchHealthData = async (force: boolean = false) => {
+    // Debounce: Skip if we've updated recently (within 30 seconds) unless forced
+    const timeSinceLastUpdate = Date.now() - lastUpdate.getTime();
+    if (!force && timeSinceLastUpdate < 30000) {
+
+      return;
+    }
+
+    if (isRefreshing) {
+
+      return;
+    }
+
     setIsRefreshing(true);
+
+    
     const healthResults: HostHealthData = {};
 
     for (const host of hosts) {
@@ -45,8 +71,9 @@ export const SystemStatus: React.FC<SystemStatusProps> = ({ hosts }) => {
         } else {
           healthResults[host.id] = null;
         }
+        
       } catch (error) {
-        console.error(`Error fetching health data for ${host.id}:`, error);
+
         healthResults[host.id] = null;
       }
     }
@@ -54,6 +81,7 @@ export const SystemStatus: React.FC<SystemStatusProps> = ({ hosts }) => {
     setHealthData(healthResults);
     setLastUpdate(new Date());
     setIsRefreshing(false);
+
   };
 
   useEffect(() => {
@@ -61,7 +89,7 @@ export const SystemStatus: React.FC<SystemStatusProps> = ({ hosts }) => {
       fetchHealthData();
       
       // Set up periodic refresh
-      const interval = setInterval(fetchHealthData, 30000); // 30 seconds
+      const interval = setInterval(fetchHealthData, 120000); // 120 seconds (2 minutes) - reduced frequency
       return () => clearInterval(interval);
     }
   }, [hosts]);
@@ -98,7 +126,7 @@ export const SystemStatus: React.FC<SystemStatusProps> = ({ hosts }) => {
             Last updated {formatDistanceToNow(lastUpdate)} ago
           </div>
           <button
-            onClick={fetchHealthData}
+            onClick={() => fetchHealthData(true)}
             disabled={isRefreshing}
             className={`btn-secondary ${isRefreshing ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
@@ -268,7 +296,7 @@ export const SystemStatus: React.FC<SystemStatusProps> = ({ hosts }) => {
                               )}
                               <div className="flex items-center">
                                 <Clock className="w-3 h-3 mr-1" />
-                                Last refresh: {formatDistanceToNow(new Date(tvStatus.lastRefresh))} ago
+                                Last refresh: {formatSafeDate(tvStatus.lastRefresh)} ago
                               </div>
                               {tvStatus.errorCount > 0 && (
                                 <div className="text-red-600">

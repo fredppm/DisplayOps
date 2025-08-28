@@ -14,6 +14,7 @@ export class WindowsDiscoveryService {
   private onHostRemovedCallback: HostRemovedCallback | null = null;
   private isRunning: boolean = false;
   private scanInterval: NodeJS.Timeout | null = null;
+  private lastScanTime: number = 0;
 
   // Default IPs to scan (can be configured)
   private ipRanges: string[] = [
@@ -39,7 +40,7 @@ export class WindowsDiscoveryService {
       // Set up periodic scanning
       this.scanInterval = setInterval(() => {
         this.scanForHosts();
-      }, 5000); // Scan every 5 seconds (much faster for development)
+      }, 60000); // Scan every 60 seconds (optimized to reduce network calls)
       
       console.log('Windows discovery service started successfully');
       
@@ -68,6 +69,14 @@ export class WindowsDiscoveryService {
   }
 
   private async scanForHosts(): Promise<void> {
+    // Throttle scanning - avoid scanning too frequently
+    const now = Date.now();
+    if (now - this.lastScanTime < 30000) { // Minimum 30 seconds between scans
+      console.log('⏳ Skipping scan - too recent');
+      return;
+    }
+    
+    this.lastScanTime = now;
     console.log('🔍 Scanning for Office TV hosts...');
     
     const scanPromises = this.ipRanges.map(ip => this.checkHost(ip));
@@ -85,28 +94,22 @@ export class WindowsDiscoveryService {
 
   private async checkHost(ip: string, port: number = 8080): Promise<any | null> {
     try {
-      // Try to connect to the host agent
-      const response = await axios.get(`http://${ip}:${port}/health`, {
-        timeout: 2000, // Faster timeout
+      // Simple status check
+      const response = await axios.get(`http://${ip}:${port}/api/status`, {
+        timeout: 5000,
         validateStatus: (status) => status === 200
       });
 
       if (response.data && response.data.success) {
-        // Get detailed status
-        const statusResponse = await axios.get(`http://${ip}:${port}/api/status`, {
-          timeout: 2000 // Faster timeout
-        });
-        
         return {
           ip,
           port,
-          health: response.data,
-          status: statusResponse.data
+          health: { success: true },
+          status: response.data
         };
       }
     } catch (error) {
-      // Host not available
-      return null;
+      // Host not available - expected during discovery
     }
     
     return null;

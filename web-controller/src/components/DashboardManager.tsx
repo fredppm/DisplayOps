@@ -11,7 +11,11 @@ import {
   AlertCircle,
   CheckCircle,
   X,
-  Loader
+  Loader,
+  Edit3,
+  Trash2,
+  Save,
+  XCircle
 } from 'lucide-react';
 
 interface DashboardManagerProps {
@@ -21,19 +25,19 @@ interface DashboardManagerProps {
 export const DashboardManager: React.FC<DashboardManagerProps> = ({ hosts }) => {
   const [dashboards, setDashboards] = useState<Dashboard[]>([
     {
-      id: 'grafana-main',
-      name: 'Grafana Main Dashboard', 
-      url: 'https://grafana.company.com/d/main',
-      description: 'Main system monitoring dashboard',
+      id: 'common-dashboard',
+      name: 'Common Dashboard', 
+      url: 'https://grafana.vtex.com/d/d7e7051f-42a2-4798-af93-cf2023dd2e28/home?orgId=1&from=now-3h&to=now&timezone=browser&var-Origin=argocd&refresh=10s',
+      description: 'Common dashboard for all systems',
       refreshInterval: 300,
       requiresAuth: true,
       category: 'Monitoring'
     },
     {
-      id: 'tableau-sales',
-      name: 'Sales Dashboard',
-      url: 'https://tableau.company.com/sales',
-      description: 'Sales performance metrics',
+      id: 'health-monitor',
+      name: 'Health Monitor',
+      url: 'https://healthmonitor.vtex.com/',
+      description: 'Health monitor for all systems',
       refreshInterval: 600,
       requiresAuth: true,
       category: 'Business Intelligence'
@@ -53,6 +57,10 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ hosts }) => 
     message: string;
     timestamp: Date;
   }>>([]);
+
+  // Dashboard editing states
+  const [editingDashboard, setEditingDashboard] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<Dashboard | null>(null);
 
   // Helper function to add notifications
   const addNotification = (type: 'success' | 'error' | 'warning' | 'info', title: string, message: string) => {
@@ -76,6 +84,84 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ hosts }) => 
     setNotifications(prev => prev.filter(n => n.id !== id));
   };
 
+  // Dashboard management functions
+  const startEditingDashboard = (dashboard: Dashboard) => {
+    setEditingDashboard(dashboard.id);
+    setEditForm({ ...dashboard });
+    addNotification('info', 'Editing Dashboard', `Started editing ${dashboard.name}`);
+  };
+
+  const cancelEditingDashboard = () => {
+    setEditingDashboard(null);
+    setEditForm(null);
+    addNotification('info', 'Edit Cancelled', 'Dashboard editing cancelled');
+  };
+
+  const saveDashboardChanges = () => {
+    if (!editForm || !editingDashboard) return;
+
+    // Validate required fields
+    if (!editForm.name.trim()) {
+      addNotification('error', 'Validation Error', 'Dashboard name is required');
+      return;
+    }
+
+    if (!editForm.url.trim()) {
+      addNotification('error', 'Validation Error', 'Dashboard URL is required');
+      return;
+    }
+
+    // Validate URL format
+    try {
+      new URL(editForm.url);
+    } catch {
+      addNotification('error', 'Validation Error', 'Invalid URL format');
+      return;
+    }
+
+    // Update dashboard in the list
+    setDashboards(prev => prev.map(d => 
+      d.id === editingDashboard ? { ...editForm } : d
+    ));
+
+    addNotification('success', 'Dashboard Updated', `${editForm.name} has been updated successfully`);
+    
+    setEditingDashboard(null);
+    setEditForm(null);
+  };
+
+  const deleteDashboard = (dashboard: Dashboard) => {
+    // Check if dashboard is currently assigned to any TV
+    const isAssigned = Object.values(assignments).some(assignment => 
+      assignment.dashboardId === dashboard.id
+    );
+
+    if (isAssigned) {
+      addNotification('warning', 'Cannot Delete Dashboard', 
+        `${dashboard.name} is currently assigned to one or more TVs. Remove assignments first.`);
+      return;
+    }
+
+    setDashboards(prev => prev.filter(d => d.id !== dashboard.id));
+    addNotification('success', 'Dashboard Deleted', `${dashboard.name} has been removed`);
+  };
+
+  const addNewDashboard = () => {
+    const newDashboard: Dashboard = {
+      id: `dashboard-${Date.now()}`,
+      name: 'New Dashboard',
+      url: 'https://example.com',
+      description: 'New dashboard description',
+      refreshInterval: 300,
+      requiresAuth: false,
+      category: 'Custom'
+    };
+
+    setDashboards(prev => [...prev, newDashboard]);
+    startEditingDashboard(newDashboard);
+    addNotification('success', 'Dashboard Created', 'New dashboard created. Configure it now.');
+  };
+
   const handleDeployDashboard = async (dashboardId: string, hostId: string, tvId: string) => {
     const dashboard = dashboards.find(d => d.id === dashboardId);
     const host = hosts.find(h => h.id === hostId);
@@ -91,7 +177,7 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ hosts }) => 
     setLoadingDeployments(prev => new Set([...prev, deploymentKey]));
 
     try {
-      console.log(`Deploying ${dashboard.name} to ${host.name} - ${tvId}`);
+
       
       // First validate the URL
       addNotification('info', 'Validating URL', `Checking ${dashboard.name} accessibility...`);
@@ -186,7 +272,7 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ hosts }) => 
       }
       
       addNotification('error', 'Connection Error', errorMessage);
-      console.error('Error deploying dashboard:', error);
+
     } finally {
       // Remove loading state
       setLoadingDeployments(prev => {
@@ -258,7 +344,7 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ hosts }) => 
       }
       
       addNotification('error', 'Connection Error', errorMessage);
-      console.error('Error refreshing dashboard:', error);
+
     }
   };
 
@@ -321,7 +407,7 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ hosts }) => 
         </div>
         
         <button
-          onClick={() => setShowAddForm(true)}
+          onClick={addNewDashboard}
           className="btn-primary flex items-center"
         >
           <Plus className="w-5 h-5 mr-2" />
@@ -337,60 +423,199 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ hosts }) => 
           {dashboards.map((dashboard) => (
             <div
               key={dashboard.id}
-              className={`card hover:shadow-md transition-shadow cursor-pointer ${
+              className={`card hover:shadow-md transition-shadow ${
+                editingDashboard === dashboard.id ? 'ring-2 ring-blue-500' :
                 selectedDashboard === dashboard.id ? 'ring-2 ring-primary-500' : ''
-              }`}
-              onClick={() => setSelectedDashboard(
+              } ${editingDashboard === dashboard.id ? '' : 'cursor-pointer'}`}
+              onClick={editingDashboard === dashboard.id ? undefined : () => setSelectedDashboard(
                 selectedDashboard === dashboard.id ? null : dashboard.id
               )}
             >
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex-1">
-                  <h4 className="text-lg font-medium text-gray-900">
-                    {dashboard.name}
-                  </h4>
-                  <p className="text-sm text-gray-600 mt-1">
-                    {dashboard.description}
-                  </p>
-                </div>
-                
-                <div className="flex items-center space-x-2 ml-4">
-                  {dashboard.requiresAuth && (
-                    <AlertCircle className="w-4 h-4 text-yellow-500" />
-                  )}
-                  <ExternalLink className="w-4 h-4 text-gray-400" />
-                </div>
-              </div>
+              {editingDashboard === dashboard.id && editForm ? (
+                // Edit Mode
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-lg font-medium text-blue-900">Editing Dashboard</h4>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={saveDashboardChanges}
+                        className="btn-primary flex items-center text-sm px-3 py-1"
+                      >
+                        <Save className="w-4 h-4 mr-1" />
+                        Save
+                      </button>
+                      <button
+                        onClick={cancelEditingDashboard}
+                        className="btn-secondary flex items-center text-sm px-3 py-1"
+                      >
+                        <XCircle className="w-4 h-4 mr-1" />
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
 
-              <div className="flex items-center justify-between text-sm text-gray-500">
-                <div className="flex items-center space-x-4">
-                  <span>Refresh: {dashboard.refreshInterval}s</span>
-                  {dashboard.category && (
-                    <span className="bg-gray-100 px-2 py-1 rounded text-xs">
-                      {dashboard.category}
-                    </span>
-                  )}
+                  <div className="grid grid-cols-1 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                      <input
+                        type="text"
+                        value={editForm.name}
+                        onChange={(e) => setEditForm(prev => prev ? { ...prev, name: e.target.value } : null)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                        placeholder="Dashboard name"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">URL</label>
+                      <input
+                        type="url"
+                        value={editForm.url}
+                        onChange={(e) => setEditForm(prev => prev ? { ...prev, url: e.target.value } : null)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                        placeholder="https://example.com/dashboard"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                      <textarea
+                        value={editForm.description || ''}
+                        onChange={(e) => setEditForm(prev => prev ? { ...prev, description: e.target.value } : null)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                        rows={2}
+                        placeholder="Dashboard description"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Refresh Interval (sec)</label>
+                        <input
+                          type="number"
+                          value={editForm.refreshInterval}
+                          onChange={(e) => setEditForm(prev => prev ? { ...prev, refreshInterval: parseInt(e.target.value) || 300 } : null)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                          min="30"
+                          max="3600"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                        <select
+                          value={editForm.category || ''}
+                          onChange={(e) => setEditForm(prev => prev ? { ...prev, category: e.target.value } : null)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                        >
+                          <option value="">No category</option>
+                          <option value="Monitoring">Monitoring</option>
+                          <option value="Business Intelligence">Business Intelligence</option>
+                          <option value="Analytics">Analytics</option>
+                          <option value="Custom">Custom</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        id={`requires-auth-${dashboard.id}`}
+                        checked={editForm.requiresAuth}
+                        onChange={(e) => setEditForm(prev => prev ? { ...prev, requiresAuth: e.target.checked } : null)}
+                        className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                      />
+                      <label htmlFor={`requires-auth-${dashboard.id}`} className="ml-2 block text-sm text-gray-900">
+                        Requires Authentication
+                      </label>
+                    </div>
+                  </div>
                 </div>
-                
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    window.open(dashboard.url, '_blank');
-                  }}
-                  className="text-primary-600 hover:text-primary-700"
-                >
-                  <ExternalLink className="w-4 h-4" />
-                </button>
-              </div>
+              ) : (
+                // View Mode
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex-1">
+                    <h4 className="text-lg font-medium text-gray-900">
+                      {dashboard.name}
+                    </h4>
+                    <p className="text-sm text-gray-600 mt-1">
+                      {dashboard.description}
+                    </p>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2 ml-4">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        startEditingDashboard(dashboard);
+                      }}
+                      className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
+                      title="Edit dashboard"
+                    >
+                      <Edit3 className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteDashboard(dashboard);
+                      }}
+                      className="p-1 text-gray-400 hover:text-red-600 transition-colors"
+                      title="Delete dashboard"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                    {dashboard.requiresAuth && (
+                      <AlertCircle className="w-4 h-4 text-yellow-500" />
+                    )}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        window.open(dashboard.url, '_blank');
+                      }}
+                      className="p-1 text-gray-400 hover:text-primary-600 transition-colors"
+                      title="Open dashboard"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {editingDashboard !== dashboard.id && (
+                <div className="flex items-center justify-between text-sm text-gray-500">
+                  <div className="flex items-center space-x-4">
+                    <span>Refresh: {dashboard.refreshInterval}s</span>
+                    {dashboard.category && (
+                      <span className="bg-gray-100 px-2 py-1 rounded text-xs">
+                        {dashboard.category}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Expanded Details */}
-              {selectedDashboard === dashboard.id && (
+              {selectedDashboard === dashboard.id && editingDashboard !== dashboard.id && (
                 <div className="mt-4 pt-4 border-t border-gray-200">
                   <div className="space-y-2">
                     <div>
                       <span className="text-xs text-gray-500 uppercase tracking-wide">URL</span>
                       <div className="text-sm text-gray-900 font-mono bg-gray-50 p-2 rounded">
                         {dashboard.url}
+                      </div>
+                    </div>
+                    {dashboard.category && (
+                      <div>
+                        <span className="text-xs text-gray-500 uppercase tracking-wide">Category</span>
+                        <div className="text-sm text-gray-900">
+                          {dashboard.category}
+                        </div>
+                      </div>
+                    )}
+                    <div>
+                      <span className="text-xs text-gray-500 uppercase tracking-wide">Authentication</span>
+                      <div className="text-sm text-gray-900">
+                        {dashboard.requiresAuth ? 'Required' : 'Not required'}
                       </div>
                     </div>
                   </div>
