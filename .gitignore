@@ -1,0 +1,283 @@
+# Office TV Management System - .gitignore
+# Comprehensive ignore file for Node.js, TypeScript, Electron, NextJS stack
+
+# ============================================
+# Dependencies
+# ============================================
+node_modules/
+*/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# ============================================
+# Build Outputs
+# ============================================
+
+# TypeScript compilation outputs
+dist/
+build/
+*/dist/
+*/build/
+
+# NextJS build outputs
+.next/
+out/
+web-controller/.next/
+web-controller/out/
+
+# Electron build outputs
+release/
+*/release/
+app/
+*/app/
+
+# ============================================
+# Development Files
+# ============================================
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*/.env
+*/.env.local
+
+# Development logs
+*.log
+logs/
+*/logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ============================================
+# Electron Specific
+# ============================================
+
+# Electron builder outputs
+host-agent/release/
+host-agent/app/
+host-agent/*.exe
+host-agent/*.dmg
+host-agent/*.AppImage
+host-agent/*.snap
+
+# Electron cache
+host-agent/.cache/
+.electron/
+
+# ============================================
+# NextJS Specific
+# ============================================
+
+# NextJS cache and build
+web-controller/.next/
+web-controller/out/
+web-controller/.swc/
+
+# Vercel
+.vercel
+
+# ============================================
+# IDE & Editor Files
+# ============================================
+
+# VSCode
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# Cursor AI
+.cursor/
+!.cursor/rules.md
+
+# WebStorm/IntelliJ
+.idea/
+*.iml
+*.iws
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*~
+
+# ============================================
+# OS Generated Files
+# ============================================
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# Linux
+*~
+.directory
+.Trash-*
+
+# ============================================
+# Runtime & Configuration
+# ============================================
+
+# Runtime configuration
+config/local.json
+config/production.json
+host-agent/config/agent.json
+web-controller/data/config.json
+
+# User data directories
+host-agent/user-data/
+web-controller/user-data/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# ============================================
+# Testing & Coverage
+# ============================================
+
+# Test coverage
+coverage/
+*.lcov
+.nyc_output
+
+# Jest
+jest-coverage/
+
+# ============================================
+# Package Managers
+# ============================================
+
+# npm
+package-lock.json
+npm-debug.log*
+
+# Yarn
+yarn.lock
+.yarn/
+.pnp.*
+
+# pnpm
+pnpm-lock.yaml
+
+# ============================================
+# TypeScript
+# ============================================
+
+# TypeScript incremental compilation
+*.tsbuildinfo
+
+# TypeScript compilation outputs in shared directory
+shared/*.js
+shared/*.d.ts
+shared/*.js.map
+
+# ============================================
+# Miscellaneous
+# ============================================
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# Archive files (if accidentally added)
+*.zip
+*.tar.gz
+*.rar
+*.7z
+
+# Certificate files (keep private)
+*.key
+*.cert
+*.crt
+*.pem
+
+# Database files (if any local DBs are used)
+*.db
+*.sqlite
+*.sqlite3
+
+# ============================================
+# Project Specific
+# ============================================
+
+# Screenshots from testing
+screenshots/
+*.png
+*.jpg
+*.jpeg
+!docs/images/*.png
+!docs/images/*.jpg
+
+# mDNS cache files
+.mdns-cache
+
+# Host agent user data
+host-agent/userData/
+
+# Web controller data directory
+web-controller/data/
+!web-controller/data/.gitkeep
+
+# Scripts temporary files
+scripts/temp/
+scripts/*.tmp
+
+# ============================================
+# KEEP THESE FILES (Negated Patterns)
+# ============================================
+
+# Keep documentation images
+!docs/**/*.png
+!docs/**/*.jpg
+!docs/**/*.gif
+
+# Keep example configurations
+!**/config.example.json
+!**/config.template.json
+!**/.env.example
+
+# Keep gitkeep files
+!**/.gitkeep
+
+# Keep README files
+!**/README.md
+
+# Keep important configuration templates
+!web-controller/.env.local.example
+!host-agent/.env.example

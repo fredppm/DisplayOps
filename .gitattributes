@@ -1,0 +1,52 @@
+# Office TV Management System - Git Attributes
+# Handle line endings and file types correctly
+
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# Explicitly declare text files you want to always be normalized and converted
+# to native line endings on checkout.
+*.ts text
+*.js text
+*.json text
+*.md text
+*.txt text
+*.yml text
+*.yaml text
+*.css text
+*.html text
+*.jsx text
+*.tsx text
+*.scss text
+*.sass text
+
+# Declare files that will always have CRLF line endings on checkout.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Declare files that will always have LF line endings on checkout.
+*.sh text eol=lf
+
+# Denote all files that are truly binary and should not be modified.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.exe binary
+*.msi binary
+*.zip binary
+*.tar.gz binary
+*.dmg binary
+*.AppImage binary
+*.snap binary
+
+# Electron specific
+*.asar binary
+*.node binary
+
+# Git LFS (if needed in future)
+# *.exe filter=lfs diff=lfs merge=lfs -text
+# *.msi filter=lfs diff=lfs merge=lfs -text
+# *.dmg filter=lfs diff=lfs merge=lfs -text

@@ -1,0 +1,64 @@
+{
+  "name": "office-tv-host-agent",
+  "version": "1.0.0",
+  "description": "Host agent for Office TV Management System - runs on mini PCs to control TV displays",
+  "main": "dist/main.js",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:tsc\" \"npm run dev:electron\"",
+    "dev:tsc": "tsc --watch",
+    "dev:electron": "wait-on dist/main.js && electron .",
+    "build": "tsc",
+    "start": "electron .",
+    "start:prod": "npm run build && electron .",
+    "pack": "electron-builder",
+    "dist": "electron-builder --publish=never",
+    "lint": "eslint src --ext .ts,.tsx",
+    "lint:fix": "eslint src --ext .ts,.tsx --fix"
+  },
+  "build": {
+    "appId": "com.officetv.host-agent",
+    "productName": "Office TV Host Agent",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "node_modules/**/*"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  },
+  "keywords": [
+    "electron",
+    "tv-management",
+    "office-automation",
+    "display-control"
+  ],
+  "author": "Office TV Management System",
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.10.5",
+    "@typescript-eslint/eslint-plugin": "^6.15.0",
+    "@typescript-eslint/parser": "^6.15.0",
+    "concurrently": "^8.2.2",
+    "electron": "^28.1.0",
+    "electron-builder": "^24.9.1",
+    "eslint": "^8.56.0",
+    "typescript": "^5.3.3",
+    "wait-on": "^7.2.0"
+  },
+  "dependencies": {
+    "bonjour-service": "^1.2.1",
+    "cors": "^2.8.5",
+    "electron-updater": "^6.1.7",
+    "express": "^4.18.2"
+  }
+}
