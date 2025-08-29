@@ -60,8 +60,8 @@ export default function TabPage({ tab }: TabPageProps) {
     // Initial load
     loadHosts();
     
-    // Refresh hosts every 30 seconds
-    const interval = setInterval(loadHosts, 30000);
+    // Refresh hosts every 5 seconds (more aggressive for testing display changes)
+    const interval = setInterval(loadHosts, 5000);
     
     return () => clearInterval(interval);
   }, []);

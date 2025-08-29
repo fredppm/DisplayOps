@@ -139,6 +139,40 @@ export class HostService {
     return Array.from(this.displayStatuses.values());
   }
 
+  public refreshDisplayStatuses(): void {
+    // Clear existing display statuses
+    this.displayStatuses.clear();
+    
+    // Reinitialize with current configuration
+    this.initializeDisplayStatuses();
+    
+    console.log(`🔄 Refreshed display statuses: ${this.displayStatuses.size} displays`);
+  }
+
+  public forceRefreshFromSystem(): void {
+    console.log('🔄 Force refreshing displays from system...');
+    
+    // Clear existing display statuses
+    this.displayStatuses.clear();
+    
+    // Get fresh display configuration from system
+    const displays = this.configManager.getDisplays();
+    
+    // Create new display statuses
+    displays.forEach(display => {
+      this.displayStatuses.set(display.id, {
+        active: false,
+        currentUrl: undefined,
+        lastRefresh: new Date(),
+        isResponsive: true,
+        errorCount: 0,
+        lastError: undefined
+      });
+    });
+    
+    console.log(`🔄 Force refreshed display statuses: ${this.displayStatuses.size} displays`);
+  }
+
   public reportError(error: string, displayId?: string): void {
     console.error('Host service error:', error);
     

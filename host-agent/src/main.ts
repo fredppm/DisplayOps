@@ -186,7 +186,7 @@ class HostAgent {
     });
     
     // API routes
-    const apiRouter = new ApiRouter(this.hostService, this.windowManager, this.debugService, this.displayIdentifier, this.displayMonitor, this.mdnsService);
+    const apiRouter = new ApiRouter(this.hostService, this.windowManager, this.debugService, this.displayIdentifier, this.displayMonitor, this.mdnsService, this.configManager);
     this.expressApp.use('/api', apiRouter.getRouter());
     
     // Start server
@@ -259,6 +259,19 @@ class HostAgent {
     ipcMain.handle('system:status', async () => {
       return this.hostService.getSystemStatus();
     });
+
+    // Handle display refresh requests
+    ipcMain.handle('displays:refresh', async () => {
+      console.log('🔄 IPC: Refreshing displays from system...');
+      
+      // Update configuration from system
+      this.configManager.updateDisplaysFromSystem();
+      
+      // Refresh display statuses in host service
+      this.hostService.refreshDisplayStatuses();
+      
+      return { success: true, message: 'Displays refreshed successfully' };
+    });
   }
 
   private setupDisplayMonitoring(): void {
@@ -269,6 +282,14 @@ class HostAgent {
     this.displayMonitor.on('display-change', (event) => {
       console.log(`🖥️ Display change detected: ${event.type}`);
       console.log(`   Total displays: ${event.displays.length}`);
+      
+      // Update configuration when displays change
+      this.configManager.updateDisplaysFromSystem();
+      
+      // Force refresh display statuses from system
+      this.hostService.forceRefreshFromSystem();
+      
+      console.log(`🔄 Configuration and display statuses updated after display change`);
       
       // Log to debug service
       this.debugService.logEvent('system_event', 'Display', `Display ${event.type}`, {

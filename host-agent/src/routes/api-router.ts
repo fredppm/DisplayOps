@@ -21,15 +21,17 @@ export class ApiRouter {
   private displayIdentifier: any; // DisplayIdentifier
   private displayMonitor: any; // DisplayMonitor
   private mdnsService: any; // MDNSService
+  private configManager: any; // ConfigManager
   // private cookieService: CookieService;
 
-  constructor(hostService: HostService, windowManager: WindowManager, debugService?: DebugService, displayIdentifier?: any, displayMonitor?: any, mdnsService?: any) {
+  constructor(hostService: HostService, windowManager: WindowManager, debugService?: DebugService, displayIdentifier?: any, displayMonitor?: any, mdnsService?: any, configManager?: any) {
     this.hostService = hostService;
     this.windowManager = windowManager;
     this.debugService = debugService!; // Will be provided from main.ts
     this.displayIdentifier = displayIdentifier;
     this.displayMonitor = displayMonitor;
     this.mdnsService = mdnsService;
+    this.configManager = configManager;
     // this.cookieService = new CookieService();
     this.router = Router();
     this.setupRoutes();
@@ -70,6 +72,7 @@ export class ApiRouter {
     this.router.get('/displays/stats', this.getDisplayStats.bind(this));
     this.router.get('/displays/monitor/status', this.getDisplayMonitorStatus.bind(this));
     this.router.post('/displays/identify', this.identifyDisplays.bind(this));
+    this.router.post('/displays/refresh', this.refreshDisplays.bind(this));
 
     // Debug control endpoints
     this.router.post('/debug/enable', this.enableDebug.bind(this));
@@ -358,7 +361,29 @@ export class ApiRouter {
 
   private async getDisplays(req: Request, res: Response): Promise<void> {
     try {
-      const displays = this.hostService.getAllDisplayStatuses();
+      // Get displays directly from system in real-time
+      const { screen } = require('electron');
+      const systemDisplays = screen.getAllDisplays();
+      
+      // Create display statuses directly from system displays
+      const displays = systemDisplays.map((display: any, index: number) => ({
+        id: `display-${index + 1}`,
+        active: false,
+        currentUrl: undefined,
+        lastRefresh: new Date(),
+        isResponsive: true,
+        errorCount: 0,
+        lastError: undefined,
+        systemInfo: {
+          electronId: display.id,
+          bounds: display.bounds,
+          workArea: display.workArea,
+          primary: display === screen.getPrimaryDisplay()
+        }
+      }));
+      
+      console.log(`📺 API /displays: ${displays.length} displays detected directly from system`);
+      
       const response = this.hostService.createApiResponse(true, displays);
       res.json(response);
     } catch (error) {
@@ -719,6 +744,39 @@ export class ApiRouter {
 
     } catch (error) {
       console.error('Error getting display monitor status:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const response = this.hostService.createApiResponse(false, undefined, errorMessage);
+      res.status(500).json(response);
+    }
+  }
+
+  private async refreshDisplays(req: Request, res: Response): Promise<void> {
+    try {
+      console.log('🔄 API: Refreshing displays from system...');
+      
+      // Force update displays from system
+      if (this.displayMonitor) {
+        this.displayMonitor.updateDisplays();
+      }
+      
+      // Force update configuration from system
+      if (this.configManager) {
+        this.configManager.updateDisplaysFromSystem();
+      }
+      
+      // Force refresh display statuses from system
+      this.hostService.forceRefreshFromSystem();
+      
+      // Get updated display statuses
+      const displays = this.hostService.getAllDisplayStatuses();
+      const response = this.hostService.createApiResponse(true, {
+        message: 'Displays refreshed successfully',
+        displays: displays,
+        count: displays.length
+      });
+      
+      res.json(response);
+    } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       const response = this.hostService.createApiResponse(false, undefined, errorMessage);
       res.status(500).json(response);

@@ -21,7 +21,7 @@ export interface DisplayInfo {
 }
 
 export interface DisplayChangeEvent {
-  type: 'added' | 'removed' | 'metrics_changed';
+  type: 'added' | 'removed' | 'metrics_changed' | 'polling_detected';
   displays: DisplayInfo[];
   changedDisplay?: DisplayInfo;
   timestamp: Date;
@@ -62,6 +62,9 @@ export class DisplayMonitor extends EventEmitter {
     screen.on('display-removed', this.handleDisplayRemoved.bind(this));
     screen.on('display-metrics-changed', this.handleDisplayMetricsChanged.bind(this));
 
+    // Start periodic polling to catch display changes that Electron might miss
+    this.startPolling();
+
     console.log(`📺 Monitoring ${this.currentDisplays.size} displays`);
   }
 
@@ -77,6 +80,53 @@ export class DisplayMonitor extends EventEmitter {
     screen.removeAllListeners('display-added');
     screen.removeAllListeners('display-removed');
     screen.removeAllListeners('display-metrics-changed');
+
+    // Stop polling
+    this.stopPolling();
+  }
+
+  private pollingInterval: NodeJS.Timeout | null = null;
+
+  private startPolling(): void {
+    // Poll every 5 seconds to catch display changes
+    this.pollingInterval = setInterval(() => {
+      this.checkForDisplayChanges();
+    }, 5000);
+    
+    console.log('🔄 Started display polling (5s interval)');
+  }
+
+  private stopPolling(): void {
+    if (this.pollingInterval) {
+      clearInterval(this.pollingInterval);
+      this.pollingInterval = null;
+      console.log('🔄 Stopped display polling');
+    }
+  }
+
+  private checkForDisplayChanges(): void {
+    try {
+      const currentDisplayCount = this.currentDisplays.size;
+      const systemDisplays = screen.getAllDisplays();
+      
+      if (systemDisplays.length !== currentDisplayCount) {
+        console.log(`🔄 Display count changed: ${currentDisplayCount} -> ${systemDisplays.length}`);
+        
+        // Update displays and emit change event
+        this.updateDisplays();
+        
+        const changeEvent: DisplayChangeEvent = {
+          type: 'polling_detected',
+          displays: this.getDisplays(),
+          changedDisplay: undefined,
+          timestamp: new Date()
+        };
+        
+        this.emit('display-change', changeEvent);
+      }
+    } catch (error) {
+      console.error('Error in display polling:', error);
+    }
   }
 
   public getDisplays(): DisplayInfo[] {
@@ -152,7 +202,7 @@ export class DisplayMonitor extends EventEmitter {
     console.log(`🔄 Display metrics changed: ${display.bounds.width}x${display.bounds.height}`);
   }
 
-  private updateDisplays(): void {
+  public updateDisplays(): void {
     const displays = screen.getAllDisplays();
     const primaryDisplay = screen.getPrimaryDisplay();
     
