@@ -1,10 +1,7 @@
 export interface DebugOverlayConfig {
   enabled: boolean;
-  position: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+  position: 'left' | 'right';
   opacity: number;
-  width: number;
-  height: number;
-  alwaysOnTop: boolean;
   hotkey: string;
 }
 

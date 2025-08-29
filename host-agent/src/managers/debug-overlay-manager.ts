@@ -4,6 +4,8 @@ import { DebugService } from '../services/debug-service';
 import { WindowManager } from './window-manager';
 import { ConfigManager } from './config-manager';
 import { DebugOverlayConfig, DebugOverlayState } from '../types/debug-types';
+import fs from 'fs';
+import { logger } from '../utils/logger';
 
 export class DebugOverlayManager {
   private overlayWindow: BrowserWindow | null = null;
@@ -13,6 +15,7 @@ export class DebugOverlayManager {
   private config: DebugOverlayConfig;
   private state: DebugOverlayState;
   private updateInterval: NodeJS.Timeout | null = null;
+  private fileWatcher: fs.FSWatcher | null = null;
 
   constructor(
     debugService: DebugService,
@@ -25,11 +28,8 @@ export class DebugOverlayManager {
 
     this.config = {
       enabled: false,
-      position: 'top-right',
-      opacity: 0.9,
-      width: 320,
-      height: 400,
-      alwaysOnTop: true,
+      position: 'right',
+      opacity: 0.95,  // Aumentado para 95% opaco
       hotkey: 'CommandOrControl+Shift+D'
     };
 
@@ -48,86 +48,131 @@ export class DebugOverlayManager {
   }
 
   public async createOverlay(): Promise<void> {
-    if (this.overlayWindow) {
-      this.overlayWindow.focus();
-      return;
-    }
-
-    const primaryDisplay = screen.getPrimaryDisplay();
-    const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
-
-    // Calculate position based on config
-    let x, y;
-    switch (this.config.position) {
-      case 'top-left':
-        x = 20;
-        y = 20;
-        break;
-      case 'top-right':
-        x = screenWidth - this.config.width - 20;
-        y = 20;
-        break;
-      case 'bottom-left':
-        x = 20;
-        y = screenHeight - this.config.height - 20;
-        break;
-      case 'bottom-right':
-        x = screenWidth - this.config.width - 20;
-        y = screenHeight - this.config.height - 20;
-        break;
-    }
-
-    this.overlayWindow = new BrowserWindow({
-      width: this.config.width,
-      height: this.config.height,
-      x,
-      y,
-      frame: false,
-      transparent: true,
-      alwaysOnTop: this.config.alwaysOnTop,
-      skipTaskbar: true,
-      resizable: true,
-      minimizable: false,
-      maximizable: false,
-      closable: true,
-      opacity: this.config.opacity,
-      webPreferences: {
-        nodeIntegration: false,
-        contextIsolation: true,
-        preload: join(__dirname, '../preload/debug-preload.js'),
-        webSecurity: false
+    try {
+      if (this.overlayWindow) {
+        this.overlayWindow.focus();
+        return;
       }
-    });
 
-    // Load the debug overlay HTML
-    const debugOverlayPath = join(__dirname, '../renderer/debug-overlay.html');
-    await this.overlayWindow.loadFile(debugOverlayPath);
+      logger.debug('Creating debug overlay...');
 
-    // Handle window events
-    this.overlayWindow.on('closed', () => {
-      this.overlayWindow = null;
+      const primaryDisplay = screen.getPrimaryDisplay();
+      const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+
+      // Position window to cover entire screen
+      const x = screenWidth - 400;
+      const y = 0;
+
+      logger.debug(`Positioning overlay to cover entire screen: x=${x}, y=${y}`);
+
+      this.overlayWindow = new BrowserWindow({
+        width: 400,
+        height: screenHeight,
+        x,
+        y,
+        frame: false,
+        transparent: true,
+        skipTaskbar: true,
+        resizable: false,
+        minimizable: false,
+        maximizable: false,
+        closable: true,
+        opacity: this.config.opacity,
+        webPreferences: {
+          nodeIntegration: false,
+          contextIsolation: true,
+          preload: join(__dirname, '../preload/debug-preload.js'),
+          webSecurity: false
+        }
+      });
+
+      logger.debug('BrowserWindow created successfully');
+
+      // Load the debug overlay HTML
+      // Try multiple paths to handle both development and production
+      let debugOverlayPath: string;
+      let htmlFileFound = false;
+      
+      // First try the compiled path
+      debugOverlayPath = join(__dirname, '../renderer/debug-overlay.html');
+      
+      if (require('fs').existsSync(debugOverlayPath)) {
+        htmlFileFound = true;
+      } else {
+        // If that doesn't exist, try the source path (for development)
+        debugOverlayPath = join(__dirname, '../../src/renderer/debug-overlay.html');
+        
+        if (require('fs').existsSync(debugOverlayPath)) {
+          htmlFileFound = true;
+        } else {
+          // If still doesn't exist, try the current working directory
+          debugOverlayPath = join(process.cwd(), 'src/renderer/debug-overlay.html');
+          
+          if (require('fs').existsSync(debugOverlayPath)) {
+            htmlFileFound = true;
+          }
+        }
+      }
+      
+      if (!htmlFileFound) {
+        throw new Error(`Debug overlay HTML file not found. Tried all paths. Current __dirname: ${__dirname}`);
+      }
+      
+      logger.debug(`Loading HTML file: ${debugOverlayPath}`);
+      
+      // Check if the window is still valid before loading
+      if (this.overlayWindow && !this.overlayWindow.isDestroyed()) {
+        await this.overlayWindow.loadFile(debugOverlayPath);
+        logger.debug('HTML file loaded successfully');
+      } else {
+        throw new Error('BrowserWindow was destroyed before loading HTML');
+      }
+
+      // Handle window events
+      this.overlayWindow.on('closed', () => {
+        logger.debug('Debug overlay closed');
+        this.overlayWindow = null;
+        this.state.visible = false;
+        this.stopUpdates();
+        this.stopFileWatching();
+      });
+
+      this.overlayWindow.on('blur', () => {
+        if (!this.state.pinned) {
+          // Auto-hide when losing focus (unless pinned)
+          this.overlayWindow?.setOpacity(0.8);
+        }
+      });
+
+      this.overlayWindow.on('focus', () => {
+        this.overlayWindow?.setOpacity(this.config.opacity);
+      });
+
+      // Setup IPC handlers for the overlay
+      this.setupOverlayIPC();
+
+      this.state.visible = true;
+      this.startUpdates();
+      this.startFileWatching();
+
+      logger.success('Debug overlay created successfully!');
+      
+    } catch (error) {
+      logger.critical('Failed to create debug overlay:', error);
+      
+      // Clean up if there was an error
+      if (this.overlayWindow && !this.overlayWindow.isDestroyed()) {
+        this.overlayWindow.close();
+        this.overlayWindow = null;
+      }
+      
       this.state.visible = false;
       this.stopUpdates();
-    });
-
-    this.overlayWindow.on('blur', () => {
-      if (!this.state.pinned) {
-        // Auto-hide when losing focus (unless pinned)
-        this.overlayWindow?.setOpacity(0.3);
-      }
-    });
-
-    this.overlayWindow.on('focus', () => {
-      this.overlayWindow?.setOpacity(this.config.opacity);
-    });
-
-    // Setup IPC handlers for the overlay
-    this.setupOverlayIPC();
-
-    this.state.visible = true;
-    this.startUpdates();
-
-    console.log('Debug overlay created');
+      this.stopFileWatching();
+      
+      // Re-throw the error so the caller knows something went wrong
+      throw error;
+    }
   }
 
   public hideOverlay(): void {
@@ -135,6 +180,7 @@ export class DebugOverlayManager {
       this.overlayWindow.hide();
       this.state.visible = false;
       this.stopUpdates();
+      this.stopFileWatching();
     }
   }
 
@@ -144,10 +190,11 @@ export class DebugOverlayManager {
       this.overlayWindow.focus();
       this.state.visible = true;
       this.startUpdates();
+      this.startFileWatching();
     }
   }
 
-  public toggleOverlay(): void {
+  public async toggleOverlay(): Promise<void> {
     if (!this.config.enabled) {
       this.enable();
       return;
@@ -160,20 +207,20 @@ export class DebugOverlayManager {
         this.showOverlay();
       }
     } else {
-      this.createOverlay();
+      await this.createOverlay();
     }
 
     // Notify that debug state was toggled via hotkey
     const newState = this.debugService.toggleFromHotkey();
-    console.log(`🎛️ Debug toggled via hotkey: ${newState ? 'ENABLED' : 'DISABLED'}`);
+    logger.info(`Debug toggled via hotkey: ${newState ? 'ENABLED' : 'DISABLED'}`);
   }
 
-  public enable(): void {
+  public async enable(): Promise<void> {
     this.config.enabled = true;
     this.debugService.enableFromHotkey();
-    this.createOverlay();
+    await this.createOverlay();
     
-    console.log('Debug overlay enabled - Press Ctrl+Shift+D to toggle');
+    logger.success('Debug overlay enabled - Press Ctrl+Shift+D to toggle');
   }
 
   public disable(): void {
@@ -185,7 +232,8 @@ export class DebugOverlayManager {
     }
     
     this.stopUpdates();
-    console.log('Debug overlay disabled');
+    this.stopFileWatching();
+    logger.info('Debug overlay disabled');
   }
 
   public isEnabled(): boolean {
@@ -193,63 +241,40 @@ export class DebugOverlayManager {
   }
 
   private setupHotkeys(): void {
-    globalShortcut.register(this.config.hotkey, () => {
-      this.toggleOverlay();
+    globalShortcut.register(this.config.hotkey, async () => {
+      try {
+        await this.toggleOverlay();
+      } catch (error) {
+        logger.error('Failed to toggle overlay via hotkey:', error);
+      }
     });
   }
 
   private setupOverlayIPC(): void {
     if (!this.overlayWindow) return;
 
-    // Handle requests for debug data
-    this.overlayWindow.webContents.ipc.handle('debug:get-events', () => {
-      return this.debugService.getRecentEvents(20);
-    });
-
-    this.overlayWindow.webContents.ipc.handle('debug:get-metrics', () => {
-      return this.debugService.getSystemMetrics();
-    });
-
-    this.overlayWindow.webContents.ipc.handle('debug:clear-events', () => {
-      this.debugService.clearEvents();
-    });
-
-    this.overlayWindow.webContents.ipc.handle('debug:export-events', (event, format: 'json' | 'csv') => {
-      return this.debugService.exportEvents(format);
-    });
-
-    this.overlayWindow.webContents.ipc.handle('debug:toggle-pin', () => {
-      this.state.pinned = !this.state.pinned;
-      return this.state.pinned;
-    });
-
-    this.overlayWindow.webContents.ipc.handle('debug:set-tab', (event, tab: string) => {
-      this.state.activeTab = tab as any;
-      return this.state.activeTab;
-    });
-
-    this.overlayWindow.webContents.ipc.handle('debug:get-state', () => {
-      return this.state;
-    });
-
-    // Handle window controls
-    this.overlayWindow.webContents.ipc.handle('window:minimize', () => {
-      this.overlayWindow?.minimize();
-    });
-
-    this.overlayWindow.webContents.ipc.handle('window:close', () => {
-      this.overlayWindow?.close();
-    });
+    // NOTA: Os handlers IPC para debug (getEvents, getMetrics, etc.) 
+    // são gerenciados pelo main process (main.ts) via contextBridge
+    // Aqui só configuramos handlers básicos de controle de janela
+    
+    logger.debug('Basic IPC handlers configured for overlay');
   }
 
   private startUpdates(): void {
     if (this.updateInterval) return;
+
+    logger.debug('Starting real-time updates for overlay...');
 
     this.updateInterval = setInterval(() => {
       if (this.overlayWindow && !this.overlayWindow.isDestroyed()) {
         // Send real-time updates to overlay
         const metrics = this.debugService.getSystemMetrics();
         const recentEvents = this.debugService.getRecentEvents(10);
+
+        // Only log updates if there are significant changes or errors
+        if (recentEvents.some(event => event.type === 'error')) {
+          logger.warn(`Sending update to overlay: ${recentEvents.length} events, ${recentEvents.filter(e => e.type === 'error').length} errors`);
+        }
 
         this.overlayWindow.webContents.send('debug:update', {
           metrics,
@@ -258,12 +283,43 @@ export class DebugOverlayManager {
         });
       }
     }, 1000); // Update every second
+
+    logger.debug('Real-time updates started');
   }
 
   private stopUpdates(): void {
     if (this.updateInterval) {
       clearInterval(this.updateInterval);
       this.updateInterval = null;
+    }
+  }
+
+  private startFileWatching(): void {
+    if (this.fileWatcher) return;
+
+    try {
+      // Watch the source renderer directory for changes (not the compiled one)
+      const rendererPath = join(process.cwd(), 'src/renderer');
+      logger.debug(`Watching renderer files for changes: ${rendererPath}`);
+      
+      this.fileWatcher = fs.watch(rendererPath, { recursive: true }, (eventType, filename) => {
+        if (filename && this.overlayWindow && !this.overlayWindow.isDestroyed()) {
+          logger.debug(`Renderer file changed: ${filename}, reloading...`);
+          this.overlayWindow.webContents.reload();
+        }
+      });
+      
+      logger.debug('File watcher started for renderer hot reload');
+    } catch (error) {
+      logger.error('Failed to start file watcher:', error);
+    }
+  }
+
+  private stopFileWatching(): void {
+    if (this.fileWatcher) {
+      this.fileWatcher.close();
+      this.fileWatcher = null;
+      logger.debug('File watcher stopped');
     }
   }
 
@@ -275,15 +331,48 @@ export class DebugOverlayManager {
       if (newConfig.opacity !== undefined) {
         this.overlayWindow.setOpacity(newConfig.opacity);
       }
-      
-      if (newConfig.alwaysOnTop !== undefined) {
-        this.overlayWindow.setAlwaysOnTop(newConfig.alwaysOnTop);
-      }
+    }
+  }
+
+  /**
+   * Ajusta a opacidade da janela de debug
+   * @param opacity Valor entre 0.1 (10%) e 1.0 (100%)
+   */
+  public setOpacity(opacity: number): void {
+    // Garantir que a opacidade esteja entre 0.1 e 1.0
+    const clampedOpacity = Math.max(0.1, Math.min(1.0, opacity));
+    
+    this.config.opacity = clampedOpacity;
+    
+    if (this.overlayWindow && !this.overlayWindow.isDestroyed()) {
+      this.overlayWindow.setOpacity(clampedOpacity);
+      logger.debug(`Debug overlay opacity adjusted to: ${Math.round(clampedOpacity * 100)}%`);
+    }
+  }
+
+  /**
+   * Ajusta a opacidade quando a janela não tem foco
+   * @param opacity Valor entre 0.1 (10%) e 1.0 (100%)
+   */
+  public setBlurOpacity(opacity: number): void {
+    // Garantir que a opacidade esteja entre 0.1 e 1.0
+    const clampedOpacity = Math.max(0.1, Math.min(1.0, opacity));
+    
+    // Atualizar o evento de blur para usar a nova opacidade
+    if (this.overlayWindow && !this.overlayWindow.isDestroyed()) {
+      this.overlayWindow.removeAllListeners('blur');
+      this.overlayWindow.on('blur', () => {
+        if (!this.state.pinned) {
+          this.overlayWindow?.setOpacity(clampedOpacity);
+        }
+      });
+      logger.debug(`Blur opacity adjusted to: ${Math.round(clampedOpacity * 100)}%`);
     }
   }
 
   public cleanup(): void {
     this.stopUpdates();
+    this.stopFileWatching();
     
     if (this.overlayWindow) {
       this.overlayWindow.close();
@@ -292,6 +381,6 @@ export class DebugOverlayManager {
     // Unregister hotkeys
     globalShortcut.unregister(this.config.hotkey);
     
-    console.log('Debug overlay manager cleaned up');
+    logger.debug('Debug overlay manager cleaned up');
   }
 }

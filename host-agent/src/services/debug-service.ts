@@ -18,6 +18,7 @@ export interface SystemMetrics {
   activeWindows: number;
   apiRequestsPerMinute: number;
   mdnsStatus: 'active' | 'inactive' | 'error';
+  displays: any[];
 }
 
 export class DebugService extends EventEmitter {
@@ -204,7 +205,8 @@ export class DebugService extends EventEmitter {
       uptime: process.uptime(),
       activeWindows: this.getActiveWindowsCount(),
       apiRequestsPerMinute: this.getApiRequestsPerMinute(),
-      mdnsStatus: this.getMdnsStatus()
+      mdnsStatus: this.getMdnsStatus(),
+      displays: this.getDisplays()
     };
   }
 
@@ -264,6 +266,16 @@ export class DebugService extends EventEmitter {
     // This should be connected to the MDNSService
     // For now, return a mock status
     return 'active'; // Will be updated when integrated
+  }
+
+  private getDisplays(): any[] {
+    try {
+      // Get displays from ConfigManager
+      return this.configManager.getDisplays();
+    } catch (error) {
+      console.error('Error getting displays:', error);
+      return [];
+    }
   }
 
   public getEventStats(): { [key: string]: number } {

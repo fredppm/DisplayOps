@@ -9,6 +9,16 @@ import os from 'os';
 import path from 'path';
 import { createConnection } from 'net';
 
+// Enable hot reload in development
+if (process.env.NODE_ENV === 'development') {
+  try {
+    require('electron-reloader')(module);
+    console.log('🔥 Hot reload enabled with electron-reloader!');
+  } catch (_) {
+    console.log('⚠️ Hot reload not available');
+  }
+}
+
 import { HostService } from './services/host-service';
 import { MDNSService } from './services/mdns-service';
 import { DebugService } from './services/debug-service';
@@ -18,6 +28,7 @@ import { ApiRouter } from './routes/api-router';
 import { WindowManager } from './managers/window-manager';
 import { ConfigManager } from './managers/config-manager';
 import { DebugOverlayManager } from './managers/debug-overlay-manager';
+import { logger } from './utils/logger';
 
 // Port availability check
 function isPortAvailable(port: number): Promise<boolean> {
@@ -191,14 +202,14 @@ class HostAgent {
     
     // Start server
     this.server = this.expressApp.listen(port, () => {
-      console.log(`Host agent API server listening on port ${port}`);
+      logger.success(`Host agent API server listening on port ${port}`);
     });
   }
 
   private setupElectron(): void {
     // Handle app ready
     app.whenReady().then(() => {
-      console.log('Electron app ready');
+      logger.success('Electron app ready');
       
       // Initialize display monitor first (needs app to be ready)
       this.displayMonitor.initialize();
@@ -262,7 +273,7 @@ class HostAgent {
 
     // Handle display refresh requests
     ipcMain.handle('displays:refresh', async () => {
-      console.log('🔄 IPC: Refreshing displays from system...');
+      logger.debug('IPC: Refreshing displays from system...');
       
       // Update configuration from system
       this.configManager.updateDisplaysFromSystem();
@@ -272,6 +283,52 @@ class HostAgent {
       
       return { success: true, message: 'Displays refreshed successfully' };
     });
+
+    // Handle debug overlay IPC requests
+    ipcMain.handle('debug:get-events', async () => {
+      return this.debugService.getRecentEvents(100);
+    });
+
+    ipcMain.handle('debug:get-metrics', async () => {
+      return this.debugService.getSystemMetrics();
+    });
+
+    ipcMain.handle('debug:clear-events', async () => {
+      return this.debugService.clearEvents();
+    });
+
+    ipcMain.handle('debug:export-events', async (event, format) => {
+      return this.debugService.exportEvents(format);
+    });
+
+    ipcMain.handle('debug:get-state', async () => {
+      return {
+        pinned: false,
+        activeTab: 'events'
+      };
+    });
+
+    ipcMain.handle('debug:toggle-pin', async () => {
+      // Simple toggle for now
+      return false;
+    });
+
+    ipcMain.handle('debug:set-tab', async (event, tab) => {
+      // Simple tab setting for now
+      return tab;
+    });
+
+    // Handle window control IPC requests
+    ipcMain.handle('window:minimize', async () => {
+      this.debugOverlayManager.hideOverlay();
+      return true;
+    });
+
+    // Handle debug overlay close
+    ipcMain.handle('debug:close', async () => {
+      this.debugOverlayManager.disable();
+      return true;
+    });
   }
 
   private setupDisplayMonitoring(): void {
@@ -280,8 +337,7 @@ class HostAgent {
     
     // Listen for display changes and log to debug
     this.displayMonitor.on('display-change', (event) => {
-      console.log(`🖥️ Display change detected: ${event.type}`);
-      console.log(`   Total displays: ${event.displays.length}`);
+      logger.info(`Display change detected: ${event.type} (${event.displays.length} total displays)`);
       
       // Update configuration when displays change
       this.configManager.updateDisplaysFromSystem();
@@ -289,7 +345,7 @@ class HostAgent {
       // Force refresh display statuses from system
       this.hostService.forceRefreshFromSystem();
       
-      console.log(`🔄 Configuration and display statuses updated after display change`);
+      logger.debug('Configuration and display statuses updated after display change');
       
       // Log to debug service
       this.debugService.logEvent('system_event', 'Display', `Display ${event.type}`, {
@@ -303,12 +359,19 @@ class HostAgent {
     });
 
     // Listen for debug state changes (sync between hotkey and remote control)
-    this.debugService.on('debug-state-changed', (event) => {
-      console.log(`🔄 Debug state synchronized: ${event.enabled ? 'ON' : 'OFF'} (via ${event.source})`);
+    this.debugService.on('debug-state-changed', async (event) => {
+      logger.debug(`Debug state synchronized: ${event.enabled ? 'ON' : 'OFF'} (via ${event.source})`);
       
       // Update overlay manager state to match debug service
       if (event.enabled && !this.debugOverlayManager.isEnabled()) {
-        this.debugOverlayManager.enable();
+        await this.debugOverlayManager.enable();
+        
+        // Log a test event to verify the overlay is working
+        this.debugService.logEvent('system_event', 'Debug Overlay', 'Debug overlay enabled via hotkey', {
+          source: event.source,
+          timestamp: new Date(),
+          test: true
+        });
       } else if (!event.enabled && this.debugOverlayManager.isEnabled()) {
         this.debugOverlayManager.disable();
       }
@@ -316,7 +379,7 @@ class HostAgent {
   }
 
   private cleanup(): void {
-    console.log('Cleaning up host agent...');
+    logger.info('Cleaning up host agent...');
     
     // Cleanup display monitor
     if (this.displayMonitor) {
@@ -346,16 +409,16 @@ class HostAgent {
     // Close Express server
     if (this.server) {
       this.server.close(() => {
-        console.log('Express server closed');
+        logger.debug('Express server closed');
       });
     }
   }
 
   public start(): void {
-    console.log('Starting Office TV Host Agent...');
-    console.log('Agent ID:', this.configManager.getAgentId());
-    console.log('Version:', this.configManager.getVersion());
-    console.log('Debug Mode: Press Ctrl+Shift+D to toggle debug overlay');
+    logger.system('Starting Office TV Host Agent...');
+    logger.info(`Agent ID: ${this.configManager.getAgentId()}`);
+    logger.info(`Version: ${this.configManager.getVersion()}`);
+    logger.info('Debug Mode: Press Ctrl+Shift+D to toggle debug overlay');
   }
 }
 

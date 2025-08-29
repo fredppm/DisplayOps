@@ -80,6 +80,10 @@ export class ApiRouter {
     this.router.get('/debug/status', this.getDebugStatus.bind(this));
     this.router.get('/debug/events', this.getDebugEvents.bind(this));
     this.router.delete('/debug/events', this.clearDebugEvents.bind(this));
+    this.router.post('/debug/overlay/show', this.showDebugOverlay.bind(this));
+    this.router.post('/debug/overlay/hide', this.hideDebugOverlay.bind(this));
+    this.router.post('/debug/overlay/opacity', this.setDebugOverlayOpacity.bind(this));
+    this.router.post('/debug/overlay/blur-opacity', this.setDebugOverlayBlurOpacity.bind(this));
 
     // mDNS service endpoints
     this.router.get('/mdns/info', this.getMDNSInfo.bind(this));
@@ -841,6 +845,84 @@ export class ApiRouter {
     try {
       this.debugService.clearEvents();
       const response = this.hostService.createApiResponse(true, { status: 'Events cleared' });
+      res.json(response);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const response = this.hostService.createApiResponse(false, undefined, errorMessage);
+      res.status(500).json(response);
+    }
+  }
+
+  private async showDebugOverlay(req: Request, res: Response): Promise<void> {
+    try {
+      // Note: This would need access to DebugOverlayManager
+      // For now, we'll just enable debug mode which should show the overlay
+      this.debugService.enable();
+      const response = this.hostService.createApiResponse(true, { status: 'Debug mode enabled - overlay should appear' });
+      res.json(response);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const response = this.hostService.createApiResponse(false, undefined, errorMessage);
+      res.status(500).json(response);
+    }
+  }
+
+  private async hideDebugOverlay(req: Request, res: Response): Promise<void> {
+    try {
+      // Note: This would need access to DebugOverlayManager
+      // For now, we'll just disable debug mode which should hide the overlay
+      this.debugService.disable();
+      const response = this.hostService.createApiResponse(true, { status: 'Debug mode disabled - overlay should hide' });
+      res.json(response);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const response = this.hostService.createApiResponse(false, undefined, errorMessage);
+      res.status(500).json(response);
+    }
+  }
+
+  private async setDebugOverlayOpacity(req: Request, res: Response): Promise<void> {
+    try {
+      const { opacity } = req.body;
+      
+      if (opacity === undefined || typeof opacity !== 'number') {
+        const response = this.hostService.createApiResponse(false, undefined, 'Opacity value (number) is required');
+        res.status(400).json(response);
+        return;
+      }
+
+      // Note: This would need access to DebugOverlayManager
+      // For now, we'll just return a success message
+      const response = this.hostService.createApiResponse(true, { 
+        status: 'Opacity adjustment endpoint ready',
+        message: `Opacity would be set to ${opacity} (${Math.round(opacity * 100)}%)`,
+        note: 'DebugOverlayManager integration needed for actual functionality'
+      });
+      res.json(response);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const response = this.hostService.createApiResponse(false, undefined, errorMessage);
+      res.status(500).json(response);
+    }
+  }
+
+  private async setDebugOverlayBlurOpacity(req: Request, res: Response): Promise<void> {
+    try {
+      const { opacity } = req.body;
+      
+      if (opacity === undefined || typeof opacity !== 'number') {
+        const response = this.hostService.createApiResponse(false, undefined, 'Opacity value (number) is required');
+        res.status(400).json(response);
+        return;
+      }
+
+      // Note: This would need access to DebugOverlayManager
+      // For now, we'll just return a success message
+      const response = this.hostService.createApiResponse(true, { 
+        status: 'Blur opacity adjustment endpoint ready',
+        message: `Blur opacity would be set to ${opacity} (${Math.round(opacity * 100)}%)`,
+        note: 'DebugOverlayManager integration needed for actual functionality'
+      });
       res.json(response);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';

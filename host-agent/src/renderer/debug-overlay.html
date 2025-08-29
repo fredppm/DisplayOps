@@ -11,28 +11,37 @@
       box-sizing: border-box;
     }
 
-    body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      font-size: 12px;
-      background: rgba(0, 0, 0, 0.85);
-      color: #ffffff;
-      height: 100vh;
-      overflow: hidden;
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 8px;
-      user-select: none;
-      -webkit-app-region: drag;
-    }
+                                                                               body {
+         font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+         font-size: 12px;
+         background: rgba(0, 0, 0, 0.85);
+         color: #ffffff;
+         height: 100vh;
+         width: 100vw;
+         overflow: hidden;
+         border: none;
+         border-radius: 0;
+         user-select: none;
+         -webkit-app-region: no-drag;
+         position: fixed;
+         top: 0;
+         left: 0;
+         right: 0;
+         bottom: 0;
+         margin: 0;
+         padding: 0;
+         box-shadow: none;
+       }
 
-    .header {
-      background: rgba(30, 30, 30, 0.9);
-      padding: 8px 12px;
-      display: flex;
-      align-items: center;
-      justify-content: between;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-      -webkit-app-region: drag;
-    }
+         .header {
+       background: rgba(30, 30, 30, 0.9);
+       padding: 8px 12px;
+       display: flex;
+       align-items: center;
+       justify-content: between;
+       border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+       -webkit-app-region: no-drag;
+     }
 
     .header-title {
       font-weight: 600;
@@ -62,13 +71,7 @@
       background: rgba(255, 255, 255, 0.1);
     }
 
-    .header-btn.pin {
-      color: #FFC107;
-    }
-
-    .header-btn.pin.active {
-      background: rgba(255, 193, 7, 0.2);
-    }
+    
 
     .status-bar {
       background: rgba(20, 20, 20, 0.9);
@@ -234,20 +237,91 @@
       color: #888;
     }
 
-    .system-value {
-      color: #ddd;
-      font-family: monospace;
-    }
+         .system-value {
+       color: #ddd;
+       font-family: monospace;
+     }
 
-    .no-data {
-      text-align: center;
-      color: #888;
-      padding: 20px;
-      font-style: italic;
-    }
+     .displays-section {
+       margin-top: 16px;
+     }
+
+     .section-title {
+       font-size: 10px;
+       color: #888;
+       text-transform: uppercase;
+       margin-bottom: 8px;
+       font-weight: 600;
+     }
+
+     .displays-list {
+       display: flex;
+       flex-direction: column;
+       gap: 6px;
+     }
+
+     .display-item {
+       background: rgba(255, 255, 255, 0.03);
+       border: 1px solid rgba(255, 255, 255, 0.1);
+       border-radius: 4px;
+       padding: 8px;
+       font-size: 10px;
+     }
+
+     .display-header {
+       display: flex;
+       justify-content: space-between;
+       align-items: center;
+       margin-bottom: 4px;
+     }
+
+     .display-name {
+       font-weight: 600;
+       color: #4CAF50;
+     }
+
+     .display-id {
+       color: #888;
+       font-family: monospace;
+       font-size: 9px;
+     }
+
+     .display-details {
+       display: grid;
+       grid-template-columns: 1fr 1fr;
+       gap: 8px;
+       font-size: 9px;
+     }
+
+     .display-detail {
+       display: flex;
+       justify-content: space-between;
+     }
+
+     .detail-label {
+       color: #888;
+     }
+
+     .detail-value {
+       color: #ddd;
+       font-family: monospace;
+     }
+
+     .no-data {
+       text-align: center;
+       color: #888;
+       padding: 20px;
+       font-style: italic;
+     }
 
     .scrollable {
-      max-height: 280px;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding-right: 4px;
+    }
+
+    .displays-section {
+      margin-top: 16px;
       overflow-y: auto;
     }
 
@@ -271,7 +345,8 @@
     .action-buttons {
       display: flex;
       gap: 4px;
-      margin-top: 8px;
+      margin-top: 12px;
+      margin-bottom: 16px;
     }
 
     .action-btn {
@@ -307,12 +382,11 @@
 </head>
 <body>
   <div class="header">
-    <div class="header-title">🐛 Debug Monitor</div>
-    <div class="header-controls">
-      <button class="header-btn pin" id="pinBtn" title="Pin/Unpin">📌</button>
-      <button class="header-btn" id="minimizeBtn" title="Minimize">─</button>
-      <button class="header-btn" id="closeBtn" title="Close">✕</button>
-    </div>
+         <div class="header-title">VTEX Display Manager</div>
+         <div class="header-controls">
+       <button class="header-btn" id="minimizeBtn" title="Minimize">─</button>
+       <button class="header-btn" id="closeBtn" title="Close">✕</button>
+     </div>
   </div>
 
   <div class="status-bar">
@@ -320,13 +394,10 @@
       <div class="status-dot green" id="mdnsStatus"></div>
       <span>mDNS</span>
     </div>
-    <div class="status-item">
-      <div class="status-dot green" id="apiStatus"></div>
-      <span>API: <span id="apiCount">0</span>/min</span>
-    </div>
-    <div class="status-item">
-      <span>Windows: <span id="windowCount">0</span></span>
-    </div>
+
+         <div class="status-item">
+       <span>Displays: <span id="displayCount">0</span></span>
+     </div>
     <div class="status-item">
       <span>Uptime: <span id="uptime">0s</span></span>
     </div>
@@ -362,19 +433,19 @@
           <div class="metric-value"><span id="memoryValue">0</span>%</div>
         </div>
       </div>
+      
       <div class="scrollable">
         <div class="system-info">
           <div class="system-row">
-            <span class="system-label">API Requests/min:</span>
-            <span class="system-value" id="apiRequests">0</span>
-          </div>
-          <div class="system-row">
-            <span class="system-label">Active Windows:</span>
-            <span class="system-value" id="activeWindows">0</span>
-          </div>
-          <div class="system-row">
             <span class="system-label">Last Update:</span>
             <span class="system-value" id="lastUpdate">Never</span>
+          </div>
+        </div>
+        
+        <div class="displays-section">
+          <div class="section-title">Displays Found</div>
+          <div id="displaysList" class="displays-list">
+            <div class="no-data">No displays detected...</div>
           </div>
         </div>
       </div>
@@ -400,36 +471,45 @@
             <span class="system-label">Platform:</span>
             <span class="system-value" id="platform">-</span>
           </div>
+          <div class="system-row">
+            <span class="system-label">Architecture:</span>
+            <span class="system-value" id="architecture">-</span>
+          </div>
+          <div class="system-row">
+            <span class="system-label">Node.js:</span>
+            <span class="system-value" id="nodeVersionFull">-</span>
+          </div>
         </div>
       </div>
     </div>
   </div>
 
   <script>
+    console.log('🚀 Debug Overlay JavaScript iniciando...');
+    
     class DebugOverlay {
-      constructor() {
-        this.events = [];
-        this.metrics = null;
-        this.state = { pinned: false, activeTab: 'events' };
-        this.init();
-      }
+             constructor() {
+         console.log('🔧 DebugOverlay constructor chamado');
+         this.events = [];
+         this.metrics = null;
+         this.state = { activeTab: 'events' };
+         this.init();
+       }
 
       async init() {
+        console.log('📱 Inicializando DebugOverlay...');
         this.setupEventListeners();
         this.setupTabs();
         await this.loadInitialData();
         this.setupRealtimeUpdates();
+        console.log('✅ DebugOverlay inicializado com sucesso');
       }
 
-      setupEventListeners() {
-        // Header controls
-        document.getElementById('pinBtn').addEventListener('click', () => {
-          this.togglePin();
-        });
-
-        document.getElementById('minimizeBtn').addEventListener('click', () => {
-          window.debugAPI.minimize();
-        });
+             setupEventListeners() {
+         // Header controls
+         document.getElementById('minimizeBtn').addEventListener('click', () => {
+           window.debugAPI.minimize();
+         });
 
         document.getElementById('closeBtn').addEventListener('click', () => {
           window.debugAPI.close();
@@ -474,41 +554,50 @@
       }
 
       async loadInitialData() {
+        console.log('📊 Carregando dados iniciais...');
         try {
+          console.log('🔍 Tentando obter state...');
           this.state = await window.debugAPI.getState();
+          console.log('✅ State obtido:', this.state);
+          
+          console.log('🔍 Tentando obter eventos...');
           this.events = await window.debugAPI.getEvents();
+          console.log('✅ Eventos obtidos:', this.events);
+          
+          console.log('🔍 Tentando obter métricas...');
           this.metrics = await window.debugAPI.getMetrics();
+          console.log('✅ Métricas obtidas:', this.metrics);
 
-          this.updatePinButton();
-          this.renderEvents();
-          this.renderMetrics();
-          this.renderSystemInfo();
+                     this.renderEvents();
+           this.renderMetrics();
+           this.renderSystemInfo();
+          console.log('🎨 Dados renderizados com sucesso');
         } catch (error) {
-          console.error('Failed to load initial data:', error);
+          console.error('❌ Erro ao carregar dados iniciais:', error);
+          console.error('Stack trace:', error.stack);
         }
       }
 
       setupRealtimeUpdates() {
-        window.debugAPI.onUpdate((data) => {
-          this.events = data.events || [];
-          this.metrics = data.metrics || null;
-          
-          this.renderEvents();
-          this.renderMetrics();
-          this.updateStatusBar();
-        });
+        console.log('🔄 Configurando atualizações em tempo real...');
+        try {
+          window.debugAPI.onUpdate((data) => {
+            console.log('📡 Recebendo atualização em tempo real:', data);
+            this.events = data.events || [];
+            this.metrics = data.metrics || null;
+            
+            this.renderEvents();
+            this.renderMetrics();
+            this.updateStatusBar();
+            console.log('✅ Atualização processada');
+          });
+          console.log('✅ Atualizações em tempo real configuradas');
+        } catch (error) {
+          console.error('❌ Erro ao configurar atualizações:', error);
+        }
       }
 
-      async togglePin() {
-        this.state.pinned = await window.debugAPI.togglePin();
-        this.updatePinButton();
-      }
-
-      updatePinButton() {
-        const pinBtn = document.getElementById('pinBtn');
-        pinBtn.classList.toggle('active', this.state.pinned);
-        pinBtn.title = this.state.pinned ? 'Unpin' : 'Pin';
-      }
+      
 
       renderEvents() {
         const container = document.getElementById('eventsList');
@@ -542,16 +631,72 @@
 
         document.getElementById('cpuValue').textContent = this.metrics.cpu;
         document.getElementById('memoryValue').textContent = this.metrics.memory;
-        document.getElementById('apiRequests').textContent = this.metrics.apiRequestsPerMinute;
-        document.getElementById('activeWindows').textContent = this.metrics.activeWindows;
         document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+        
+        // Render displays information
+        this.renderDisplays();
+      }
+
+      renderDisplays() {
+        const container = document.getElementById('displaysList');
+        
+        if (!this.metrics.displays || this.metrics.displays.length === 0) {
+          container.innerHTML = '<div class="no-data">No displays detected...</div>';
+          return;
+        }
+
+        container.innerHTML = this.metrics.displays.map(display => {
+          const isPrimary = display.monitorIndex === 0 ? ' (Primary)' : '';
+          const bounds = display.bounds ? `${display.bounds.width}x${display.bounds.height}` : 'Unknown';
+          
+          return `
+            <div class="display-item">
+              <div class="display-header">
+                <span class="display-name">${display.name}${isPrimary}</span>
+                <span class="display-id">${display.id}</span>
+              </div>
+              <div class="display-details">
+                <div class="display-detail">
+                  <span class="detail-label">Index:</span>
+                  <span class="detail-value">${display.monitorIndex}</span>
+                </div>
+                <div class="display-detail">
+                  <span class="detail-label">Resolution:</span>
+                  <span class="detail-value">${bounds}</span>
+                </div>
+                <div class="display-detail">
+                  <span class="detail-label">Electron ID:</span>
+                  <span class="detail-value">${display.electronDisplayId || 'N/A'}</span>
+                </div>
+                <div class="display-detail">
+                  <span class="detail-label">Status:</span>
+                  <span class="detail-value">${display.dashboard ? 'Active' : 'Inactive'}</span>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('');
       }
 
       renderSystemInfo() {
-        document.getElementById('processId').textContent = process.pid || '-';
-        document.getElementById('nodeVersion').textContent = process.versions?.node || '-';
-        document.getElementById('electronVersion').textContent = process.versions?.electron || '-';
-        document.getElementById('platform').textContent = process.platform || '-';
+        try {
+          const systemInfo = window.debugAPI.getSystemInfo();
+          document.getElementById('processId').textContent = systemInfo.pid || '-';
+          document.getElementById('nodeVersion').textContent = systemInfo.nodeVersion || '-';
+          document.getElementById('electronVersion').textContent = systemInfo.electronVersion || '-';
+          document.getElementById('platform').textContent = systemInfo.platform || '-';
+          document.getElementById('architecture').textContent = systemInfo.arch || '-';
+          document.getElementById('nodeVersionFull').textContent = systemInfo.version || '-';
+        } catch (error) {
+          console.error('Failed to render system info:', error);
+          // Fallback to default values
+          document.getElementById('processId').textContent = '-';
+          document.getElementById('nodeVersion').textContent = '-';
+          document.getElementById('electronVersion').textContent = '-';
+          document.getElementById('platform').textContent = '-';
+          document.getElementById('architecture').textContent = '-';
+          document.getElementById('nodeVersionFull').textContent = '-';
+        }
       }
 
       updateStatusBar() {
@@ -559,14 +704,12 @@
 
         // Update status dots
         const mdnsStatus = document.getElementById('mdnsStatus');
-        const apiStatus = document.getElementById('apiStatus');
         
         mdnsStatus.className = `status-dot ${this.metrics.mdnsStatus === 'active' ? 'green' : 'red'}`;
-        apiStatus.className = 'status-dot green'; // API is running if we get updates
 
         // Update counters
-        document.getElementById('apiCount').textContent = this.metrics.apiRequestsPerMinute;
-        document.getElementById('windowCount').textContent = this.metrics.activeWindows;
+        const displayCount = this.metrics.displays ? this.metrics.displays.length : 0;
+        document.getElementById('displayCount').textContent = displayCount;
         document.getElementById('uptime').textContent = this.formatUptime(this.metrics.uptime);
       }
 
@@ -589,7 +732,14 @@
 
     // Initialize when DOM is ready
     document.addEventListener('DOMContentLoaded', () => {
-      new DebugOverlay();
+      console.log('🌐 DOM carregado, inicializando DebugOverlay...');
+      try {
+        new DebugOverlay();
+        console.log('🎉 DebugOverlay criado com sucesso!');
+      } catch (error) {
+        console.error('❌ Erro ao criar DebugOverlay:', error);
+        console.error('Stack trace:', error.stack);
+      }
     });
 
     // Cleanup on unload

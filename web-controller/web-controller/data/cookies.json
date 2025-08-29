@@ -58,7 +58,7 @@
           "secure": true,
           "httpOnly": false,
           "sameSite": "lax",
-          "importedAt": "2025-08-29T08:26:06.781Z"
+          "importedAt": "2025-08-29T13:32:23.983Z"
         },
         {
           "name": "__Secure-next-auth.callback-url",
@@ -68,7 +68,7 @@
           "secure": true,
           "httpOnly": false,
           "sameSite": "lax",
-          "importedAt": "2025-08-29T08:26:06.781Z"
+          "importedAt": "2025-08-29T13:32:23.983Z"
         },
         {
           "name": "__Secure-next-auth.session-token",
@@ -78,7 +78,7 @@
           "secure": true,
           "httpOnly": false,
           "sameSite": "lax",
-          "importedAt": "2025-08-29T08:26:06.781Z"
+          "importedAt": "2025-08-29T13:32:23.983Z"
         },
         {
           "name": "cf_clearance",
@@ -88,12 +88,12 @@
           "secure": true,
           "httpOnly": false,
           "sameSite": "lax",
-          "importedAt": "2025-08-29T08:26:06.781Z"
+          "importedAt": "2025-08-29T13:32:23.983Z"
         }
       ],
-      "lastImport": "2025-08-29T08:26:06.781Z",
+      "lastImport": "2025-08-29T13:32:23.983Z",
       "description": "Cookies for https://healthmonitor.vtex.com/"
     }
   },
-  "lastUpdated": "2025-08-29T08:26:06.781Z"
+  "lastUpdated": "2025-08-29T13:32:23.983Z"
 }

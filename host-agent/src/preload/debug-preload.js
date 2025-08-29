@@ -15,11 +15,23 @@ contextBridge.exposeInMainWorld('debugAPI', {
   
   // Window controls
   minimize: () => ipcRenderer.invoke('window:minimize'),
-  close: () => ipcRenderer.invoke('window:close'),
+  close: () => ipcRenderer.invoke('debug:close'),
   
   // Real-time updates
   onUpdate: (callback) => {
     ipcRenderer.on('debug:update', (event, data) => callback(data));
+  },
+  
+  // System information
+  getSystemInfo: () => {
+    return {
+      pid: process.pid,
+      nodeVersion: process.versions?.node,
+      electronVersion: process.versions?.electron,
+      platform: process.platform,
+      arch: process.arch,
+      version: process.version
+    };
   },
   
   // Remove listeners

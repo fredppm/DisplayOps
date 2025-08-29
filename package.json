@@ -33,9 +33,10 @@
     "test:all": "npm run test:communication && npm run test:quick && npm run test:phase1"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2",
     "axios": "^1.6.2",
     "bonjour-service": "^1.2.1",
+    "concurrently": "^8.2.2",
+    "electron-reloader": "^1.2.3",
     "node-fetch": "^2.7.0"
   },
   "keywords": [
