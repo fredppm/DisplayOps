@@ -19,6 +19,25 @@ This system provides:
 - **Cookie Synchronization**: Share authentication across all devices
 - **Real-time Monitoring**: Track status and health of all displays
 - **Auto-update System**: Keep all agents updated automatically
+- **Single Instance Protection**: Prevents multiple instances from running simultaneously
+
+## Key Features
+
+### 🔒 Single Instance Protection
+- **Prevents Duplicate Instances**: Only one host agent can run per mini PC
+- **Port Conflict Prevention**: Automatically checks port availability before starting
+- **Automatic Cleanup**: Removes stale lock files from crashed processes
+- **Production Ready**: Ideal for production environments where service uniqueness is critical
+
+### 🖥️ Display Management
+- **Multi-Monitor Support**: Handles multiple displays per mini PC
+- **Kiosk Mode**: Full-screen dashboard display
+- **Automatic Recovery**: Restores displays after power loss or system restart
+
+### 🌐 Network Discovery
+- **mDNS Auto-Discovery**: Automatically finds all host agents on the network
+- **Real-time Status**: Monitor health and status of all displays
+- **Centralized Control**: Manage all TVs from a single web interface
 
 ## Architecture
 
@@ -71,6 +90,23 @@ This will automatically:
 - Start both services concurrently with colored output
 - Web Controller: http://localhost:3000
 - Host Agent API: http://localhost:8080
+
+### Testing Single Instance Protection
+
+Test the single instance functionality:
+
+```bash
+# Windows
+scripts\test-single-instance.bat
+
+# Linux/macOS
+node scripts/test-single-instance.js
+```
+
+This will demonstrate:
+- First instance starts successfully
+- Second instance is blocked
+- Resources are properly cleaned up
 
 ### Available Commands
 

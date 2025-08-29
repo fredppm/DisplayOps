@@ -257,7 +257,7 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
     addNotification('success', 'Cookies Valid', `Found ${validCookies.length} valid cookies for ${domain.domain}`);
   };
 
-  const syncToAllTVs = async (domainId: string) => {
+  const syncToAllDisplays = async (domainId: string) => {
     const domain = authDomains.find(d => d.id === domainId);
     if (!domain || !domain.cookies.trim()) {
       addNotification('error', 'Sync Failed', 'No cookies to sync');
@@ -267,7 +267,7 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
     setSyncingDomains(prev => new Set([...prev, domainId]));
 
     try {
-      addNotification('info', 'Syncing Cookies', `Syncing ${domain.domain} to all TVs...`);
+      addNotification('info', 'Syncing Cookies', `Syncing ${domain.domain} to all displays...`);
 
       let successCount = 0;
       let errorCount = 0;
@@ -290,19 +290,14 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
           const result = await response.json();
           if (result.success) {
             successCount = result.data.injectedCount;
-
-
           } else {
             errorCount++;
-
           }
         } else {
           errorCount++;
-
         }
       } catch (error) {
         errorCount++;
-
       }
 
       if (successCount > 0) {
@@ -326,8 +321,8 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
       }
 
     } catch (error) {
-
-      addNotification('error', 'Sync Error', 'Failed to sync cookies to TVs');
+      console.error('Cookie sync error:', error);
+      addNotification('error', 'Sync Error', 'Failed to sync cookies to displays');
     } finally {
       setSyncingDomains(prev => {
         const newSet = new Set(prev);
@@ -417,7 +412,7 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
             )}
           </h2>
           <p className="text-gray-600 mt-1">
-            Import cookies to enable automatic login on TV displays
+            Import cookies to enable automatic login on display devices
             {isLoadingData && (
               <span className="text-blue-600 font-medium ml-2">• Loading saved data...</span>
             )}
@@ -624,7 +619,7 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
                   )}
                   
                   <button
-                    onClick={() => syncToAllTVs(domain.id)}
+                    onClick={() => syncToAllDisplays(domain.id)}
                     className="btn-primary flex items-center text-sm"
                     disabled={!domain.isValid || hosts.filter(h => h.status.online).length === 0 || syncingDomains.has(domain.id)}
                   >
@@ -633,7 +628,7 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
                     ) : (
                       <Upload className="w-4 h-4 mr-1" />
                     )}
-                    Sync to All TVs
+                    Sync to All Displays
                   </button>
                 </div>
               </div>

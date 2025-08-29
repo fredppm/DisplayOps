@@ -6,11 +6,12 @@ import { HostsList } from '@/components/HostsList';
 import { DashboardManager } from '@/components/DashboardManager';
 import { AuthorizationManager } from '@/components/AuthorizationManager';
 import { SystemStatus } from '@/components/SystemStatus';
+import { DebugController } from '@/components/DebugController';
 
 // Removed client-side discovery imports - now using API
 import { MiniPC } from '@/types/types';
 
-type TabType = 'hosts' | 'dashboards' | 'authorization' | 'status';
+type TabType = 'hosts' | 'dashboards' | 'authorization' | 'status' | 'debug';
 
 interface TabPageProps {
   tab: TabType;
@@ -67,11 +68,12 @@ export default function TabPage({ tab }: TabPageProps) {
 
   const getPageTitle = (tab: TabType) => {
     switch (tab) {
-      case 'hosts': return 'Host Agents - Office TV Management';
-      case 'dashboards': return 'Dashboards - Office TV Management';
-      case 'authorization': return 'Authorization - Office TV Management';
-      case 'status': return 'System Status - Office TV Management';
-      default: return 'Office TV Management System';
+      case 'hosts': return 'Host Agents - Office Display Management';
+      case 'dashboards': return 'Dashboards - Office Display Management';
+      case 'authorization': return 'Authorization - Office Display Management';
+      case 'status': return 'System Status - Office Display Management';
+      case 'debug': return 'Debug Controller - Office Display Management';
+      default: return 'Office Display Management System';
     }
   };
 
@@ -79,7 +81,7 @@ export default function TabPage({ tab }: TabPageProps) {
     <>
       <Head>
         <title>{getPageTitle(tab)}</title>
-        <meta name="description" content="Centralized management for office TV displays" />
+        <meta name="description" content="Centralized management for office display devices" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/favicon.ico" />
       </Head>
@@ -91,7 +93,7 @@ export default function TabPage({ tab }: TabPageProps) {
             <div className="flex justify-between items-center py-6">
               <div className="flex items-center">
                 <h1 className="text-3xl font-bold text-gray-900">
-                  Office TV Management
+                  Office Display Management
                 </h1>
                 <span className="ml-4 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary-100 text-primary-800">
                   Phase 3
@@ -150,6 +152,16 @@ export default function TabPage({ tab }: TabPageProps) {
               >
                 System Status
               </button>
+              <button
+                onClick={() => navigateToTab('debug')}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  tab === 'debug'
+                    ? 'border-primary-500 text-primary-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Debug Controller
+              </button>
             </nav>
           </div>
         </header>
@@ -181,6 +193,12 @@ export default function TabPage({ tab }: TabPageProps) {
                 hosts={discoveredHosts}
               />
             )}
+            
+            {tab === 'debug' && (
+              <DebugController 
+                hosts={discoveredHosts}
+              />
+            )}
           </div>
         </main>
       </div>
@@ -192,7 +210,7 @@ export default function TabPage({ tab }: TabPageProps) {
 
 export const getServerSideProps: GetServerSideProps = async (context) => {
   const { tab } = context.params!;
-  const validTabs: TabType[] = ['hosts', 'dashboards', 'authorization', 'status'];
+  const validTabs: TabType[] = ['hosts', 'dashboards', 'authorization', 'status', 'debug'];
   
   // Check if tab is valid
   if (!tab || typeof tab !== 'string' || !validTabs.includes(tab as TabType)) {

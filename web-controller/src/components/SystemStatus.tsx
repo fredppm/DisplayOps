@@ -117,7 +117,7 @@ export const SystemStatus: React.FC<SystemStatusProps> = ({ hosts }) => {
         <div>
           <h2 className="text-2xl font-bold text-gray-900">System Status</h2>
           <p className="text-gray-600 mt-1">
-            Real-time monitoring of all host agents and TV displays
+            Real-time monitoring of all host agents and display devices
           </p>
         </div>
         
@@ -265,42 +265,42 @@ export const SystemStatus: React.FC<SystemStatusProps> = ({ hosts }) => {
                   </div>
                 )}
 
-                {/* TV Status */}
+                {/* Display Status */}
                 <div className="border-t border-gray-200 pt-4">
-                  <h5 className="text-sm font-medium text-gray-700 mb-3">TV Displays</h5>
+                  <h5 className="text-sm font-medium text-gray-700 mb-3">Displays</h5>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {host.tvs.map((tvId, index) => {
-                      const tvStatus = health?.tvStatuses?.[index];
+                    {host.displays.map((displayId, index) => {
+                      const displayStatus = health?.displayStatuses?.[index];
                       
                       return (
-                        <div key={tvId} className="bg-gray-50 rounded-lg p-4">
+                        <div key={displayId} className="bg-gray-50 rounded-lg p-4">
                           <div className="flex items-center justify-between mb-2">
                             <span className="font-medium text-gray-900">
-                              {tvId.replace('display-', 'TV ')}
+                              {displayId.replace('display-', 'Display ')}
                             </span>
                             <span className={
-                              tvStatus?.active 
+                              displayStatus?.active 
                                 ? 'status-online' 
                                 : 'status-offline'
                             }>
-                              {tvStatus?.active ? 'Active' : 'Inactive'}
+                              {displayStatus?.active ? 'Active' : 'Inactive'}
                             </span>
                           </div>
                           
-                          {tvStatus && (
+                          {displayStatus && (
                             <div className="space-y-1 text-sm text-gray-600">
-                              {tvStatus.currentUrl && (
+                              {displayStatus.currentUrl && (
                                 <div className="truncate">
-                                  URL: {tvStatus.currentUrl}
+                                  URL: {displayStatus.currentUrl}
                                 </div>
                               )}
                               <div className="flex items-center">
                                 <Clock className="w-3 h-3 mr-1" />
-                                Last refresh: {formatSafeDate(tvStatus.lastRefresh)} ago
+                                Last refresh: {formatSafeDate(displayStatus.lastRefresh)} ago
                               </div>
-                              {tvStatus.errorCount > 0 && (
+                              {displayStatus.errorCount > 0 && (
                                 <div className="text-red-600">
-                                  {tvStatus.errorCount} error(s)
+                                  {displayStatus.errorCount} error(s)
                                 </div>
                               )}
                             </div>

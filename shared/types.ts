@@ -59,6 +59,16 @@ export interface TVStatus {
   lastError?: string;
 }
 
+// Display Status type for individual displays
+export interface DisplayStatus {
+  active: boolean;
+  currentUrl?: string;
+  lastRefresh: Date;
+  isResponsive: boolean;
+  errorCount: number;
+  lastError?: string;
+}
+
 // mDNS Discovery Types
 export interface DiscoveryEvent {
   type: 'service-up' | 'service-down' | 'service-updated';
@@ -79,6 +89,7 @@ export interface DiscoveryService {
 export interface ApiCommand {
   type: CommandType;
   targetTv: string;
+  targetDisplay?: string; // Add targetDisplay property
   payload: any;
   timestamp: Date;
 }
@@ -90,7 +101,8 @@ export enum CommandType {
   HEALTH_CHECK = 'health_check',
   UPDATE_AGENT = 'update_agent',
   RESTART_BROWSER = 'restart_browser',
-  TAKE_SCREENSHOT = 'take_screenshot'
+  TAKE_SCREENSHOT = 'take_screenshot',
+  IDENTIFY_DISPLAYS = 'identify_displays'
 }
 
 export interface OpenDashboardCommand {
@@ -104,6 +116,13 @@ export interface OpenDashboardCommand {
 export interface SyncCookiesCommand {
   cookies: CookieData[];
   domain: string;
+}
+
+export interface IdentifyDisplaysCommand {
+  duration?: number; // Duration in seconds to show identification
+  pattern?: 'blink' | 'highlight' | 'message'; // Visual pattern to use
+  fontSize?: number; // Font size for identification text
+  backgroundColor?: string; // Background color for identification overlay
 }
 
 export interface CookieData {
@@ -128,6 +147,7 @@ export interface ApiResponse<T = any> {
 export interface HealthCheckResponse {
   hostStatus: HostStatus;
   tvStatuses: TVStatus[];
+  displayStatuses: DisplayStatus[]; // Add displayStatuses property
   systemInfo: {
     uptime: number;
     platform: string;

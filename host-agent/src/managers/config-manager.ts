@@ -17,11 +17,16 @@ export interface DisplayConfig {
   id: string;
   name: string;
   monitorIndex: number;
+  electronDisplayId?: number;
   bounds?: {
     x: number;
     y: number;
     width: number;
     height: number;
+  };
+  dashboard?: {
+    url: string;
+    refreshInterval: number;
   };
 }
 
@@ -33,23 +38,35 @@ export interface AgentSettings {
   debugMode: boolean;
 }
 
+// Function to get real display configuration
+function getRealDisplaysConfig(): DisplayConfig[] {
+  try {
+    const { screen } = require('electron');
+    const displays = screen.getAllDisplays();
+    
+    return displays.map((display: any, index: number) => ({
+      id: `display-${index + 1}`,
+      name: `Display ${index + 1}${display === screen.getPrimaryDisplay() ? ' (Primary)' : ''}`,
+      monitorIndex: index,
+      electronDisplayId: display.id,
+      bounds: display.bounds
+    }));
+  } catch (error) {
+    // Fallback if Electron is not available yet
+    console.warn('Electron not available, using default display config');
+    return [
+      { id: 'display-1', name: 'Primary Display', monitorIndex: 0 },
+      { id: 'display-2', name: 'Secondary Display', monitorIndex: 1 }
+    ];
+  }
+}
+
 const DEFAULT_CONFIG: AgentConfig = {
   agentId: `agent-${os.hostname().toLowerCase()}`,
   hostname: os.hostname(),
   apiPort: 8080,
   version: '1.0.0',
-  displays: [
-    {
-      id: 'display-1',
-      name: 'Primary Display',
-      monitorIndex: 0
-    },
-    {
-      id: 'display-2', 
-      name: 'Secondary Display',
-      monitorIndex: 1
-    }
-  ],
+  displays: getRealDisplaysConfig(),
   settings: {
     maxWindows: 4,
     healthCheckInterval: 120000, // 2 minutes instead of 30 seconds
@@ -140,6 +157,35 @@ export class ConfigManager {
 
   public getDisplays(): DisplayConfig[] {
     return this.config.displays;
+  }
+
+  public updateDisplaysFromSystem(): void {
+    try {
+      const { screen } = require('electron');
+      const displays = screen.getAllDisplays();
+      
+      // Update display configuration with real system displays
+      this.config.displays = displays.map((display: any, index: number) => {
+        const existingConfig = this.config.displays.find(d => d.electronDisplayId === display.id);
+        
+        return {
+          id: existingConfig?.id || `display-${index + 1}`,
+          name: existingConfig?.name || `Display ${index + 1}${display === screen.getPrimaryDisplay() ? ' (Primary)' : ''}`,
+          monitorIndex: index,
+          electronDisplayId: display.id,
+          bounds: display.bounds,
+          dashboard: existingConfig?.dashboard
+        } as DisplayConfig;
+      });
+      
+      // Save updated config
+      this.saveConfig();
+      
+      console.log(`🔄 Updated display configuration: ${this.config.displays.length} displays detected`);
+      
+    } catch (error) {
+      console.error('Error updating displays from system:', error);
+    }
   }
 
   public getSettings(): AgentSettings {

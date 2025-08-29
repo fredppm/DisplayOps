@@ -57,7 +57,7 @@ export const HostsList: React.FC<HostsListProps> = ({ hosts, isDiscovering }) =>
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Host Agents</h2>
           <p className="text-gray-600 mt-1">
-            Discovered mini PCs running the Office TV host agent
+            Discovered mini PCs running the Office Display host agent
           </p>
         </div>
         
@@ -167,18 +167,18 @@ export const HostsList: React.FC<HostsListProps> = ({ hosts, isDiscovering }) =>
                 </div>
               </div>
 
-              {/* TV Displays */}
+              {/* Displays */}
               <div className="mb-4">
                 <div className="text-xs text-gray-500 uppercase tracking-wide mb-2">
-                  TV Displays ({host.tvs.length})
+                  Displays ({host.displays.length})
                 </div>
                 <div className="flex space-x-2">
-                  {host.tvs.map((tvId) => (
+                  {host.displays.map((displayId) => (
                     <div
-                      key={tvId}
+                      key={displayId}
                       className="flex-1 bg-gray-100 rounded px-2 py-1 text-xs text-center"
                     >
-                      {tvId.replace('display-', 'TV ')}
+                      {displayId.replace('display-', 'Display ')}
                     </div>
                   ))}
                 </div>

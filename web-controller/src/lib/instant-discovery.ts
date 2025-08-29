@@ -28,7 +28,7 @@ export class InstantDiscovery {
 
         const host: MiniPC = {
           id: 'agent-127-0-0-1-8080',
-          name: 'Office TV Host',
+          name: 'Office Display Host',
           hostname: '127.0.0.1',
           ipAddress: '127.0.0.1',
           port: 8080,
@@ -36,7 +36,7 @@ export class InstantDiscovery {
           lastHeartbeat: new Date(),
           lastDiscovered: new Date(),
           version: response.data.data?.version || '1.0.0',
-          tvs: ['display-1', 'display-2']
+          displays: ['display-1', 'display-2'] // Will be updated by discovery service dynamically
         };
 
         return host;

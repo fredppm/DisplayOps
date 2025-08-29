@@ -40,7 +40,7 @@ export class WindowsDiscoveryService {
       // Set up periodic scanning
       this.scanInterval = setInterval(() => {
         this.scanForHosts();
-      }, 60000); // Scan every 60 seconds (optimized to reduce network calls)
+      }, 30000); // Scan every 30 seconds (optimized for faster discovery)
       
       console.log('Windows discovery service started successfully');
       
@@ -77,7 +77,7 @@ export class WindowsDiscoveryService {
     }
     
     this.lastScanTime = now;
-    console.log('🔍 Scanning for Office TV hosts...');
+    console.log('🔍 Scanning for Office Display hosts...');
     
     const scanPromises = this.ipRanges.map(ip => this.checkHost(ip));
     const results = await Promise.allSettled(scanPromises);
@@ -101,11 +101,27 @@ export class WindowsDiscoveryService {
       });
 
       if (response.data && response.data.success) {
+        // Also fetch mDNS info
+        let mdnsInfo = null;
+        try {
+          const mdnsResponse = await axios.get(`http://${ip}:${port}/api/mdns/info`, {
+            timeout: 3000,
+            validateStatus: (status) => status === 200
+          });
+          if (mdnsResponse.data && mdnsResponse.data.success) {
+            mdnsInfo = mdnsResponse.data.data;
+          }
+        } catch (mdnsError) {
+          // mDNS info is optional, don't fail if not available
+          console.log(`📡 mDNS info not available for ${ip}: ${mdnsError instanceof Error ? mdnsError.message : 'Unknown error'}`);
+        }
+
         return {
           ip,
           port,
           health: { success: true },
-          status: response.data
+          status: response.data,
+          mdnsInfo
         };
       }
     } catch (error) {
@@ -115,7 +131,7 @@ export class WindowsDiscoveryService {
     return null;
   }
 
-  private handleHostFound(ip: string, hostData: any): void {
+  private async handleHostFound(ip: string, hostData: any): Promise<void> {
     // Normalize IP to avoid duplicates (localhost -> 127.0.0.1)
     const normalizedIP = ip === 'localhost' ? '127.0.0.1' : ip;
     const hostId = `agent-${normalizedIP.replace(/\./g, '-')}-${hostData.port}`;
@@ -127,9 +143,22 @@ export class WindowsDiscoveryService {
       browserProcesses: hostData.status?.data?.hostStatus?.browserProcesses || 0
     };
 
+    // Build mDNS service info if available
+    let mdnsService = undefined;
+    if (hostData.mdnsInfo && hostData.mdnsInfo.serviceInfo) {
+      const serviceInfo = hostData.mdnsInfo.serviceInfo;
+      mdnsService = {
+        serviceName: serviceInfo.type || '_officetv._tcp.local',
+        instanceName: serviceInfo.name || 'N/A',
+        txtRecord: serviceInfo.txt || {},
+        addresses: serviceInfo.addresses || [normalizedIP],
+        port: serviceInfo.port || hostData.port
+      };
+    }
+
     const host: MiniPC = {
       id: hostId,
-      name: `Office TV Host`,
+      name: `Office Display Host`,
       hostname: normalizedIP,
       ipAddress: normalizedIP,
       port: hostData.port,
@@ -137,12 +166,13 @@ export class WindowsDiscoveryService {
       lastHeartbeat: new Date(),
       lastDiscovered: new Date(),
       version: hostData.health?.data?.version || '1.0.0',
-      tvs: ['display-1', 'display-2'] // Default displays
+      displays: await this.getHostDisplays(normalizedIP, hostData.port) || ['display-1', 'display-2'], // Get real displays
+      mdnsService
     };
 
     const existing = this.discoveredHosts.get(hostId);
     if (!existing) {
-      console.log(`✅ Windows discovery: Found new host at ${ip}`);
+      console.log(`✅ Windows discovery: Found new host at ${ip}${mdnsService ? ' with mDNS service' : ''}`);
       this.discoveredHosts.set(hostId, host);
       
       if (this.onHostDiscoveredCallback) {
@@ -189,7 +219,9 @@ export class WindowsDiscoveryService {
   }
 
   // Add manual host for testing
-  public addManualHost(host: Partial<MiniPC>): void {
+  public async addManualHost(host: Partial<MiniPC>): Promise<void> {
+    const displays = await this.getHostDisplays(host.hostname || 'localhost', host.port || 8080) || host.displays || ['display-1', 'display-2'];
+    
     const fullHost: MiniPC = {
       id: host.id || `manual-${Date.now()}`,
       name: host.name || 'Manual Host',
@@ -205,7 +237,7 @@ export class WindowsDiscoveryService {
       lastHeartbeat: new Date(),
       lastDiscovered: new Date(),
       version: host.version || '1.0.0',
-      tvs: host.tvs || ['display-1', 'display-2']
+      displays: displays
     };
 
     this.discoveredHosts.set(fullHost.id, fullHost);
@@ -213,6 +245,36 @@ export class WindowsDiscoveryService {
     if (this.onHostDiscoveredCallback) {
       this.onHostDiscoveredCallback(fullHost);
     }
+  }
+
+  // Get real displays from host
+  private async getHostDisplays(hostname: string, port: number): Promise<string[] | null> {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
+
+      const response = await fetch(`http://${hostname}:${port}/api/displays`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && Array.isArray(result.data)) {
+          const displayIds = result.data.map((display: any, index: number) => `display-${index + 1}`);
+          console.log(`📺 Host ${hostname}: Detected ${displayIds.length} real displays`);
+          return displayIds;
+        }
+      }
+    } catch (error: any) {
+      // Silently fail and use defaults - this is expected during host startup
+      console.debug(`Could not get displays from ${hostname}:${port}:`, error.message);
+    }
+    
+    return null;
   }
 
   // Configure IPs to scan

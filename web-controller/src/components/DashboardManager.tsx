@@ -46,7 +46,7 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ hosts }) => 
 
   const [selectedDashboard, setSelectedDashboard] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [assignments, setAssignments] = useState<Record<string, { hostId: string, tvId: string, dashboardId: string }>>({});
+  const [assignments, setAssignments] = useState<Record<string, { hostId: string, displayId: string, dashboardId: string }>>({});
   
   // Loading and notification states
   const [loadingDeployments, setLoadingDeployments] = useState<Set<string>>(new Set());
@@ -131,14 +131,14 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ hosts }) => 
   };
 
   const deleteDashboard = (dashboard: Dashboard) => {
-    // Check if dashboard is currently assigned to any TV
+    // Check if dashboard is currently assigned to any display
     const isAssigned = Object.values(assignments).some(assignment => 
       assignment.dashboardId === dashboard.id
     );
 
     if (isAssigned) {
       addNotification('warning', 'Cannot Delete Dashboard', 
-        `${dashboard.name} is currently assigned to one or more TVs. Remove assignments first.`);
+        `${dashboard.name} is currently assigned to one or more displays. Remove assignments first.`);
       return;
     }
 
@@ -162,7 +162,7 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ hosts }) => 
     addNotification('success', 'Dashboard Created', 'New dashboard created. Configure it now.');
   };
 
-  const handleDeployDashboard = async (dashboardId: string, hostId: string, tvId: string) => {
+  const handleDeployDashboard = async (dashboardId: string, hostId: string, displayId: string) => {
     const dashboard = dashboards.find(d => d.id === dashboardId);
     const host = hosts.find(h => h.id === hostId);
     
@@ -171,7 +171,7 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ hosts }) => 
       return;
     }
 
-    const deploymentKey = `${hostId}-${tvId}`;
+    const deploymentKey = `${hostId}-${displayId}`;
     
     // Set loading state
     setLoadingDeployments(prev => new Set([...prev, deploymentKey]));
@@ -210,7 +210,7 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ hosts }) => 
       }
 
       // Deploy the dashboard
-      addNotification('info', 'Deploying Dashboard', `Opening ${dashboard.name} on ${tvId.replace('display-', 'TV ')}...`);
+      addNotification('info', 'Deploying Dashboard', `Opening ${dashboard.name} on ${displayId.replace('display-', 'Display ')}...`);
       
       const response = await fetch(`http://${host.ipAddress}:${host.port}/api/command`, {
         method: 'POST',
@@ -219,11 +219,11 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ hosts }) => 
         },
         body: JSON.stringify({
           type: 'open_dashboard',
-          targetTv: tvId,
+          targetDisplay: displayId,
           payload: {
             dashboardId: dashboard.id,
             url: dashboard.url,
-            monitorIndex: parseInt(tvId.replace('display-', '')) - 1,
+            monitorIndex: parseInt(displayId.replace('display-', '')) - 1,
             fullscreen: true,
             refreshInterval: dashboard.refreshInterval ? dashboard.refreshInterval * 1000 : 300000
           },
@@ -236,14 +236,14 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ hosts }) => 
         
         if (result.success) {
           // Update assignments
-          const assignmentKey = `${hostId}-${tvId}`;
+          const assignmentKey = `${hostId}-${displayId}`;
           setAssignments(prev => ({
             ...prev,
-            [assignmentKey]: { hostId, tvId, dashboardId }
+            [assignmentKey]: { hostId, displayId, dashboardId }
           }));
           
           addNotification('success', 'Dashboard Deployed Successfully', 
-            `${dashboard.name} is now displaying on ${host.name} - ${tvId.replace('display-', 'TV ')}`);
+            `${dashboard.name} is now displaying on ${host.name} - ${displayId.replace('display-', 'Display ')}`);
         } else {
           addNotification('error', 'Deployment Failed', 
             result.error || 'Unknown error occurred during deployment');
@@ -283,21 +283,21 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ hosts }) => 
     }
   };
 
-  const handleRefreshDashboard = async (hostId: string, tvId: string) => {
+  const handleRefreshDashboard = async (hostId: string, displayId: string) => {
     const host = hosts.find(h => h.id === hostId);
     if (!host) {
       addNotification('error', 'Refresh Failed', 'Host not found');
       return;
     }
 
-    const assignmentKey = `${hostId}-${tvId}`;
+    const assignmentKey = `${hostId}-${displayId}`;
     const assignment = assignments[assignmentKey];
     const dashboardName = assignment ? 
       dashboards.find(d => d.id === assignment.dashboardId)?.name || 'Dashboard' : 
       'Dashboard';
 
     try {
-      addNotification('info', 'Refreshing Dashboard', `Refreshing ${dashboardName} on ${tvId.replace('display-', 'TV ')}...`);
+      addNotification('info', 'Refreshing Dashboard', `Refreshing ${dashboardName} on ${displayId.replace('display-', 'Display ')}...`);
       
       const response = await fetch(`http://${host.ipAddress}:${host.port}/api/command`, {
         method: 'POST',
@@ -306,7 +306,7 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ hosts }) => 
         },
         body: JSON.stringify({
           type: 'refresh_page',
-          targetTv: tvId,
+          targetDisplay: displayId,
           timestamp: new Date()
         })
       });
@@ -316,7 +316,7 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ hosts }) => 
         
         if (result.success) {
           addNotification('success', 'Dashboard Refreshed', 
-            `${dashboardName} has been refreshed on ${host.name} - ${tvId.replace('display-', 'TV ')}`);
+            `${dashboardName} has been refreshed on ${host.name} - ${displayId.replace('display-', 'Display ')}`);
         } else {
           addNotification('error', 'Refresh Failed', 
             result.error || 'Unknown error occurred during refresh');
@@ -402,7 +402,7 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ hosts }) => 
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Dashboard Management</h2>
           <p className="text-gray-600 mt-1">
-            Configure and deploy dashboards to TV displays
+            Configure and deploy dashboards to display devices
           </p>
         </div>
         
@@ -625,9 +625,9 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ hosts }) => 
           ))}
         </div>
 
-        {/* TV Assignment Grid */}
+        {/* Display Assignment Grid */}
         <div className="space-y-4">
-          <h3 className="text-lg font-semibold text-gray-900">TV Assignments</h3>
+          <h3 className="text-lg font-semibold text-gray-900">Display Assignments</h3>
           
           {hosts.length === 0 ? (
             <div className="card text-center py-8">
@@ -652,8 +652,8 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ hosts }) => 
                 </div>
 
                 <div className="space-y-3">
-                  {host.tvs.map((tvId) => {
-                    const assignmentKey = `${host.id}-${tvId}`;
+                  {host.displays.map((displayId) => {
+                    const assignmentKey = `${host.id}-${displayId}`;
                     const assignment = assignments[assignmentKey];
                     const assignedDashboard = assignment 
                       ? dashboards.find(d => d.id === assignment.dashboardId)
@@ -661,14 +661,14 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ hosts }) => 
 
                     return (
                       <div 
-                        key={tvId}
+                        key={displayId}
                         className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
                       >
                         <div className="flex items-center">
                           <div className="w-3 h-3 bg-gray-400 rounded mr-3"></div>
                           <div>
                             <div className="font-medium text-gray-900">
-                              {tvId.replace('display-', 'TV ')}
+                              {displayId.replace('display-', 'Display ')}
                             </div>
                             {assignedDashboard && (
                               <div className="text-sm text-gray-600">
@@ -685,11 +685,11 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ hosts }) => 
                               value={assignment?.dashboardId || ''}
                               onChange={(e) => {
                                 if (e.target.value) {
-                                  handleDeployDashboard(e.target.value, host.id, tvId);
+                                  handleDeployDashboard(e.target.value, host.id, displayId);
                                 }
                               }}
                               className="text-sm border border-gray-300 rounded px-2 py-1 pr-8"
-                              disabled={!host.status.online || loadingDeployments.has(`${host.id}-${tvId}`)}
+                              disabled={!host.status.online || loadingDeployments.has(`${host.id}-${displayId}`)}
                             >
                               <option value="">Select dashboard...</option>
                               {dashboards.map((dashboard) => (
@@ -700,7 +700,7 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ hosts }) => 
                             </select>
                             
                             {/* Loading indicator */}
-                            {loadingDeployments.has(`${host.id}-${tvId}`) && (
+                            {loadingDeployments.has(`${host.id}-${displayId}`) && (
                               <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
                                 <Loader className="w-3 h-3 animate-spin text-gray-500" />
                               </div>
@@ -711,7 +711,7 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ hosts }) => 
                           {assignment && (
                             <>
                               <button
-                                onClick={() => handleRefreshDashboard(host.id, tvId)}
+                                onClick={() => handleRefreshDashboard(host.id, displayId)}
                                 className="p-1 text-gray-500 hover:text-gray-700"
                                 title="Refresh dashboard"
                                 disabled={!host.status.online}

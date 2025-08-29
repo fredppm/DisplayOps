@@ -1,19 +1,19 @@
 import { ConfigManager } from '../managers/config-manager';
-import { HealthCheckResponse, HostStatus, TVStatus, ApiResponse } from '../../../shared/types';
+import { HealthCheckResponse, HostStatus, DisplayStatus, ApiResponse } from '../../../shared/types';
 import os from 'os';
 
 export class HostService {
   private configManager: ConfigManager;
   private hostStatus: HostStatus;
-  private tvStatuses: Map<string, TVStatus>;
+  private displayStatuses: Map<string, DisplayStatus>;
   private healthCheckInterval: NodeJS.Timeout | null = null;
 
   constructor(configManager: ConfigManager) {
     this.configManager = configManager;
     this.hostStatus = this.initializeHostStatus();
-    this.tvStatuses = new Map();
+    this.displayStatuses = new Map();
     
-    this.initializeTVStatuses();
+    this.initializeDisplayStatuses();
     this.startHealthChecks();
   }
 
@@ -27,11 +27,11 @@ export class HostService {
     };
   }
 
-  private initializeTVStatuses(): void {
+  private initializeDisplayStatuses(): void {
     const displays = this.configManager.getDisplays();
     
     displays.forEach(display => {
-      this.tvStatuses.set(display.id, {
+      this.displayStatuses.set(display.id, {
         active: false,
         currentUrl: undefined,
         lastRefresh: new Date(),
@@ -102,7 +102,7 @@ export class HostService {
   private countBrowserProcesses(): number {
     // Simplified browser process counting
     // In a real implementation, you'd check for actual Electron renderer processes
-    return this.tvStatuses.size;
+    return this.displayStatuses.size;
   }
 
   public getSystemStatus(): HealthCheckResponse {
@@ -110,7 +110,8 @@ export class HostService {
     
     return {
       hostStatus: this.hostStatus,
-      tvStatuses: Array.from(this.tvStatuses.values()),
+      tvStatuses: [], // Empty array for now, can be populated later
+      displayStatuses: Array.from(this.displayStatuses.values()),
       systemInfo: {
         uptime: systemInfo.uptime,
         platform: systemInfo.platform,
@@ -120,32 +121,32 @@ export class HostService {
     };
   }
 
-  public updateTVStatus(tvId: string, updates: Partial<TVStatus>): void {
-    const currentStatus = this.tvStatuses.get(tvId);
+  public updateDisplayStatus(displayId: string, updates: Partial<DisplayStatus>): void {
+    const currentStatus = this.displayStatuses.get(displayId);
     if (currentStatus) {
-      this.tvStatuses.set(tvId, {
+      this.displayStatuses.set(displayId, {
         ...currentStatus,
         ...updates
       });
     }
   }
 
-  public getTVStatus(tvId: string): TVStatus | undefined {
-    return this.tvStatuses.get(tvId);
+  public getDisplayStatus(displayId: string): DisplayStatus | undefined {
+    return this.displayStatuses.get(displayId);
   }
 
-  public getAllTVStatuses(): TVStatus[] {
-    return Array.from(this.tvStatuses.values());
+  public getAllDisplayStatuses(): DisplayStatus[] {
+    return Array.from(this.displayStatuses.values());
   }
 
-  public reportError(error: string, tvId?: string): void {
+  public reportError(error: string, displayId?: string): void {
     console.error('Host service error:', error);
     
-    if (tvId) {
-      const tvStatus = this.tvStatuses.get(tvId);
-      if (tvStatus) {
-        this.updateTVStatus(tvId, {
-          errorCount: tvStatus.errorCount + 1,
+    if (displayId) {
+      const displayStatus = this.displayStatuses.get(displayId);
+      if (displayStatus) {
+        this.updateDisplayStatus(displayId, {
+          errorCount: displayStatus.errorCount + 1,
           lastError: error,
           isResponsive: false
         });
@@ -155,11 +156,11 @@ export class HostService {
     }
   }
 
-  public clearError(tvId?: string): void {
-    if (tvId) {
-      const tvStatus = this.tvStatuses.get(tvId);
-      if (tvStatus) {
-        this.updateTVStatus(tvId, {
+  public clearError(displayId?: string): void {
+    if (displayId) {
+      const displayStatus = this.displayStatuses.get(displayId);
+      if (displayStatus) {
+        this.updateDisplayStatus(displayId, {
           lastError: undefined,
           errorCount: 0,
           isResponsive: true

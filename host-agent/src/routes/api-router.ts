@@ -2,12 +2,14 @@ import { Router, Request, Response } from 'express';
 import { HostService } from '../services/host-service';
 import { WindowManager, WindowConfig } from '../managers/window-manager';
 import { URLValidator } from '../services/url-validator';
+import { DebugService } from '../services/debug-service';
 // import { CookieService, CookieImportRequest } from '../services/cookie-service';
 import { 
   ApiCommand, 
   CommandType, 
   OpenDashboardCommand, 
   SyncCookiesCommand,
+  IdentifyDisplaysCommand,
   ApiResponse 
 } from '../../../shared/types';
 
@@ -15,14 +17,23 @@ export class ApiRouter {
   private router: Router;
   private hostService: HostService;
   private windowManager: WindowManager;
+  private debugService: DebugService;
+  private displayIdentifier: any; // DisplayIdentifier
+  private displayMonitor: any; // DisplayMonitor
+  private mdnsService: any; // MDNSService
   // private cookieService: CookieService;
 
-  constructor(hostService: HostService, windowManager: WindowManager) {
+  constructor(hostService: HostService, windowManager: WindowManager, debugService?: DebugService, displayIdentifier?: any, displayMonitor?: any, mdnsService?: any) {
     this.hostService = hostService;
     this.windowManager = windowManager;
+    this.debugService = debugService!; // Will be provided from main.ts
+    this.displayIdentifier = displayIdentifier;
+    this.displayMonitor = displayMonitor;
+    this.mdnsService = mdnsService;
     // this.cookieService = new CookieService();
     this.router = Router();
     this.setupRoutes();
+    this.setupDebugMiddleware();
   }
 
   private setupRoutes(): void {
@@ -56,6 +67,44 @@ export class ApiRouter {
     // TV/Display status
     this.router.get('/displays', this.getDisplays.bind(this));
     this.router.get('/displays/:displayId/status', this.getDisplayStatus.bind(this));
+    this.router.get('/displays/stats', this.getDisplayStats.bind(this));
+    this.router.get('/displays/monitor/status', this.getDisplayMonitorStatus.bind(this));
+    this.router.post('/displays/identify', this.identifyDisplays.bind(this));
+
+    // Debug control endpoints
+    this.router.post('/debug/enable', this.enableDebug.bind(this));
+    this.router.post('/debug/disable', this.disableDebug.bind(this));
+    this.router.get('/debug/status', this.getDebugStatus.bind(this));
+    this.router.get('/debug/events', this.getDebugEvents.bind(this));
+    this.router.delete('/debug/events', this.clearDebugEvents.bind(this));
+
+    // mDNS service endpoints
+    this.router.get('/mdns/info', this.getMDNSInfo.bind(this));
+  }
+
+  private setupDebugMiddleware(): void {
+    // Add debug logging middleware to all routes
+    this.router.use((req: Request, res: Response, next) => {
+      const startTime = Date.now();
+      const requestId = this.debugService.logApiRequest(req.path, req.method, req.body);
+
+      // Override res.json to capture response
+      const originalJson = res.json.bind(res);
+      res.json = (data: any) => {
+        const duration = Date.now() - startTime;
+        const success = res.statusCode >= 200 && res.statusCode < 400;
+        
+        this.debugService.logApiResponse(requestId, success, duration, {
+          statusCode: res.statusCode,
+          data: success ? data : undefined,
+          error: !success ? data : undefined
+        });
+        
+        return originalJson(data);
+      };
+
+      next();
+    });
   }
 
   private async getSystemStatus(req: Request, res: Response): Promise<void> {
@@ -99,6 +148,10 @@ export class ApiRouter {
       }
 
       console.log(`Executing command: ${command.type}`, command);
+      this.debugService.logEvent('api_request', 'Command', `Executing ${command.type}`, {
+        command,
+        targetDisplay: command.targetDisplay
+      });
 
       let result: any;
 
@@ -108,7 +161,10 @@ export class ApiRouter {
           break;
 
         case CommandType.REFRESH_PAGE:
-          result = await this.handleRefreshPage(command.targetTv);
+          if (!command.targetDisplay) {
+            throw new Error('targetDisplay is required for REFRESH_PAGE command');
+          }
+          result = await this.handleRefreshPage(command.targetDisplay);
           break;
 
         case CommandType.SYNC_COOKIES:
@@ -120,11 +176,21 @@ export class ApiRouter {
           break;
 
         case CommandType.RESTART_BROWSER:
-          result = await this.handleRestartBrowser(command.targetTv);
+          if (!command.targetDisplay) {
+            throw new Error('targetDisplay is required for RESTART_BROWSER command');
+          }
+          result = await this.handleRestartBrowser(command.targetDisplay);
           break;
 
         case CommandType.TAKE_SCREENSHOT:
-          result = await this.handleTakeScreenshot(command.targetTv);
+          if (!command.targetDisplay) {
+            throw new Error('targetDisplay is required for TAKE_SCREENSHOT command');
+          }
+          result = await this.handleTakeScreenshot(command.targetDisplay);
+          break;
+
+        case CommandType.IDENTIFY_DISPLAYS:
+          result = await this.handleIdentifyDisplays(command.payload as IdentifyDisplaysCommand);
           break;
 
         default:
@@ -153,8 +219,8 @@ export class ApiRouter {
 
     const windowId = await this.windowManager.createWindow(windowConfig);
     
-    // Update TV status
-    this.hostService.updateTVStatus(`display-${payload.monitorIndex + 1}`, {
+    // Update display status
+    this.hostService.updateDisplayStatus(`display-${payload.monitorIndex + 1}`, {
       active: true,
       currentUrl: payload.url,
       lastRefresh: new Date(),
@@ -164,12 +230,12 @@ export class ApiRouter {
     return windowId;
   }
 
-  private async handleRefreshPage(targetTv: string): Promise<boolean> {
+  private async handleRefreshPage(targetDisplay: string): Promise<boolean> {
     const windows = this.windowManager.getAllWindows();
-    const targetWindow = windows.find(w => w.id.includes(targetTv));
+    const targetWindow = windows.find(w => w.id.includes(targetDisplay));
     
     if (!targetWindow) {
-      throw new Error(`No window found for TV: ${targetTv}`);
+      throw new Error(`No window found for display: ${targetDisplay}`);
     }
 
     return this.windowManager.refreshWindow(targetWindow.id);
@@ -181,12 +247,12 @@ export class ApiRouter {
     return true;
   }
 
-  private async handleRestartBrowser(targetTv: string): Promise<boolean> {
+  private async handleRestartBrowser(targetDisplay: string): Promise<boolean> {
     const windows = this.windowManager.getAllWindows();
-    const targetWindow = windows.find(w => w.id.includes(targetTv));
+    const targetWindow = windows.find(w => w.id.includes(targetDisplay));
     
     if (!targetWindow) {
-      throw new Error(`No window found for TV: ${targetTv}`);
+      throw new Error(`No window found for display: ${targetDisplay}`);
     }
 
     // Close and recreate the window
@@ -196,12 +262,12 @@ export class ApiRouter {
     return true;
   }
 
-  private async handleTakeScreenshot(targetTv: string): Promise<string> {
+  private async handleTakeScreenshot(targetDisplay: string): Promise<string> {
     const windows = this.windowManager.getAllWindows();
-    const targetWindow = windows.find(w => w.id.includes(targetTv));
+    const targetWindow = windows.find(w => w.id.includes(targetDisplay));
     
     if (!targetWindow) {
-      throw new Error(`No window found for TV: ${targetTv}`);
+      throw new Error(`No window found for display: ${targetDisplay}`);
     }
 
     // TODO: Implement screenshot capture
@@ -292,7 +358,7 @@ export class ApiRouter {
 
   private async getDisplays(req: Request, res: Response): Promise<void> {
     try {
-      const displays = this.hostService.getAllTVStatuses();
+      const displays = this.hostService.getAllDisplayStatuses();
       const response = this.hostService.createApiResponse(true, displays);
       res.json(response);
     } catch (error) {
@@ -305,7 +371,7 @@ export class ApiRouter {
   private async getDisplayStatus(req: Request, res: Response): Promise<void> {
     try {
       const { displayId } = req.params;
-      const status = this.hostService.getTVStatus(displayId);
+      const status = this.hostService.getDisplayStatus(displayId);
       
       if (!status) {
         const response = this.hostService.createApiResponse(false, undefined, `Display ${displayId} not found`);
@@ -554,6 +620,193 @@ export class ApiRouter {
 
     } catch (error) {
       console.error('Error validating cookies:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const response = this.hostService.createApiResponse(false, undefined, errorMessage);
+      res.status(500).json(response);
+    }
+  }
+
+  private async handleIdentifyDisplays(payload: IdentifyDisplaysCommand): Promise<string> {
+    if (!this.displayIdentifier) {
+      throw new Error('Display identifier service not available');
+    }
+
+    const options = {
+      duration: payload.duration || 5,
+      fontSize: payload.fontSize || 200,
+      backgroundColor: payload.backgroundColor || 'rgba(0, 0, 0, 0.8)'
+    };
+
+    console.log(`🖥️ Identifying displays for ${options.duration} seconds...`);
+    this.debugService.logEvent('system_event', 'Display', 'Identify displays started', options);
+
+    return await this.displayIdentifier.identifyDisplays(options);
+  }
+
+  private async identifyDisplays(req: Request, res: Response): Promise<void> {
+    try {
+      if (!this.displayIdentifier) {
+        const response = this.hostService.createApiResponse(false, undefined, 'Display identifier service not available');
+        res.status(500).json(response);
+        return;
+      }
+
+      const options = {
+        duration: parseInt(req.body.duration) || 5,
+        fontSize: parseInt(req.body.fontSize) || 200,
+        backgroundColor: req.body.backgroundColor || 'rgba(0, 0, 0, 0.8)'
+      };
+
+      console.log(`🖥️ API: Identifying displays for ${options.duration} seconds...`);
+      
+      const result = await this.displayIdentifier.identifyDisplays(options);
+      const displayInfo = this.displayIdentifier.getDisplayInfo();
+      
+      const response = this.hostService.createApiResponse(true, {
+        message: result,
+        displays: displayInfo,
+        options
+      });
+      
+      res.json(response);
+
+    } catch (error) {
+      console.error('Error identifying displays:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const response = this.hostService.createApiResponse(false, undefined, errorMessage);
+      res.status(500).json(response);
+    }
+  }
+
+  private async getDisplayStats(req: Request, res: Response): Promise<void> {
+    try {
+      if (!this.displayMonitor) {
+        const response = this.hostService.createApiResponse(false, undefined, 'Display monitor service not available');
+        res.status(500).json(response);
+        return;
+      }
+
+      const stats = this.displayMonitor.getDisplayStats();
+      
+      const response = this.hostService.createApiResponse(true, stats);
+      res.json(response);
+
+    } catch (error) {
+      console.error('Error getting display stats:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const response = this.hostService.createApiResponse(false, undefined, errorMessage);
+      res.status(500).json(response);
+    }
+  }
+
+  private async getDisplayMonitorStatus(req: Request, res: Response): Promise<void> {
+    try {
+      if (!this.displayMonitor) {
+        const response = this.hostService.createApiResponse(false, undefined, 'Display monitor service not available');
+        res.status(500).json(response);
+        return;
+      }
+
+      const status = {
+        isMonitoring: this.displayMonitor.isMonitoring ? this.displayMonitor.isMonitoring() : false,
+        displayCount: this.displayMonitor.getDisplayCount(),
+        displays: this.displayMonitor.getDisplays(),
+        stats: this.displayMonitor.getDisplayStats()
+      };
+      
+      const response = this.hostService.createApiResponse(true, status);
+      res.json(response);
+
+    } catch (error) {
+      console.error('Error getting display monitor status:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const response = this.hostService.createApiResponse(false, undefined, errorMessage);
+      res.status(500).json(response);
+    }
+  }
+
+  // Debug control endpoints
+  private async enableDebug(req: Request, res: Response): Promise<void> {
+    try {
+      this.debugService.enable();
+      const response = this.hostService.createApiResponse(true, { status: 'Debug enabled' });
+      res.json(response);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const response = this.hostService.createApiResponse(false, undefined, errorMessage);
+      res.status(500).json(response);
+    }
+  }
+
+  private async disableDebug(req: Request, res: Response): Promise<void> {
+    try {
+      this.debugService.disable();
+      const response = this.hostService.createApiResponse(true, { status: 'Debug disabled' });
+      res.json(response);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const response = this.hostService.createApiResponse(false, undefined, errorMessage);
+      res.status(500).json(response);
+    }
+  }
+
+  private async getDebugStatus(req: Request, res: Response): Promise<void> {
+    try {
+      const status = {
+        enabled: this.debugService.isDebugEnabled(),
+        metrics: this.debugService.getSystemMetrics(),
+        eventStats: this.debugService.getEventStats()
+      };
+      const response = this.hostService.createApiResponse(true, status);
+      res.json(response);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const response = this.hostService.createApiResponse(false, undefined, errorMessage);
+      res.status(500).json(response);
+    }
+  }
+
+  private async getDebugEvents(req: Request, res: Response): Promise<void> {
+    try {
+      const limit = parseInt(req.query.limit as string) || 20;
+      const events = this.debugService.getRecentEvents(limit);
+      const response = this.hostService.createApiResponse(true, events);
+      res.json(response);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const response = this.hostService.createApiResponse(false, undefined, errorMessage);
+      res.status(500).json(response);
+    }
+  }
+
+  private async clearDebugEvents(req: Request, res: Response): Promise<void> {
+    try {
+      this.debugService.clearEvents();
+      const response = this.hostService.createApiResponse(true, { status: 'Events cleared' });
+      res.json(response);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const response = this.hostService.createApiResponse(false, undefined, errorMessage);
+      res.status(500).json(response);
+    }
+  }
+
+  private async getMDNSInfo(req: Request, res: Response): Promise<void> {
+    try {
+      if (!this.mdnsService) {
+        const response = this.hostService.createApiResponse(false, undefined, 'mDNS service not available');
+        res.status(503).json(response);
+        return;
+      }
+
+      const mdnsInfo = {
+        isAdvertising: this.mdnsService.isAdvertising(),
+        serviceInfo: this.mdnsService.getServiceInfo()
+      };
+
+      const response = this.hostService.createApiResponse(true, mdnsInfo);
+      res.json(response);
+    } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       const response = this.hostService.createApiResponse(false, undefined, errorMessage);
       res.status(500).json(response);
