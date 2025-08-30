@@ -159,20 +159,24 @@ This will test mDNS discovery and basic API communication between components.
 ## Usage
 
 ### Dashboard Management
-1. Access the web controller interface
-2. Add your dashboards with URLs and settings
-3. Assign dashboards to specific TVs
-4. Deploy configuration to all mini PCs
+1. Access the web controller interface at http://localhost:3000
+2. Go to "Dashboard Management" tab
+3. Click ✏️ to edit existing dashboards or "Add Dashboard" for new ones
+4. Configure dashboard URL, refresh interval, and authentication settings
+5. Assign dashboards to specific TVs and deploy
 
 ### Cookie Synchronization
-1. Login to your dashboards on your local machine
-2. Use the "Sync Cookies" feature in the web controller
-3. Cookies will be automatically copied to all mini PCs
+1. Login to your dashboards on your local machine using a browser
+2. Press F12 and go to Application → Cookies → select your domain
+3. Copy cookies (Ctrl+A → Ctrl+C)
+4. In the web controller, go to "🍪 Cookies" tab
+5. Paste cookies and click "Validate" then "Sync to All TVs"
 
-### Monitoring
-- Real-time status of all TVs and mini PCs
-- Health checks and error reporting
-- Screenshot capture for verification
+### Monitoring and Debugging
+- Real-time status of all TVs and mini PCs through web interface
+- Health checks and error reporting with visual notifications
+- Debug overlay system: Press `Ctrl+Shift+D` on any mini PC to toggle debug mode
+- Display identification: Use API `/api/displays/identify` to show numbers on each screen
 - Automatic recovery from failures
 
 ## Development
@@ -221,6 +225,7 @@ AGENT_ID=minipc-01
 **Development Mode Features:**
 - When `NODE_ENV` is not set to `production`, developer tools are enabled in browser windows
 - Press `F12` in any dashboard window to toggle dev tools
+- Press `Ctrl+Shift+D` to open debug overlay for real-time monitoring
 - Dev tools are automatically disabled in production for security and performance
 
 ### Configuration Files

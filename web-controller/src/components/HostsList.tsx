@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { MiniPC } from '@/types/shared-types';
-import { Monitor, Wifi, WifiOff, Activity, AlertCircle, RefreshCw, Eye, EyeOff, Bug, BugOff, Download, Trash2, Circle } from 'lucide-react';
+import { Monitor, Wifi, WifiOff, Activity, AlertCircle, RefreshCw, Eye, EyeOff, Bug, BugOff, Download, Trash2, Circle, Search } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
 interface HostsListProps {
@@ -54,6 +54,7 @@ export const HostsList: React.FC<HostsListProps> = ({ hosts, isDiscovering, disc
   const [expandedHosts, setExpandedHosts] = useState<Set<string>>(new Set());
   const [debugStatuses, setDebugStatuses] = useState<Map<string, DebugStatus>>(new Map());
   const [showDebugControls, setShowDebugControls] = useState<Set<string>>(new Set());
+  const [identifyingDisplays, setIdentifyingDisplays] = useState<{[hostId: string]: boolean}>({});
   
   // Debug log removed to reduce console noise
 
@@ -362,6 +363,51 @@ export const HostsList: React.FC<HostsListProps> = ({ hosts, isDiscovering, disc
     });
   };
 
+  const identifyDisplays = async (hostId: string) => {
+    const host = hosts.find(h => h.id === hostId);
+    if (!host || !host.status.online) return;
+
+    setIdentifyingDisplays(prev => ({ ...prev, [hostId]: true }));
+
+    try {
+      const response = await fetch(`/api/host/${hostId}/command`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          type: 'identify_displays',
+          targetDisplay: 'all',
+          payload: {
+            duration: 5,
+            fontSize: 200,
+            backgroundColor: 'rgba(0, 100, 200, 0.9)'
+          },
+          timestamp: new Date().toISOString()
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to identify displays');
+      }
+
+      addNotification('success', 'Display Identification', 
+        `Showing numbers on displays for ${host.name || host.hostname}`);
+
+      // Auto clear the identifying state after the duration
+      setTimeout(() => {
+        setIdentifyingDisplays(prev => ({ ...prev, [hostId]: false }));
+      }, 5000);
+
+    } catch (error) {
+      console.error('Error identifying displays:', error);
+      addNotification('error', 'Display Identification Failed', 
+        `Failed to identify displays on ${host.name || host.hostname}`);
+      setIdentifyingDisplays(prev => ({ ...prev, [hostId]: false }));
+    }
+  };
+
   const getNotificationColor = (type: string) => {
     switch (type) {
       case 'success': return 'bg-green-100 border-green-400 text-green-700';
@@ -472,6 +518,24 @@ export const HostsList: React.FC<HostsListProps> = ({ hosts, isDiscovering, disc
                       fill="currentColor"
                     />
                   </div>
+                  
+                  {host.status.online && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        identifyDisplays(host.id);
+                      }}
+                      disabled={identifyingDisplays[host.id]}
+                      className={`p-1 transition-colors ${
+                        identifyingDisplays[host.id] 
+                          ? 'text-blue-500 animate-pulse' 
+                          : 'text-gray-400 hover:text-blue-600'
+                      }`}
+                      title="Identify Displays - Shows numbers on each monitor"
+                    >
+                      <Search className="w-4 h-4" />
+                    </button>
+                  )}
                   
                   <button
                     onClick={(e) => {

@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Office Display Credentials Sync</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <!-- Header -->
+  <div class="header">
+    <div class="logo">
+      <h1>Office Display Sync</h1>
+    </div>
+    <div id="connectionStatus" class="status-indicator">
+      <span class="dot"></span>
+      <span class="text">Connecting...</span>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <div id="loadingState" class="loading-state">
+    <div class="spinner"></div>
+    <p>Loading extension state...</p>
+  </div>
+
+  <div id="mainContent" class="main-content" style="display: none;">
+    <!-- Current Domain Section -->
+    <div id="currentDomainSection" class="section">
+      <h3>📍 Current Domain</h3>
+      <div class="current-domain">
+        <div id="domainInfo" class="domain-info">
+          <span id="domainName" class="domain-name">-</span>
+          <span id="credentialsStatus" class="credentials-status">No credentials</span>
+        </div>
+        <button id="syncButton" class="sync-button" disabled>
+          <span class="button-text">Sync Credentials</span>
+          <span class="button-spinner" style="display: none;"></span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Monitored Domains -->
+    <div class="section">
+      <h3>📊 Monitored Domains</h3>
+      <div id="domainsList" class="domains-list">
+        <!-- Domains will be populated by JavaScript -->
+      </div>
+      <div id="noDomains" class="no-domains" style="display: none;">
+        <p>No dashboard domains detected yet.</p>
+        <small>Navigate to dashboards like Grafana, Tableau, etc.</small>
+      </div>
+    </div>
+
+    <!-- Configuration -->
+    <div class="section config-section">
+      <h3>Configuration</h3>
+      <div class="config-row">
+        <label for="endpointInput">Office Display Endpoint:</label>
+        <div class="input-group">
+          <input type="text" id="endpointInput" placeholder="http://localhost:3000">
+          <button id="testButton" class="test-button">
+            <span class="button-text">Test</span>
+            <span class="button-spinner" style="display: none;"></span>
+          </button>
+        </div>
+        <button id="saveButton" class="save-button">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Messages -->
+  <div id="messageContainer"></div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -5,6 +5,7 @@ import { GetServerSideProps } from 'next';
 import { HostsList } from '@/components/HostsList';
 import { DashboardManager } from '@/components/DashboardManager';
 import { AuthorizationManager } from '@/components/AuthorizationManager';
+import { ExtensionDropdown } from '@/components/ExtensionDropdown';
 import { SystemStatus } from '@/components/SystemStatus';
 import { DebugController } from '@/components/DebugController';
 import { DisplayRefreshController } from '@/components/DisplayRefreshController';
@@ -90,9 +91,6 @@ export default function TabPage({ tab }: TabPageProps) {
                 <h1 className="text-3xl font-bold text-gray-900">
                   Office Display Management
                 </h1>
-                <span className="ml-4 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary-100 text-primary-800">
-                  Phase 3
-                </span>
               </div>
               
               <div className="flex items-center space-x-6">
@@ -116,6 +114,9 @@ export default function TabPage({ tab }: TabPageProps) {
                     Health: {systemHealth.healthPercentage.toFixed(0)}%
                   </div>
                 </div>
+                
+                {/* Extension Dropdown */}
+                <ExtensionDropdown />
                 
                 {/* Discovery Status */}
                 <div className="flex items-center space-x-2">

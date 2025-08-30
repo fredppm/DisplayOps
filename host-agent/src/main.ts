@@ -24,7 +24,6 @@ import { MDNSService } from './services/mdns-service';
 import { DebugService } from './services/debug-service';
 import { DisplayIdentifier } from './services/display-identifier';
 import { DisplayMonitor } from './services/display-monitor';
-import { WebSocketService } from './services/websocket-service';
 import { GrpcService } from './services/grpc-service';
 import { StateManager } from './services/state-manager';
 import { AutoRestoreService } from './services/auto-restore-service';
@@ -32,6 +31,7 @@ import { ApiRouter } from './routes/api-router';
 import { WindowManager } from './managers/window-manager';
 import { ConfigManager } from './managers/config-manager';
 import { DebugOverlayManager } from './managers/debug-overlay-manager';
+import { SystemTrayManager } from './managers/system-tray-manager';
 import { logger } from './utils/logger';
 
 // Port availability check
@@ -183,13 +183,13 @@ class HostAgent {
   private debugService: DebugService;
   private displayIdentifier: DisplayIdentifier;
   private displayMonitor: DisplayMonitor;
-  private webSocketService: WebSocketService;
   private grpcService: GrpcService;
   private stateManager: StateManager;
   private autoRestoreService: AutoRestoreService;
   private windowManager: WindowManager;
   private configManager: ConfigManager;
   private debugOverlayManager: DebugOverlayManager;
+  private systemTrayManager: SystemTrayManager;
   private expressApp: express.Application;
   private server: any;
   
@@ -200,9 +200,11 @@ class HostAgent {
     this.debugService = new DebugService(this.configManager);
     this.displayIdentifier = new DisplayIdentifier();
     this.displayMonitor = new DisplayMonitor();
-    this.webSocketService = new WebSocketService(8081);
     this.stateManager = new StateManager();
     this.windowManager = new WindowManager();
+    
+    // Set window manager reference for display identifier
+    this.displayIdentifier.setWindowManager(this.windowManager);
     this.grpcService = new GrpcService(
       8082,
       this.hostService,
@@ -220,6 +222,7 @@ class HostAgent {
       this.windowManager,
       this.configManager
     );
+    this.systemTrayManager = new SystemTrayManager(this.configManager);
     this.expressApp = express();
     
     this.setupExpress();
@@ -256,20 +259,13 @@ class HostAgent {
     });
     
     // API routes
-    const apiRouter = new ApiRouter(this.hostService, this.windowManager, this.debugService, this.displayIdentifier, this.displayMonitor, this.mdnsService, this.configManager, this.webSocketService, this.stateManager);
+    const apiRouter = new ApiRouter(this.hostService, this.windowManager, this.debugService, this.displayIdentifier, this.displayMonitor, this.mdnsService, this.configManager, this.stateManager);
     this.expressApp.use('/api', apiRouter.getRouter());
     
     // Start server
     this.server = this.expressApp.listen(port, async () => {
       logger.success(`Host agent API server listening on port ${port}`);
       
-      // Start WebSocket service
-      try {
-        await this.webSocketService.start();
-        logger.success('WebSocket service started successfully');
-      } catch (error) {
-        logger.error('Failed to start WebSocket service:', error);
-      }
 
       // Start gRPC service
       try {
@@ -282,6 +278,15 @@ class HostAgent {
   }
 
   private setupElectron(): void {
+    // Configure app settings for system tray behavior
+    if (process.platform === 'win32') {
+      app.setAppUserModelId('com.vtex.office-display.host-agent');
+      
+      // Configure app to continue running in background
+      app.commandLine.appendSwitch('--disable-background-timer-throttling');
+      app.commandLine.appendSwitch('--disable-backgrounding-occluded-windows');
+    }
+    
     // Handle app ready
     app.whenReady().then(() => {
       logger.success('Electron app ready');
@@ -292,6 +297,15 @@ class HostAgent {
       // Initialize debug overlay manager (needs app to be ready)
       this.debugOverlayManager.initialize();
       
+      // Initialize system tray (needs app to be ready)
+      this.systemTrayManager.initialize();
+      
+      // Set up system tray callbacks
+      this.systemTrayManager.setCallbacks({
+        onRefreshDisplays: () => this.handleRefreshDisplays(),
+        onShowDebugOverlay: () => this.handleToggleDebugOverlay()
+      });
+      
       // Update display configuration from system
       this.configManager.updateDisplaysFromSystem();
       
@@ -300,6 +314,9 @@ class HostAgent {
       
       // Initialize window manager
       this.windowManager.initialize();
+      
+      // Listen for window manager events
+      this.setupWindowManagerEvents();
       
       // Setup IPC handlers
       this.setupIPC();
@@ -314,6 +331,9 @@ class HostAgent {
         } catch (error) {
           logger.error('Failed to restore dashboards on startup:', error);
         }
+        
+        // Update system tray with initial status
+        this.updateSystemTrayStatus();
       }, 3000); // 3 second delay
     });
 
@@ -321,6 +341,7 @@ class HostAgent {
     app.on('window-all-closed', () => {
       // On Windows/Linux, keep the app running even if all windows are closed
       // The host agent should continue running to serve API requests
+      // System tray icon will remain visible
     });
 
     // Handle app activation (macOS)
@@ -431,6 +452,9 @@ class HostAgent {
       
       logger.debug('Configuration and display statuses updated after display change');
       
+      // Update system tray status
+      this.updateSystemTrayStatus();
+      
       // Log to debug service
       this.debugService.logEvent('system_event', 'Display', `Display ${event.type}`, {
         displayCount: event.displays.length,
@@ -465,6 +489,64 @@ class HostAgent {
     });
   }
 
+  private setupWindowManagerEvents(): void {
+    // Listen for window created/closed events
+    this.windowManager.on('window-created', (event) => {
+      logger.debug(`Window created: ${event.windowId}, total: ${event.totalWindows}`);
+      this.updateSystemTrayStatus();
+    });
+
+    this.windowManager.on('window-closed', (event) => {
+      logger.debug(`Window closed: ${event.windowId}, total: ${event.totalWindows}`);
+      this.updateSystemTrayStatus();
+    });
+  }
+
+  private updateSystemTrayStatus(): void {
+    try {
+      const displays = this.configManager.getDisplays();
+      const systemStatus = this.hostService.getSystemStatus();
+      const activeWindows = this.windowManager.getAllWindows().length;
+      
+      this.systemTrayManager.updateStatus({
+        connected: true, // We're running, so we're connected
+        totalDisplays: displays.length,
+        activeWindows: activeWindows
+      });
+    } catch (error) {
+      logger.error('Failed to update system tray status:', error);
+    }
+  }
+
+  private handleRefreshDisplays(): void {
+    logger.info('Refreshing displays from system tray request');
+    
+    // Update configuration from system
+    this.configManager.updateDisplaysFromSystem();
+    
+    // Refresh display statuses in host service
+    this.hostService.refreshDisplayStatuses();
+    
+    // Update system tray status
+    this.updateSystemTrayStatus();
+    
+    logger.success('Displays refreshed successfully from system tray');
+  }
+
+  private handleToggleDebugOverlay(): void {
+    logger.info('Toggling debug overlay from system tray request');
+    
+    try {
+      if (this.debugOverlayManager.isEnabled()) {
+        this.debugOverlayManager.disable();
+      } else {
+        this.debugOverlayManager.enable();
+      }
+    } catch (error) {
+      logger.error('Failed to toggle debug overlay:', error);
+    }
+  }
+
   private cleanup(): void {
     logger.info('Cleaning up host agent...');
     
@@ -476,6 +558,11 @@ class HostAgent {
     // Cleanup debug overlay
     if (this.debugOverlayManager) {
       this.debugOverlayManager.cleanup();
+    }
+    
+    // Cleanup system tray
+    if (this.systemTrayManager) {
+      this.systemTrayManager.cleanup();
     }
     
     // Cleanup display identifier
@@ -493,10 +580,6 @@ class HostAgent {
       this.windowManager.closeAllWindows();
     }
     
-    // Stop WebSocket service
-    if (this.webSocketService) {
-      this.webSocketService.stop();
-    }
 
     // Stop gRPC service
     if (this.grpcService) {

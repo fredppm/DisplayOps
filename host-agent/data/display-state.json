@@ -1,19 +1,19 @@
 {
   "version": "1.0.0",
-  "lastUpdated": "2025-08-30T13:46:04.443Z",
+  "lastUpdated": "2025-08-30T22:52:33.369Z",
   "displays": {
     "display-2": {
       "displayId": "display-2",
       "isActive": true,
-      "lastRefresh": "2025-08-30T13:46:03.433Z",
+      "lastRefresh": "2025-08-30T22:52:32.357Z",
       "isResponsive": true,
       "assignedDashboard": {
         "dashboardId": "common-dashboard",
         "url": "https://grafana.vtex.com/d/d7e7051f-42a2-4798-af93-cf2023dd2e28/home?orgId=1&from=now-3h&to=now&timezone=browser&var-Origin=argocd&refresh=10s",
         "refreshInterval": 300000,
-        "deployedAt": "2025-08-30T13:45:40.087Z"
+        "deployedAt": "2025-08-30T22:14:45.304Z"
       },
-      "windowId": "dashboard-common-dashboard-display-2-1756561537362"
+      "windowId": "dashboard-common-dashboard-display-2-restored-1756594349264"
     }
   }
 }

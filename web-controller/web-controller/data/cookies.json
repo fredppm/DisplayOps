@@ -4,17 +4,37 @@
       "domain": "https://grafana.vtex.com",
       "cookies": [
         {
-          "name": "cf_clearance",
-          "value": "vn_WQQs2R220Kholr8PM8UIxZPELBHIFBLEF9RbPiZE-1752178588-1.2.1.1-BvVfTpML8fhsAp1eWQrrEP1UJBPPMLepwnbfvvSTdadWkwG2za_1DmlJNhhW38lxAbDvAA5gqmSKiCaDCJLuszqHWA04HE3ZX9.XgKuvgVp8K2kDDUWUQxZPnvL6D0mP1pSc0S7nFayWposTcUU49QxxOOuUYXwaquOLGzUiagmHqMvVmmqVRwouJ2dOIse5Ce2zwLSvZoTJuq69c3ZV65C.gVwAXpYDVsrWDL85RdA; _oauth2_proxy=14Hq3BozQaa2F6x_8OYCh3bYMWmGLeQTRWyF3iBYSK-dEbci1XkQuh2p33XdSBT2kAJrrFnW0RfYzEAfFyy4Ap9Biba5B06OjNu1UkbyXlSMGi8Qs7P3Tc_7VhkuNiHe1tzHvYX1CXQ0raheop6t6CHES7fI_lNT2QbMfQRCHry5JiyvaNmfq7tn_4cprMEjBSaz6ZzBKbBprPhuysO7iVCyNezqZelaZy7GlvwdZyYNy9XW9u3d9qfnYfiV8g1BRwtsj2rRl3iD91xEQLh26zmR0HkulXJVA5qxogdhQsyKxJIqdX6D_HDD7TT1Odhze1oLhbk8ucXozzgCmoTnrRNVDSKdCWHuZ16T6i96M6es2ZGzECkRX4wWaKBzz-C9G7j83LYmPFz5GV3iqjU6naYIKhcQjBnwf6DFdRvIvs1nTHpHLcpEwX1xgCmcDMK6r73WTOhgdd-9f5768N2D7H5GUObtKqq6JkEziUC6O8iTsnKtCFpbhMqFvTDuUULXako7i-qQXImi-DT8MyUhtEkPaO_SFiwY3Gy4jmHZ39bc_3nScDPUDW01nsqS2o0UyVM_FycYMaIu4wsM3iIIWJdumKRMWvGaNhkbbDHaBpD9JCN5PeR4lvs_kiSmit2ggdqs-I9UW9Eb8-bhAbKbOhTELuwp8-oxMuUf9mawTkAdE03FGA6u3TJWrYNxCOGe_VOvxXKTBv8hJscWYPpsUZMngp4LF_drNQUmWDP7Pnjj2u1BEi7wRO_bnRa2mcTmYjibro72nlF8FAamKMqrd8b0k6f6Gons8TJq5QVGippEXs39RgQOzY_l8CHKb3XESgm5gwLe-Nj9n6kZ_4Gmr1mdF2m8cc00CgLTGfhj43akCNyCLQzD0ihH_dAtPIQNTlRndraWHvX98hvw9_QrSnocCSs3Pu05A3ySw_OnkmjfI44tObK54l31BQWAftmRYANnBhS1nJ46sma3uTsy4hl-U8jXcdeVjcZWRlRGFVAJMm4MiVNmMFeo2_gX0udsSThXp8_LvRFCVr3bQfuU1RNNgKhnE9VNSJb4C1s7fb91Rif9nWSLA9dCqhJqGbN0Adm_-E1rBlnpbM3SMTohqmO5fYhhLMMsrXN_SBPAm6SlSaWmaoQLfvPfLs90ozt-Lyeo-l_xeG9iuhPQFCA-_QbDWKM1Yg8eiRts2dUVPMuyvSD1gFvKYRi-l3GBs2HUrzAFoiQuU9K688FHExv20Ei1GfNwzTiXSighj78qPGzeNXwGOILENFPtEBzMnNe1GG_vTmkG_75WRS19KiTV_xiKJYeGEqg95sgJWjQ6ex9MwP3EAD6syq2G6cghHsmPnHdg9dHxOZQ4WS05Xaw4Hdqq5wNYKODq33NCWJMmScaMxFO93kXznV2HMDZIangekFzESzVUvlseHfJ6hJ8K1qBqRsXRIiwErXuPynTUeMt4dIBXFwMSiyQLICmdkS9RIwY4G26kAdVyenhHMHbWDwXwp44TZsWmuxkYkKONCwhOtmjNEHgp_70-cd43t3Et0wlu0AXUlmeujMHE2vmYVxVN8HIFPZeAoGnGUWMq1B3KS-wsM0pcXkEC-OW1svAFIooZFWykrBX9iyPnoitoNZbiatjL9khYK1Z5TpNYDI78GH7fNHIhc87_2FTiuu0UCcYnjAR5FIPw3jhE-_A6c69pWC7J_lA5F_O2WmFHcH5YvyMCS0fvlqYLipnRPqLEyHE6sGGjTLaJ7NwRE_QijTJ1QBtlG2hiKgOtbTX6QBqNNGDHYS3rrSPIjc0=|1756404235|7ZURSZOzDn4M6nk0q1KV_8_05XvrHaBA_X4d3LcViAg=; grafana_session=398fa968649255e44409ffa79bdaeaba; grafana_session_expiry=1756501881",
+          "name": "_oauth2_proxy",
+          "value": "14Hq3BozQaa2F6x_8OYCh3bYMWmGLeQTRWyF3iBYSK-dEbci1XkQuh2p33XdSBT2kAJrrFnW0RfYzEAfFyy4Ap9Biba5B06OjNu1UkbyXlSMGi8Qs7P3Tc_7VhkuNiHe1tzHvYX1CXQ0raheop6t6CHES7fI_lNT2QbMfQRCHry5JiyvaNmfq7tn_4cprMEjBSaz6ZzBKbBprPhuysO7iVCyNezqZelaZy7GlvwdZyYNy9XW9u3d9qfnYfiV8g1BRwtsj2rRl3iD91xEQLh26zmR0HkulXJVA5qxogdhQsyKxJIqdX6D_HDD7TT1Odhze1oLhbk8ucXozzgCmoTnrRNVDSKdCWHuZ16T6i96M6es2ZGzECkRX4wWaKBzz-C9G7j83LYmPFz5GV3iqjU6naYIKhcQjBnwf6DFdRvIvs1nTHpHLcpEwX1xgCmcDMK6r73WTOhgdd-9f5768N2D7H5GUObtKqq6JkEziUC6O8iTsnKtCFpbhMqFvTDuUULXako7i-qQXImi-DT8MyUhtEkPaO_SFiwY3Gy4jmHZ39bc_3nScDPUDW01nsqS2o0UyVM_FycYMaIu4wsM3iIIWJdumKRMWvGaNhkbbDHaBpD9JCN5PeR4lvs_kiSmit2ggdqs-I9UW9Eb8-bhAbKbOhTELuwp8-oxMuUf9mawTkAdE03FGA6u3TJWrYNxCOGe_VOvxXKTBv8hJscWYPpsUZMngp4LF_drNQUmWDP7Pnjj2u1BEi7wRO_bnRa2mcTmYjibro72nlF8FAamKMqrd8b0k6f6Gons8TJq5QVGippEXs39RgQOzY_l8CHKb3XESgm5gwLe-Nj9n6kZ_4Gmr1mdF2m8cc00CgLTGfhj43akCNyCLQzD0ihH_dAtPIQNTlRndraWHvX98hvw9_QrSnocCSs3Pu05A3ySw_OnkmjfI44tObK54l31BQWAftmRYANnBhS1nJ46sma3uTsy4hl-U8jXcdeVjcZWRlRGFVAJMm4MiVNmMFeo2_gX0udsSThXp8_LvRFCVr3bQfuU1RNNgKhnE9VNSJb4C1s7fb91Rif9nWSLA9dCqhJqGbN0Adm_-E1rBlnpbM3SMTohqmO5fYhhLMMsrXN_SBPAm6SlSaWmaoQLfvPfLs90ozt-Lyeo-l_xeG9iuhPQFCA-_QbDWKM1Yg8eiRts2dUVPMuyvSD1gFvKYRi-l3GBs2HUrzAFoiQuU9K688FHExv20Ei1GfNwzTiXSighj78qPGzeNXwGOILENFPtEBzMnNe1GG_vTmkG_75WRS19KiTV_xiKJYeGEqg95sgJWjQ6ex9MwP3EAD6syq2G6cghHsmPnHdg9dHxOZQ4WS05Xaw4Hdqq5wNYKODq33NCWJMmScaMxFO93kXznV2HMDZIangekFzESzVUvlseHfJ6hJ8K1qBqRsXRIiwErXuPynTUeMt4dIBXFwMSiyQLICmdkS9RIwY4G26kAdVyenhHMHbWDwXwp44TZsWmuxkYkKONCwhOtmjNEHgp_70-cd43t3Et0wlu0AXUlmeujMHE2vmYVxVN8HIFPZeAoGnGUWMq1B3KS-wsM0pcXkEC-OW1svAFIooZFWykrBX9iyPnoitoNZbiatjL9khYK1Z5TpNYDI78GH7fNHIhc87_2FTiuu0UCcYnjAR5FIPw3jhE-_A6c69pWC7J_lA5F_O2WmFHcH5YvyMCS0fvlqYLipnRPqLEyHE6sGGjTLaJ7NwRE_QijTJ1QBtlG2hiKgOtbTX6QBqNNGDHYS3rrSPIjc0=|1756404235|7ZURSZOzDn4M6nk0q1KV_8_05XvrHaBA_X4d3LcViAg=",
           "domain": "https://grafana.vtex.com",
           "path": "/",
           "secure": true,
           "httpOnly": false,
           "sameSite": "lax",
-          "importedAt": "2025-08-29T21:06:48.643Z"
+          "importedAt": "2025-08-30T22:32:09.456Z"
+        },
+        {
+          "name": "grafana_session",
+          "value": "61b8709e06e4a88d569daa18501f6ac1",
+          "domain": "https://grafana.vtex.com",
+          "path": "/",
+          "secure": true,
+          "httpOnly": false,
+          "sameSite": "lax",
+          "importedAt": "2025-08-30T22:32:09.456Z"
+        },
+        {
+          "name": "grafana_session_expiry",
+          "value": "1756593563",
+          "domain": "https://grafana.vtex.com",
+          "path": "/",
+          "secure": true,
+          "httpOnly": false,
+          "sameSite": "lax",
+          "importedAt": "2025-08-30T22:32:09.456Z"
         }
       ],
-      "lastImport": "2025-08-29T21:06:48.643Z",
+      "lastImport": "2025-08-30T22:32:09.456Z",
       "description": "Cookies for https://grafana.vtex.com"
     },
     "https://healthmonitor.vtex.com/": {
@@ -63,7 +83,44 @@
       ],
       "lastImport": "2025-08-29T20:42:46.849Z",
       "description": "Cookies for https://healthmonitor.vtex.com/"
+    },
+    "https://healthmonitor.vtex.com": {
+      "domain": "https://healthmonitor.vtex.com",
+      "cookies": [
+        {
+          "name": "__Host-next-auth.csrf-token",
+          "value": "a4d9b03d641e9ff01befd721fa70d6de10ab09b62baa7fbe60784fe6c94c5c15%7C4e4900e619de685430595003494818dab6d5f347f79a81d4e2512423b23804ac",
+          "domain": "https://healthmonitor.vtex.com",
+          "path": "/",
+          "secure": true,
+          "httpOnly": false,
+          "sameSite": "lax",
+          "importedAt": "2025-08-30T22:13:15.460Z"
+        },
+        {
+          "name": "__Secure-next-auth.callback-url",
+          "value": "https%3A%2F%2Fhealthmonitor.vtex.com",
+          "domain": "https://healthmonitor.vtex.com",
+          "path": "/",
+          "secure": true,
+          "httpOnly": false,
+          "sameSite": "lax",
+          "importedAt": "2025-08-30T22:13:15.460Z"
+        },
+        {
+          "name": "__Secure-next-auth.session-token",
+          "value": "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0..E8XgC87dCIweAy_q.7xqye5mlyzPFVV9yzeCOAsqVzbaIneWK2i9FJ_oB7AulGB8F_-YlKNT4o82O-xA7q-1h8w9aysY6u7TJ7OSTN6D3ctqyxxRvEODAFdrNl3F9u7zIHw4Gdtf8KPbRjrq7LXx0CtgNJS7G2JSGsSP-glg_orMCP3pwHZp0A2FMGuKSBLAYISUn5_2bF79-27zQQtIYNz3BQAdLTkoZ2rsA_wYL8B7L9GOkYAVgwPV34WHUvblDGinOWBV8i8gj8ESFBFSLLvnbEgd1cbrVT3gJUKzFr-5GJQKTQiZ7jG8Au9JTr8cFUYBX9L_0DIT2gAIGwJ7tdNtJWBJAKDzFTWZTcAGlrwJcteFIq8XWPfEBm2JASYXgbjVwd_DYuKZossY4Uhr3z5WusZ5op7dHwGN2twtrTeUqGPdxHKUM8G1oewOOTGdoQeIdl1obir31dpSNLePmIckEmOY9yyPQCRnqnvUn7PUorhcbIP6MkWNx_p2iW6i0GzH-p3oMJoJX0EpvdQDGul6V8c_DoJjWlgKZR2k9ppoqx7QhzOBabU6j2o6YV2v3xqLFnUbk1BbuilPrT8m1RkU7ZNqYX-1PlVD8YUA0xSqyrN3I2yKP2N0-Ov_BtGlZ7Q9ufU6ZKqOsmCiILW5ARqAz2xq5sZw7IqP6-wOw7W2eBqc5Jb6siF3rw2uG88D_zKi-GUm4orhn2Ug4dlz1bWERoh3MQMzjBd1OeTPgdwKeYe4ugdw_RsN4HCo7Xs7oI9VkEdQNj61a5qofQTuNo05IQy4L8TqpTiKpTcFQGpIQ74JXcez1Sb1ypLoL3u02HFJ5rXj82nRYiSIQ0jhmFttTyM7nrYZ-b0HGMHmfJmfOHHqzNSSvYKRYAYxE3GfyrdmrCZCoUX-4L4ScUmJRp3CFWiylP1acE1AU5ZqXatnKYiaZ1xZ0uLAoDqRP9rl2cyTFCpaNpK8_BoMqYw.-Dp6synVSj35L232yoQIFg",
+          "domain": "https://healthmonitor.vtex.com",
+          "path": "/",
+          "secure": true,
+          "httpOnly": false,
+          "sameSite": "lax",
+          "importedAt": "2025-08-30T22:13:15.460Z"
+        }
+      ],
+      "lastImport": "2025-08-30T22:13:15.460Z",
+      "description": "Cookies for https://healthmonitor.vtex.com"
     }
   },
-  "lastUpdated": "2025-08-29T21:06:48.643Z"
+  "lastUpdated": "2025-08-30T22:32:09.456Z"
 }

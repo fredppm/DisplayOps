@@ -30,14 +30,13 @@
     "test:phase1": "cd scripts && node test-phase1-complete.js",
     "test:phase2": "cd scripts && node test-phase2-features.js",
     "verify:phase1": "cd scripts && node verify-phase1.js",
-    "test:all": "npm run test:communication && npm run test:quick && npm run test:phase1"
+    "test:all": "npm run test:communication && npm run test:quick && npm run test:phase1",
+    "generate:icons": "node scripts/generate-icons.js"
   },
   "devDependencies": {
-    "axios": "^1.6.2",
-    "bonjour-service": "^1.2.1",
     "concurrently": "^8.2.2",
-    "electron-reloader": "^1.2.3",
-    "node-fetch": "^2.7.0"
+    "png-to-ico": "^3.0.1",
+    "sharp": "^0.34.3"
   },
   "keywords": [
     "office-tv",
@@ -47,6 +46,5 @@
     "tv-control",
     "mdns-discovery"
   ],
-  "author": "Office TV Management System",
-  "license": "UNLICENSED"
+  "author": "Office TV Management System"
 }

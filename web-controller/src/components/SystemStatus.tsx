@@ -9,7 +9,8 @@ import {
   AlertTriangle,
   CheckCircle,
   Clock,
-  Server
+  Server,
+  Eye
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -25,6 +26,7 @@ export const SystemStatus: React.FC<SystemStatusProps> = ({ hosts }) => {
   const [healthData, setHealthData] = useState<HostHealthData>({});
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+  const [identifyingDisplays, setIdentifyingDisplays] = useState<{[hostId: string]: boolean}>({});
 
   const formatSafeDate = (dateValue: string | Date | undefined): string => {
     if (!dateValue) return 'Never';
@@ -109,6 +111,43 @@ export const SystemStatus: React.FC<SystemStatusProps> = ({ hosts }) => {
   };
 
   const systemHealth = getOverallSystemHealth();
+
+  const identifyDisplays = async (hostId: string) => {
+    setIdentifyingDisplays(prev => ({ ...prev, [hostId]: true }));
+
+    try {
+      const response = await fetch(`/api/host/${hostId}/command`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          type: 'identify_displays',
+          targetDisplay: 'all',
+          payload: {
+            duration: 5,
+            fontSize: 200,
+            backgroundColor: 'rgba(0, 100, 200, 0.9)'
+          },
+          timestamp: new Date().toISOString()
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to identify displays');
+      }
+
+      // Auto clear the identifying state after the duration
+      setTimeout(() => {
+        setIdentifyingDisplays(prev => ({ ...prev, [hostId]: false }));
+      }, 5000);
+
+    } catch (error) {
+      console.error('Error identifying displays:', error);
+      setIdentifyingDisplays(prev => ({ ...prev, [hostId]: false }));
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -202,6 +241,23 @@ export const SystemStatus: React.FC<SystemStatusProps> = ({ hosts }) => {
                       {host.status.online ? 'Online' : 'Offline'}
                     </span>
                     <span className="text-sm text-gray-500">v{host.version}</span>
+                    {host.status.online && (
+                      <button
+                        onClick={() => identifyDisplays(host.id)}
+                        disabled={identifyingDisplays[host.id]}
+                        className={`btn-secondary text-xs px-3 py-1 ${
+                          identifyingDisplays[host.id] 
+                            ? 'opacity-50 cursor-not-allowed' 
+                            : 'hover:bg-primary-100'
+                        }`}
+                        title="Identify Displays - Shows numbers on each monitor"
+                      >
+                        <Eye className={`w-3 h-3 mr-1 ${
+                          identifyingDisplays[host.id] ? 'animate-pulse' : ''
+                        }`} />
+                        {identifyingDisplays[host.id] ? 'Identifying...' : 'ID Displays'}
+                      </button>
+                    )}
                   </div>
                 </div>
 

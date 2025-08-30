@@ -142,6 +142,9 @@ export class WindowManager extends EventEmitter {
       // Store the window
       this.windows.set(config.id, managedWindow);
 
+      // Emit window created event
+      this.emit('window-created', { windowId: config.id, totalWindows: this.windows.size });
+
       // Add to refresh manager if refresh interval is specified
       if (config.refreshInterval) {
         this.refreshManager.addWindow(config.id, config.url, config.refreshInterval);
@@ -455,6 +458,7 @@ export class WindowManager extends EventEmitter {
     window.on('closed', () => {
       console.log(`Window ${id} was closed`);
       this.windows.delete(id);
+      this.emit('window-closed', { windowId: id, totalWindows: this.windows.size });
     });
 
     // Handle unresponsive window

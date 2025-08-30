@@ -3,9 +3,9 @@ import { HostService } from '../services/host-service';
 import { WindowManager, WindowConfig } from '../managers/window-manager';
 import { URLValidator } from '../services/url-validator';
 import { DebugService } from '../services/debug-service';
-import { WebSocketService } from '../services/websocket-service';
 import { StateManager } from '../services/state-manager';
 import { CookieService } from '../services/cookie-service';
+import { logger } from '../utils/logger';
 import { 
   ApiCommand, 
   CommandType, 
@@ -24,11 +24,10 @@ export class ApiRouter {
   private displayMonitor: any; // DisplayMonitor
   private mdnsService: any; // MDNSService
   private configManager: any; // ConfigManager
-  private webSocketService?: WebSocketService;
   private stateManager?: StateManager;
   private cookieService: CookieService;
 
-  constructor(hostService: HostService, windowManager: WindowManager, debugService?: DebugService, displayIdentifier?: any, displayMonitor?: any, mdnsService?: any, configManager?: any, webSocketService?: WebSocketService, stateManager?: StateManager) {
+  constructor(hostService: HostService, windowManager: WindowManager, debugService?: DebugService, displayIdentifier?: any, displayMonitor?: any, mdnsService?: any, configManager?: any, stateManager?: StateManager) {
     this.hostService = hostService;
     this.windowManager = windowManager;
     this.debugService = debugService!; // Will be provided from main.ts
@@ -36,7 +35,6 @@ export class ApiRouter {
     this.displayMonitor = displayMonitor;
     this.mdnsService = mdnsService;
     this.configManager = configManager;
-    this.webSocketService = webSocketService;
     this.stateManager = stateManager;
     this.cookieService = new CookieService();
     this.router = Router();
@@ -251,10 +249,7 @@ export class ApiRouter {
       this.stateManager.saveDashboardDeployment(displayId, payload.dashboardId, payload.url, payload.refreshInterval);
     }
 
-    // Notify via WebSocket about dashboard deployment
-    if (this.webSocketService) {
-      this.webSocketService.broadcastDashboardDeployed(displayId, payload.dashboardId, payload.url);
-    }
+    // Note: Real-time notifications now handled by gRPC streaming
 
     return windowId;
   }
@@ -313,10 +308,7 @@ export class ApiRouter {
       this.stateManager.markDisplayRefreshed(targetDisplay, targetWindow.id);
     }
     
-    // Notify via WebSocket about display refresh
-    if (success && this.webSocketService) {
-      this.webSocketService.broadcastDisplayRefreshed(targetDisplay, targetWindow.id);
-    }
+    // Note: Real-time notifications now handled by gRPC streaming
     
     return success;
   }
@@ -487,7 +479,7 @@ export class ApiRouter {
         }
       }));
       
-      console.log(`📺 API /displays: ${displays.length} displays detected directly from system`);
+      logger.info(`📺 API /displays: ${displays.length} displays detected directly from system`);
       
       const response = this.hostService.createApiResponse(true, displays);
       res.json(response);

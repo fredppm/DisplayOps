@@ -62,13 +62,11 @@
   "dependencies": {
     "@grpc/grpc-js": "^1.10.1",
     "@grpc/proto-loader": "^0.7.10",
-    "@types/ws": "^8.18.1",
     "bonjour-service": "^1.2.1",
     "cors": "^2.8.5",
     "electron-updater": "^6.1.7",
     "express": "^4.18.2",
     "node-fetch": "^2.7.0",
-    "office-tv-management-system": "file:..",
-    "ws": "^8.18.3"
+    "office-tv-management-system": "file:.."
   }
 }

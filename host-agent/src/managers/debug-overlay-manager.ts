@@ -29,7 +29,7 @@ export class DebugOverlayManager {
     this.config = {
       enabled: false,
       position: 'right',
-      opacity: 0.95,  // Aumentado para 95% opaco
+      opacity: 0.6,  // Reduzido para 60% para ser mais transparente
       hotkey: 'CommandOrControl+Shift+D'
     };
 
@@ -56,12 +56,14 @@ export class DebugOverlayManager {
 
       logger.debug('Creating debug overlay...');
 
-      const primaryDisplay = screen.getPrimaryDisplay();
-      const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+      // Get cursor position to determine which display to use
+      const cursorPoint = screen.getCursorScreenPoint();
+      const currentDisplay = screen.getDisplayNearestPoint(cursorPoint);
+      const { x: displayX, y: displayY, width: screenWidth, height: screenHeight } = currentDisplay.workArea;
 
-      // Position window to cover entire screen
-      const x = screenWidth - 400;
-      const y = 0;
+      // Position window on the right side of the current display
+      const x = displayX + screenWidth - 400;
+      const y = displayY;
 
       logger.debug(`Positioning overlay to cover entire screen: x=${x}, y=${y}`);
 
@@ -77,6 +79,8 @@ export class DebugOverlayManager {
         minimizable: false,
         maximizable: false,
         closable: true,
+        alwaysOnTop: false,  // Permite que outras janelas fiquem na frente
+        focusable: true,     // Permite focar e desfocar
         opacity: this.config.opacity,
         webPreferences: {
           nodeIntegration: false,
@@ -140,7 +144,13 @@ export class DebugOverlayManager {
       this.overlayWindow.on('blur', () => {
         if (!this.state.pinned) {
           // Auto-hide when losing focus (unless pinned)
-          this.overlayWindow?.setOpacity(0.8);
+          this.overlayWindow?.setOpacity(0.3);
+          // Fechar automaticamente após 2 segundos sem foco
+          setTimeout(() => {
+            if (this.overlayWindow && !this.overlayWindow.isFocused() && !this.state.pinned && !this.overlayWindow.isDestroyed()) {
+              this.overlayWindow.close();
+            }
+          }, 2000);
         }
       });
 
@@ -246,6 +256,13 @@ export class DebugOverlayManager {
         await this.toggleOverlay();
       } catch (error) {
         logger.error('Failed to toggle overlay via hotkey:', error);
+      }
+    });
+
+    // Adicionar ESC para fechar o overlay
+    globalShortcut.register('Escape', () => {
+      if (this.state.visible && this.overlayWindow && this.overlayWindow.isFocused()) {
+        this.hideOverlay();
       }
     });
   }
@@ -380,6 +397,7 @@ export class DebugOverlayManager {
 
     // Unregister hotkeys
     globalShortcut.unregister(this.config.hotkey);
+    globalShortcut.unregister('Escape');
     
     logger.debug('Debug overlay manager cleaned up');
   }

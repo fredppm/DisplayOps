@@ -1,5 +1,6 @@
 import { BrowserWindow, screen } from 'electron';
 import { join } from 'path';
+import { WindowManager } from '../managers/window-manager';
 
 export interface DisplayIdentifierOptions {
   duration?: number;
@@ -10,6 +11,11 @@ export interface DisplayIdentifierOptions {
 export class DisplayIdentifier {
   private identifierWindows: BrowserWindow[] = [];
   private isActive: boolean = false;
+  private windowManager?: WindowManager;
+
+  public setWindowManager(windowManager: WindowManager): void {
+    this.windowManager = windowManager;
+  }
 
   public async identifyDisplays(options: DisplayIdentifierOptions = {}): Promise<string> {
     if (this.isActive) {
@@ -32,17 +38,59 @@ export class DisplayIdentifier {
 
       console.log(`🖥️ Identifying ${displays.length} displays for ${duration} seconds...`);
 
-      // Create identifier window for each display
-      const windowPromises = displays.map((display, index) => 
-        this.createIdentifierWindow(display, index + 1, fontSize, backgroundColor)
-      );
+      // First, try to inject into existing dashboard windows
+      let injectedCount = 0;
+      if (this.windowManager) {
+        injectedCount = await this.injectIntoExistingWindows(duration, fontSize, backgroundColor);
+      }
 
-      this.identifierWindows = await Promise.all(windowPromises);
+      // For displays without dashboards, create overlay windows
+      const displaysWithoutDashboards = displays.length - injectedCount;
+      if (displaysWithoutDashboards > 0) {
+        const windowPromises = displays.slice(injectedCount).map((display, index) => 
+          this.createIdentifierWindow(display, injectedCount + index + 1, fontSize, backgroundColor)
+        );
 
-      // Auto-close after duration
+        this.identifierWindows = await Promise.all(windowPromises);
+
+        // Force all windows to top after creation with aggressive settings
+        setTimeout(() => {
+          this.identifierWindows.forEach(window => {
+            if (!window.isDestroyed()) {
+              window.setAlwaysOnTop(true, 'screen-saver', 1);
+              window.moveTop();
+              window.show();
+              window.focus();
+              window.setKiosk(true);
+            }
+          });
+        }, 100);
+        
+        // Additional force after 500ms
+        setTimeout(() => {
+          this.identifierWindows.forEach(window => {
+            if (!window.isDestroyed()) {
+              window.setAlwaysOnTop(true, 'screen-saver', 1);
+              window.moveTop();
+            }
+          });
+        }, 500);
+
+        // Auto-close after duration
+        setTimeout(() => {
+          this.closeIdentifierWindows();
+        }, duration * 1000);
+
+        // Emergency force-close after duration + 2 seconds
+        setTimeout(() => {
+          this.forceCloseAllWindows();
+        }, (duration + 2) * 1000);
+      }
+
+      // Mark as inactive after the duration
       setTimeout(() => {
-        this.closeIdentifierWindows();
-      }, duration * 1000);
+        this.isActive = false;
+      }, (duration + 1) * 1000);
 
       return `Identifying ${displays.length} displays for ${duration} seconds`;
 
@@ -53,12 +101,105 @@ export class DisplayIdentifier {
     }
   }
 
+  private async injectIntoExistingWindows(duration: number, fontSize: number, backgroundColor: string): Promise<number> {
+    if (!this.windowManager) return 0;
+
+    const managedWindows = this.windowManager.getAllWindows();
+    let injectedCount = 0;
+
+    for (const managedWindow of managedWindows) {
+      if (!managedWindow.window.isDestroyed()) {
+        try {
+          const displayNumber = injectedCount + 1;
+          
+          const injectionScript = `
+            (function() {
+              // Remove existing identifier if present
+              const existing = document.getElementById('display-identifier-overlay');
+              if (existing) existing.remove();
+              
+              // Create overlay
+              const overlay = document.createElement('div');
+              overlay.id = 'display-identifier-overlay';
+              overlay.style.cssText = \`
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100vw;
+                height: 100vh;
+                background: ${backgroundColor};
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-family: 'Segoe UI', Arial, sans-serif;
+                z-index: 999999;
+                cursor: pointer;
+              \`;
+              
+              overlay.innerHTML = \`
+                <div style="text-align: center; color: white; animation: pulse 1.5s ease-in-out infinite alternate;">
+                  <div style="font-size: ${fontSize}px; font-weight: 900; line-height: 1; text-shadow: 0 0 20px rgba(255, 255, 255, 0.5); margin-bottom: 20px;">
+                    ${displayNumber}
+                  </div>
+                  <div style="font-size: 24px; font-weight: 600; opacity: 0.8; margin-bottom: 10px;">
+                    Display ${displayNumber}
+                  </div>
+                  <div style="font-size: 14px; opacity: 0.4; position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);">
+                    Click anywhere or press any key to close
+                  </div>
+                </div>
+              \`;
+              
+              // Add CSS animation
+              if (!document.getElementById('identifier-styles')) {
+                const styles = document.createElement('style');
+                styles.id = 'identifier-styles';
+                styles.textContent = \`
+                  @keyframes pulse {
+                    0% { opacity: 0.7; transform: scale(1); }
+                    100% { opacity: 1; transform: scale(1.05); }
+                  }
+                \`;
+                document.head.appendChild(styles);
+              }
+              
+              // Close handlers
+              const closeOverlay = () => {
+                overlay.remove();
+                document.removeEventListener('keydown', closeOverlay);
+              };
+              
+              overlay.addEventListener('click', closeOverlay);
+              document.addEventListener('keydown', closeOverlay);
+              
+              // Auto-close after duration
+              setTimeout(closeOverlay, ${duration * 1000});
+              
+              document.body.appendChild(overlay);
+            })();
+          `;
+
+          await managedWindow.window.webContents.executeJavaScript(injectionScript);
+          injectedCount++;
+          console.log(`📺 Injected identifier into display ${displayNumber}`);
+          
+        } catch (error) {
+          console.error(`Failed to inject into window ${managedWindow.id}:`, error);
+        }
+      }
+    }
+
+    return injectedCount;
+  }
+
   public closeIdentifierWindows(): void {
     console.log('🔴 Closing display identifier windows...');
     
     this.identifierWindows.forEach((window, index) => {
       if (!window.isDestroyed()) {
         try {
+          window.setKiosk(false); // Exit kiosk mode first
+          window.setAlwaysOnTop(false); // Remove always on top
           window.close();
         } catch (error) {
           console.error(`Error closing identifier window ${index + 1}:`, error);
@@ -90,9 +231,10 @@ export class DisplayIdentifier {
       movable: false,
       minimizable: false,
       maximizable: false,
-      closable: false,
-      focusable: false,
+      closable: true,
+      focusable: true, // Allow focus so it can receive keyboard events
       transparent: true,
+      kiosk: true, // Force kiosk mode to override other windows
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
@@ -105,6 +247,13 @@ export class DisplayIdentifier {
     
     // Load the HTML directly
     await window.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+
+    // Force window to top with maximum priority
+    window.show();
+    window.focus();
+    window.setAlwaysOnTop(true, 'screen-saver', 1); // Highest priority level
+    window.moveTop();
+    window.setKiosk(true); // Force kiosk mode after showing
 
     // Debug info
     console.log(`📺 Display ${number}: ${bounds.width}x${bounds.height} at (${bounds.x}, ${bounds.y})`);
@@ -143,8 +292,9 @@ export class DisplayIdentifier {
       justify-content: center;
       font-family: 'Segoe UI', Arial, sans-serif;
       overflow: hidden;
-      cursor: none;
+      cursor: pointer;
       user-select: none;
+      position: relative;
     }
     
     .identifier {
@@ -222,9 +372,20 @@ export class DisplayIdentifier {
     document.addEventListener('selectstart', e => e.preventDefault());
     document.addEventListener('dragstart', e => e.preventDefault());
     
-    // Optional: Close on any key press
+    // Close on any key press or click
     document.addEventListener('keydown', () => {
       window.close();
+    });
+    
+    document.addEventListener('click', () => {
+      window.close();
+    });
+    
+    // Emergency close with ESC
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        window.close();
+      }
     });
 
     // Add some dynamic effects
@@ -265,7 +426,26 @@ export class DisplayIdentifier {
     }));
   }
 
+  public forceCloseAllWindows(): void {
+    console.log('🚨 Force closing all identifier windows...');
+    
+    this.identifierWindows.forEach((window, index) => {
+      if (!window.isDestroyed()) {
+        try {
+          window.setKiosk(false); // Exit kiosk mode first
+          window.setAlwaysOnTop(false); // Remove always on top
+          window.destroy(); // Force destroy instead of close
+        } catch (error) {
+          console.error(`Error force destroying identifier window ${index + 1}:`, error);
+        }
+      }
+    });
+
+    this.identifierWindows = [];
+    this.isActive = false;
+  }
+
   public cleanup(): void {
-    this.closeIdentifierWindows();
+    this.forceCloseAllWindows();
   }
 }
