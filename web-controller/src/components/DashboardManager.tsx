@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MiniPC, Dashboard } from '@/types/types';
+import { MiniPC, Dashboard } from '@/types/shared-types';
 import { 
   Plus, 
   Monitor, 
@@ -8,6 +8,7 @@ import {
   Play, 
   Pause,
   RotateCcw,
+  RefreshCw,
   AlertCircle,
   CheckCircle,
   X,
@@ -47,6 +48,7 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ hosts }) => 
   const [selectedDashboard, setSelectedDashboard] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [assignments, setAssignments] = useState<Record<string, { hostId: string, displayId: string, dashboardId: string }>>({});
+  const [realTimeAssignments, setRealTimeAssignments] = useState<Record<string, { hostId: string, displayId: string, dashboardId: string, url: string, isActive: boolean }>>({});
   
   // Loading and notification states
   const [loadingDeployments, setLoadingDeployments] = useState<Set<string>>(new Set());
@@ -82,6 +84,55 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ hosts }) => 
   // Helper function to remove notification
   const removeNotification = (id: string) => {
     setNotifications(prev => prev.filter(n => n.id !== id));
+  };
+
+  // Function to sync real-time assignments from hosts
+  const syncAssignmentsFromHosts = async () => {
+    const newRealTimeAssignments: Record<string, { hostId: string, displayId: string, dashboardId: string, url: string, isActive: boolean }> = {};
+    
+    for (const host of hosts) {
+      if (!host.status.online) continue;
+      
+      try {
+        // Get display states from host
+        const response = await fetch(`/api/host/${host.id}/displays`);
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success && result.data) {
+            const displayStates = result.data;
+            
+            // Process each display state
+            Object.entries(displayStates).forEach(([displayId, state]: [string, any]) => {
+              if (state.assignedDashboard) {
+                const assignmentKey = `${host.id}-${displayId}`;
+                newRealTimeAssignments[assignmentKey] = {
+                  hostId: host.id,
+                  displayId,
+                  dashboardId: state.assignedDashboard.dashboardId,
+                  url: state.assignedDashboard.url,
+                  isActive: state.isActive
+                };
+              }
+            });
+          }
+        }
+      } catch (error) {
+        console.error(`Error syncing assignments from host ${host.id}:`, error);
+      }
+    }
+    
+    setRealTimeAssignments(newRealTimeAssignments);
+    
+    // Also update the local assignments to match reality
+    const syncedAssignments: Record<string, { hostId: string, displayId: string, dashboardId: string }> = {};
+    Object.entries(newRealTimeAssignments).forEach(([key, assignment]) => {
+      syncedAssignments[key] = {
+        hostId: assignment.hostId,
+        displayId: assignment.displayId,
+        dashboardId: assignment.dashboardId
+      };
+    });
+    setAssignments(syncedAssignments);
   };
 
   // Dashboard management functions
@@ -182,7 +233,7 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ hosts }) => 
       // First validate the URL
       addNotification('info', 'Validating URL', `Checking ${dashboard.name} accessibility...`);
       
-      const validateResponse = await fetch(`http://${host.ipAddress}:${host.port}/api/validate-url`, {
+      const validateResponse = await fetch(`/api/host/${host.id}/validate-url`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -212,7 +263,7 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ hosts }) => 
       // Deploy the dashboard
       addNotification('info', 'Deploying Dashboard', `Opening ${dashboard.name} on ${displayId.replace('display-', 'Display ')}...`);
       
-      const response = await fetch(`http://${host.ipAddress}:${host.port}/api/command`, {
+      const response = await fetch(`/api/host/${host.id}/command`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -299,7 +350,7 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ hosts }) => 
     try {
       addNotification('info', 'Refreshing Dashboard', `Refreshing ${dashboardName} on ${displayId.replace('display-', 'Display ')}...`);
       
-      const response = await fetch(`http://${host.ipAddress}:${host.port}/api/command`, {
+      const response = await fetch(`/api/host/${host.id}/command`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -347,6 +398,17 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ hosts }) => 
 
     }
   };
+
+  // Sync assignments from hosts on component mount and when hosts change
+  React.useEffect(() => {
+    if (hosts.length > 0) {
+      syncAssignmentsFromHosts();
+      
+      // Set up periodic sync every 10 seconds
+      const interval = setInterval(syncAssignmentsFromHosts, 10000);
+      return () => clearInterval(interval);
+    }
+  }, [hosts]);
 
   return (
     <div className="space-y-6">
@@ -627,7 +689,17 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ hosts }) => 
 
         {/* Display Assignment Grid */}
         <div className="space-y-4">
-          <h3 className="text-lg font-semibold text-gray-900">Display Assignments</h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-gray-900">Display Assignments</h3>
+            <button
+              onClick={syncAssignmentsFromHosts}
+              className="flex items-center px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              title="Sync assignments from hosts"
+            >
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Sync Status
+            </button>
+          </div>
           
           {hosts.length === 0 ? (
             <div className="card text-center py-8">
@@ -655,6 +727,7 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ hosts }) => 
                   {host.displays.map((displayId) => {
                     const assignmentKey = `${host.id}-${displayId}`;
                     const assignment = assignments[assignmentKey];
+                    const realTimeAssignment = realTimeAssignments[assignmentKey];
                     const assignedDashboard = assignment 
                       ? dashboards.find(d => d.id === assignment.dashboardId)
                       : null;
@@ -665,7 +738,13 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ hosts }) => 
                         className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
                       >
                         <div className="flex items-center">
-                          <div className="w-3 h-3 bg-gray-400 rounded mr-3"></div>
+                          <div className={`w-3 h-3 rounded mr-3 ${
+                            realTimeAssignment?.isActive 
+                              ? 'bg-green-500' 
+                              : assignedDashboard 
+                                ? 'bg-yellow-500' 
+                                : 'bg-gray-400'
+                          }`}></div>
                           <div>
                             <div className="font-medium text-gray-900">
                               {displayId.replace('display-', 'Display ')}
@@ -673,6 +752,15 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ hosts }) => 
                             {assignedDashboard && (
                               <div className="text-sm text-gray-600">
                                 {assignedDashboard.name}
+                                {realTimeAssignment && (
+                                  <span className={`ml-2 px-2 py-1 rounded-full text-xs ${
+                                    realTimeAssignment.isActive 
+                                      ? 'bg-green-100 text-green-800' 
+                                      : 'bg-yellow-100 text-yellow-800'
+                                  }`}>
+                                    {realTimeAssignment.isActive ? 'Active' : 'Inactive'}
+                                  </span>
+                                )}
                               </div>
                             )}
                           </div>

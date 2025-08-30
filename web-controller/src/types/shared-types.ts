@@ -1,4 +1,5 @@
 // Shared TypeScript types for Office TV Management System
+// Local copy from shared directory for Next.js compatibility
 
 export interface Dashboard {
   id: string;

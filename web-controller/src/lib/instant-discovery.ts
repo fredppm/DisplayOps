@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { MiniPC, HostStatus } from '@/types/types';
+import { MiniPC, HostStatus } from '@/types/shared-types';
 
 /**
  * Instant discovery for development
@@ -36,6 +36,7 @@ export class InstantDiscovery {
           lastHeartbeat: new Date(),
           lastDiscovered: new Date(),
           version: response.data.data?.version || '1.0.0',
+          tvs: [], // Legacy property
           displays: ['display-1', 'display-2'] // Will be updated by discovery service dynamically
         };
 

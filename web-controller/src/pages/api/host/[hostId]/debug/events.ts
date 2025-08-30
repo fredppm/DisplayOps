@@ -1,11 +1,11 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { proxyToHost } from '@/lib/host-utils';
+import { parseHostId } from '@/lib/host-utils';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { hostId } = req.query;
   
-  if (req.method !== 'POST') {
-    res.setHeader('Allow', ['POST']);
+  if (!['GET', 'DELETE'].includes(req.method!)) {
+    res.setHeader('Allow', ['GET', 'DELETE']);
     return res.status(405).json({
       success: false,
       error: `Method ${req.method} Not Allowed`
@@ -13,23 +13,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    // Convert new command format to legacy format for host agent
-    const command = req.body;
-    let legacyCommand = { ...command };
+    // Parse host info directly from hostId (format: agent-IP-PORT)
+    const hostInfo = parseHostId(hostId as string);
+    
+    if (!hostInfo) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid host ID format'
+      });
+    }
 
-    // Map new command types to legacy types
-    if (command.type === 'REFRESH_PAGE') {
-      legacyCommand.type = 'refresh_page';
-    } else if (command.type === 'SYNC_COOKIES') {
-      legacyCommand.type = 'sync_cookies';
-    } else if (command.type === 'OPEN_DASHBOARD') {
-      legacyCommand.type = 'open_dashboard';
+    // Build URL with query params for GET requests
+    let url = `http://${hostInfo.ipAddress}:${hostInfo.port}/api/debug/events`;
+    if (req.method === 'GET' && req.url?.includes('?')) {
+      const queryString = req.url.split('?')[1];
+      url += `?${queryString}`;
     }
 
     // Proxy request directly to host (avoid internal fetch to discovery)
-    const hostResponse = await proxyToHost(hostId as string, '/api/command', {
-      method: 'POST',
-      body: JSON.stringify(legacyCommand)
+    const hostResponse = await fetch(url, {
+      method: req.method,
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      signal: AbortSignal.timeout(10000) // 10 second timeout
     });
 
     const responseData = await hostResponse.json();
@@ -44,7 +51,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.status(200).json(responseData);
 
   } catch (error) {
-    console.error('Command proxy error:', error);
+    console.error('Debug events proxy error:', error);
     
     if (error instanceof Error && error.message === 'Invalid host ID format') {
       return res.status(400).json({

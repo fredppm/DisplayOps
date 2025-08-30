@@ -24,6 +24,10 @@ import { MDNSService } from './services/mdns-service';
 import { DebugService } from './services/debug-service';
 import { DisplayIdentifier } from './services/display-identifier';
 import { DisplayMonitor } from './services/display-monitor';
+import { WebSocketService } from './services/websocket-service';
+import { GrpcService } from './services/grpc-service';
+import { StateManager } from './services/state-manager';
+import { AutoRestoreService } from './services/auto-restore-service';
 import { ApiRouter } from './routes/api-router';
 import { WindowManager } from './managers/window-manager';
 import { ConfigManager } from './managers/config-manager';
@@ -77,11 +81,47 @@ function ensureSingleInstance(): boolean {
       try {
         process.kill(pid, 0); // Signal 0 doesn't kill the process, just checks if it exists
         console.log(`🚫 Another instance is already running (PID: ${pid})`);
-        console.log('Focusing existing instance...');
         
-        // Try to focus existing instance by sending a custom event
-        // This will be handled by the existing instance
-        return false;
+        // Try to force kill the existing instance
+        try {
+          console.log(`🔪 Attempting to force kill existing instance (PID: ${pid})...`);
+          process.kill(pid, 'SIGKILL');
+          
+          // Wait a bit for the process to be killed
+          setTimeout(() => {
+            try {
+              // Check if process is still running
+              process.kill(pid, 0);
+              console.log(`⚠️ Process ${pid} is still running after SIGKILL`);
+            } catch (error) {
+              console.log(`✅ Process ${pid} successfully terminated`);
+              // Remove the lock file since the process is dead
+              if (fs.existsSync(lockFilePath)) {
+                fs.unlinkSync(lockFilePath);
+                console.log('Lock file removed after killing existing instance');
+              }
+            }
+          }, 1000);
+          
+          // Continue with this instance
+          console.log('Proceeding with current instance...');
+          return true;
+        } catch (killError) {
+          console.log(`❌ Failed to kill process ${pid}:`, killError);
+          console.log('Attempting to continue anyway...');
+          
+          // Try to remove the lock file and continue
+          try {
+            if (fs.existsSync(lockFilePath)) {
+              fs.unlinkSync(lockFilePath);
+              console.log('Lock file removed, continuing with current instance');
+            }
+            return true;
+          } catch (removeError) {
+            console.log('Failed to remove lock file:', removeError);
+            return false;
+          }
+        }
       } catch (error) {
         // Process is not running, remove stale lock file
         console.log('Removing stale lock file...');
@@ -130,7 +170,8 @@ function cleanupAndExit(): void {
 
 // Check if this is the only instance
 if (!ensureSingleInstance()) {
-  // Another instance is running, exit this one
+  // If we get here, it means we couldn't resolve the single instance issue
+  console.log('❌ Failed to resolve single instance issue');
   console.log('Exiting duplicate instance...');
   app.quit();
   process.exit(0);
@@ -142,6 +183,10 @@ class HostAgent {
   private debugService: DebugService;
   private displayIdentifier: DisplayIdentifier;
   private displayMonitor: DisplayMonitor;
+  private webSocketService: WebSocketService;
+  private grpcService: GrpcService;
+  private stateManager: StateManager;
+  private autoRestoreService: AutoRestoreService;
   private windowManager: WindowManager;
   private configManager: ConfigManager;
   private debugOverlayManager: DebugOverlayManager;
@@ -155,7 +200,21 @@ class HostAgent {
     this.debugService = new DebugService(this.configManager);
     this.displayIdentifier = new DisplayIdentifier();
     this.displayMonitor = new DisplayMonitor();
+    this.webSocketService = new WebSocketService(8081);
+    this.stateManager = new StateManager();
     this.windowManager = new WindowManager();
+    this.grpcService = new GrpcService(
+      8082,
+      this.hostService,
+      this.windowManager,
+      this.debugService,
+      this.displayIdentifier,
+      this.displayMonitor,
+      this.mdnsService,
+      this.configManager,
+      this.stateManager
+    );
+    this.autoRestoreService = new AutoRestoreService(this.stateManager, this.windowManager);
     this.debugOverlayManager = new DebugOverlayManager(
       this.debugService,
       this.windowManager,
@@ -197,12 +256,28 @@ class HostAgent {
     });
     
     // API routes
-    const apiRouter = new ApiRouter(this.hostService, this.windowManager, this.debugService, this.displayIdentifier, this.displayMonitor, this.mdnsService, this.configManager);
+    const apiRouter = new ApiRouter(this.hostService, this.windowManager, this.debugService, this.displayIdentifier, this.displayMonitor, this.mdnsService, this.configManager, this.webSocketService, this.stateManager);
     this.expressApp.use('/api', apiRouter.getRouter());
     
     // Start server
-    this.server = this.expressApp.listen(port, () => {
+    this.server = this.expressApp.listen(port, async () => {
       logger.success(`Host agent API server listening on port ${port}`);
+      
+      // Start WebSocket service
+      try {
+        await this.webSocketService.start();
+        logger.success('WebSocket service started successfully');
+      } catch (error) {
+        logger.error('Failed to start WebSocket service:', error);
+      }
+
+      // Start gRPC service
+      try {
+        await this.grpcService.start();
+        logger.success('gRPC service started successfully');
+      } catch (error) {
+        logger.error('Failed to start gRPC service:', error);
+      }
     });
   }
 
@@ -231,6 +306,15 @@ class HostAgent {
       
       // Setup display monitoring after everything is initialized
       this.setupDisplayMonitoring();
+      
+      // Restore dashboards after a short delay to ensure everything is ready
+      setTimeout(async () => {
+        try {
+          await this.autoRestoreService.restoreAllDashboards();
+        } catch (error) {
+          logger.error('Failed to restore dashboards on startup:', error);
+        }
+      }, 3000); // 3 second delay
     });
 
     // Handle all windows closed
@@ -354,6 +438,9 @@ class HostAgent {
         timestamp: event.timestamp
       });
       
+      // Trigger dashboard restoration after display changes
+      this.autoRestoreService.onDisplayChange();
+      
       // Could broadcast to connected web controllers via WebSocket here
       // For now, they can poll the /api/displays endpoint
     });
@@ -404,6 +491,21 @@ class HostAgent {
     // Close all managed windows
     if (this.windowManager) {
       this.windowManager.closeAllWindows();
+    }
+    
+    // Stop WebSocket service
+    if (this.webSocketService) {
+      this.webSocketService.stop();
+    }
+
+    // Stop gRPC service
+    if (this.grpcService) {
+      this.grpcService.stop();
+    }
+    
+    // Cleanup state manager
+    if (this.stateManager) {
+      this.stateManager.cleanup();
     }
     
     // Close Express server

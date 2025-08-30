@@ -1,5 +1,6 @@
 import { BrowserWindow, screen, Display } from 'electron';
 import { join } from 'path';
+import { EventEmitter } from 'events';
 import { URLValidator, URLValidationResult } from '../services/url-validator';
 import { RefreshManager, RefreshEvent } from '../services/refresh-manager';
 
@@ -24,12 +25,17 @@ export interface ManagedWindow {
   urlValidation?: URLValidationResult;
   errorCount: number;
   lastError?: string;
+  lastRestoreAttempt?: Date;
 }
 
-export class WindowManager {
+export class WindowManager extends EventEmitter {
   private windows: Map<string, ManagedWindow> = new Map();
   private displays: Display[] = [];
   private refreshManager!: RefreshManager;
+
+  constructor() {
+    super();
+  }
 
   public initialize(): void {
     console.log('Initializing Window Manager...');
@@ -100,12 +106,18 @@ export class WindowManager {
           contextIsolation: true,
           sandbox: true,
           webSecurity: true,
-          preload: join(__dirname, '../preload/preload.js')
+          preload: join(__dirname, '../preload/preload.js'),
+          devTools: process.env.NODE_ENV !== 'production'
         }
       });
 
       // Configure window for kiosk mode
       this.configureKioskMode(window);
+      
+      // Log dev tools availability
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`Dev tools enabled for window ${config.id}. Press F12 to toggle.`);
+      }
 
       // Load the URL
       await window.loadURL(config.url);
@@ -411,6 +423,17 @@ export class WindowManager {
       window.webContents.on('devtools-opened', () => {
         window.webContents.closeDevTools();
       });
+    } else {
+      // In development, allow F12 to toggle dev tools
+      window.webContents.on('before-input-event', (event, input) => {
+        if (input.key === 'F12' && input.type === 'keyDown') {
+          if (window.webContents.isDevToolsOpened()) {
+            window.webContents.closeDevTools();
+          } else {
+            window.webContents.openDevTools();
+          }
+        }
+      });
     }
 
     // Prevent navigation away from the assigned URL
@@ -455,6 +478,21 @@ export class WindowManager {
       managedWindow.isResponsive = true;
       managedWindow.errorCount = 0; // Reset error count on successful load
       managedWindow.lastError = undefined;
+      
+      // Check if this was a refresh and if we need to restore dashboard
+      this.checkAndRestoreDashboardAfterLoad(managedWindow);
+    });
+
+    // Handle page navigation
+    window.webContents.on('did-navigate', (event, url) => {
+      console.log(`Window ${id} navigated to: ${url}`);
+      managedWindow.lastNavigation = new Date();
+    });
+
+    // Handle page refresh detection
+    window.webContents.on('did-start-loading', () => {
+      console.log(`Window ${id} started loading`);
+      // This fires on both initial load and refresh
     });
 
     window.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
@@ -494,5 +532,172 @@ export class WindowManager {
         this.attemptWindowRecovery(id, managedWindow);
       }, 1000);
     });
+  }
+
+  private async checkAndRestoreDashboardAfterLoad(managedWindow: ManagedWindow): Promise<void> {
+    try {
+      // Wait a moment for the page to fully load
+      setTimeout(async () => {
+        const currentUrl = managedWindow.window.webContents.getURL();
+        console.log(`🔍 Checking if dashboard restoration needed for window ${managedWindow.id}, current URL: ${currentUrl}`);
+        
+        // Check if we've attempted restoration recently (prevent loops)
+        const now = new Date();
+        if (managedWindow.lastRestoreAttempt) {
+          const timeSinceLastRestore = now.getTime() - managedWindow.lastRestoreAttempt.getTime();
+          if (timeSinceLastRestore < 30000) { // 30 seconds cooldown
+            console.log(`⏳ Skipping restoration for ${managedWindow.id} - cooldown period (${Math.round(timeSinceLastRestore/1000)}s ago)`);
+            return;
+          }
+        }
+        
+        // Check if the current URL looks like a blank page or error page
+        const needsRestore = this.shouldRestoreDashboard(currentUrl, managedWindow);
+        
+        if (needsRestore) {
+          console.log(`🔄 Dashboard restoration needed for window ${managedWindow.id}`);
+          managedWindow.lastRestoreAttempt = now;
+          await this.restoreDashboardForWindow(managedWindow);
+        }
+      }, 2000); // Wait 2 seconds for page to stabilize
+    } catch (error) {
+      console.error(`Error checking dashboard restoration for window ${managedWindow.id}:`, error);
+    }
+  }
+
+  private shouldRestoreDashboard(currentUrl: string, managedWindow: ManagedWindow): boolean {
+    // Check if URL indicates a problem that needs restoration
+    const problematicUrls = [
+      'about:blank',
+      'chrome-error://',
+      'chrome://network-error/',
+      'data:text/html,chromewebdata',
+      ''
+    ];
+    
+    // URLs that are legitimate redirects and should NOT trigger restoration
+    const legitimateRedirects = [
+      'accounts.google.com',
+      'login.microsoftonline.com',
+      'auth0.com',
+      'okta.com',
+      'oauth',
+      'login',
+      'signin',
+      'auth'
+    ];
+    
+    // Check if current URL is problematic
+    const hasProblematicUrl = problematicUrls.some(problemUrl => 
+      currentUrl.startsWith(problemUrl) || currentUrl === problemUrl
+    );
+    
+    // Check if this is a legitimate redirect (like authentication)
+    const isLegitimateRedirect = legitimateRedirects.some(redirect => 
+      currentUrl.toLowerCase().includes(redirect.toLowerCase())
+    );
+    
+    // Only restore if it's a problematic URL AND not a legitimate redirect
+    const shouldRestore = hasProblematicUrl && !isLegitimateRedirect;
+    
+    console.log(`🔍 Restoration check for ${managedWindow.id}:`, {
+      currentUrl: currentUrl.substring(0, 100) + (currentUrl.length > 100 ? '...' : ''),
+      originalUrl: managedWindow.config.url.substring(0, 100) + (managedWindow.config.url.length > 100 ? '...' : ''),
+      hasProblematicUrl,
+      isLegitimateRedirect,
+      shouldRestore
+    });
+    
+    return shouldRestore;
+  }
+
+  private async restoreDashboardForWindow(managedWindow: ManagedWindow): Promise<void> {
+    try {
+      console.log(`🔄 Restoring dashboard for window ${managedWindow.id}...`);
+      
+      // Navigate back to the original URL
+      const originalUrl = managedWindow.config.url;
+      await managedWindow.window.loadURL(originalUrl);
+      
+      // Update the last navigation time
+      managedWindow.lastNavigation = new Date();
+      
+      console.log(`✅ Dashboard restored for window ${managedWindow.id} to ${originalUrl}`);
+      
+      // Emit an event that can be picked up by other services
+      this.emit('dashboard-restored', {
+        windowId: managedWindow.id,
+        url: originalUrl,
+        timestamp: new Date()
+      });
+      
+    } catch (error) {
+      console.error(`❌ Failed to restore dashboard for window ${managedWindow.id}:`, error);
+      managedWindow.errorCount++;
+      managedWindow.lastError = `Dashboard restoration failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
+    }
+  }
+
+  // gRPC compatibility methods
+  public async deployDashboard(config: { url: string; displayId: string; fullscreen?: boolean; refreshInterval?: number }): Promise<{ success: boolean; url?: string; error?: string }> {
+    try {
+      const windowConfig: WindowConfig = {
+        id: `dashboard_${config.displayId}_${Date.now()}`,
+        url: config.url,
+        monitorIndex: parseInt(config.displayId.replace('display-', '')) || 0,
+        fullscreen: config.fullscreen !== false,
+        refreshInterval: config.refreshInterval || 0
+      };
+
+      const windowId = await this.createWindow(windowConfig);
+      return { success: true, url: config.url };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }
+
+  public async refreshDisplay(displayId: string): Promise<{ success: boolean; url?: string; error?: string }> {
+    try {
+      // Find window for this display
+      const window = Array.from(this.windows.values()).find(w => 
+        w.config.monitorIndex === (parseInt(displayId.replace('display-', '')) || 0)
+      );
+
+      if (!window) {
+        return { success: false, error: `No window found for display ${displayId}` };
+      }
+
+      const success = this.refreshWindow(window.id);
+      return { 
+        success, 
+        url: window.config.url,
+        error: success ? undefined : 'Failed to refresh display'
+      };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }
+
+  public async takeScreenshot(displayId: string, options?: { format?: string; quality?: number }): Promise<{ data: Buffer; format: string; width: number; height: number }> {
+    // Find window for this display
+    const window = Array.from(this.windows.values()).find(w => 
+      w.config.monitorIndex === (parseInt(displayId.replace('display-', '')) || 0)
+    );
+
+    if (!window) {
+      throw new Error(`No window found for display ${displayId}`);
+    }
+
+    const image = await window.window.webContents.capturePage();
+    const buffer = options?.format === 'jpeg' 
+      ? image.toJPEG(options.quality || 90)
+      : image.toPNG();
+
+    return {
+      data: buffer,
+      format: options?.format || 'png',
+      width: image.getSize().width,
+      height: image.getSize().height
+    };
   }
 }

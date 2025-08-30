@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { MiniPC, HealthCheckResponse } from '@/types/types';
+import { MiniPC, HealthCheckResponse } from '@/types/shared-types';
 import { 
   Activity, 
   Cpu, 
@@ -63,7 +63,7 @@ export const SystemStatus: React.FC<SystemStatusProps> = ({ hosts }) => {
       }
 
       try {
-        const response = await fetch(`http://${host.ipAddress}:${host.port}/api/status`);
+        const response = await fetch(`/api/host/${host.id}/status`);
         
         if (response.ok) {
           const result = await response.json();

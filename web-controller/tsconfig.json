@@ -25,7 +25,7 @@
       "@/lib/*": ["./src/lib/*"],
       "@/pages/*": ["./src/pages/*"],
       "@/styles/*": ["./src/styles/*"],
-      "@/types/*": ["../shared/*"]
+      "@/types/*": ["./src/types/*"]
     }
   },
   "include": [

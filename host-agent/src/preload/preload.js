@@ -49,16 +49,6 @@ window.addEventListener('keydown', (event) => {
     event.preventDefault();
   }
   
-  // Disable Ctrl+R (refresh) - let the system handle refreshes
-  if (event.ctrlKey && event.key === 'r') {
-    event.preventDefault();
-  }
-  
-  // Disable Ctrl+Shift+I (dev tools)
-  if (event.ctrlKey && event.shiftKey && event.key === 'I') {
-    event.preventDefault();
-  }
-  
   // Disable Alt+F4 (close window)
   if (event.altKey && event.key === 'F4') {
     event.preventDefault();

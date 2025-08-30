@@ -1,0 +1,335 @@
+syntax = "proto3";
+
+package officetv;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+
+// ================================
+// gRPC Service Definition
+// ================================
+
+service HostAgent {
+  // Execute a single command and get response
+  rpc ExecuteCommand(CommandRequest) returns (CommandResponse);
+  
+  // Stream events from host agent to backend
+  rpc StreamEvents(google.protobuf.Empty) returns (stream HostEvent);
+  
+  // Bidirectional streaming for commands and responses
+  rpc StreamCommands(stream CommandRequest) returns (stream CommandResponse);
+  
+  // Health check
+  rpc HealthCheck(google.protobuf.Empty) returns (HealthCheckResponse);
+}
+
+// ================================
+// Command Types
+// ================================
+
+message CommandRequest {
+  string command_id = 1;
+  CommandType type = 2;
+  google.protobuf.Timestamp timestamp = 3;
+  
+  oneof payload {
+    OpenDashboardCommand open_dashboard = 10;
+    RefreshDisplayCommand refresh_display = 11;
+    SetCookiesCommand set_cookies = 12;
+    ValidateUrlCommand validate_url = 13;
+    IdentifyDisplaysCommand identify_displays = 14;
+    TakeScreenshotCommand take_screenshot = 15;
+    UpdateAgentCommand update_agent = 16;
+    RestartBrowserCommand restart_browser = 17;
+  }
+}
+
+message CommandResponse {
+  string command_id = 1;
+  bool success = 2;
+  string error = 3;
+  google.protobuf.Timestamp timestamp = 4;
+  int32 execution_time_ms = 5;
+  
+  oneof result {
+    OpenDashboardResult open_dashboard_result = 10;
+    RefreshDisplayResult refresh_display_result = 11;
+    SetCookiesResult set_cookies_result = 12;
+    ValidateUrlResult validate_url_result = 13;
+    IdentifyDisplaysResult identify_displays_result = 14;
+    ScreenshotResult screenshot_result = 15;
+    HealthCheckResult health_check_result = 16;
+    UpdateAgentResult update_agent_result = 17;
+    RestartBrowserResult restart_browser_result = 18;
+  }
+}
+
+enum CommandType {
+  OPEN_DASHBOARD = 0;
+  REFRESH_DISPLAY = 1;
+  SET_COOKIES = 2;
+  VALIDATE_URL = 3;
+  HEALTH_CHECK = 4;
+  IDENTIFY_DISPLAYS = 5;
+  TAKE_SCREENSHOT = 6;
+  RESTART_BROWSER = 7;
+  UPDATE_AGENT = 8;
+}
+
+// ================================
+// Command Payloads
+// ================================
+
+message OpenDashboardCommand {
+  string display_id = 1;
+  string dashboard_id = 2;
+  string url = 3;
+  bool fullscreen = 4;
+  int32 refresh_interval_ms = 5;
+}
+
+message RefreshDisplayCommand {
+  string display_id = 1;
+}
+
+message SetCookiesCommand {
+  repeated CookieData cookies = 1;
+  string domain = 2;
+}
+
+message ValidateUrlCommand {
+  string url = 1;
+  int32 timeout_ms = 2;
+}
+
+message IdentifyDisplaysCommand {
+  int32 duration_seconds = 1;
+  string pattern = 2; // "blink", "highlight", "message"
+  int32 font_size = 3;
+  string background_color = 4;
+}
+
+message TakeScreenshotCommand {
+  string display_id = 1;
+  string format = 2; // "png", "jpeg"
+  int32 quality = 3; // 0-100 for jpeg
+}
+
+message UpdateAgentCommand {
+  string version = 1; // Target version to update to
+  string update_url = 2; // URL to download update from
+  bool force_update = 3; // Force update even if same version
+  bool restart_after_update = 4; // Restart agent after update
+}
+
+message RestartBrowserCommand {
+  repeated string display_ids = 1; // Specific displays to restart, empty = all
+  bool force_kill = 2; // Force kill browser processes
+  int32 delay_seconds = 3; // Delay before restart
+}
+
+// ================================
+// Command Results
+// ================================
+
+message OpenDashboardResult {
+  string display_id = 1;
+  string loaded_url = 2;
+  bool is_responsive = 3;
+}
+
+message RefreshDisplayResult {
+  string display_id = 1;
+  string current_url = 2;
+  google.protobuf.Timestamp refresh_time = 3;
+}
+
+message SetCookiesResult {
+  int32 cookies_set = 1;
+  repeated string failed_cookies = 2;
+}
+
+message ValidateUrlResult {
+  bool is_valid = 1;
+  int32 response_time_ms = 2;
+  int32 status_code = 3;
+  string error = 4;
+}
+
+message IdentifyDisplaysResult {
+  repeated string identified_displays = 1;
+}
+
+message ScreenshotResult {
+  string display_id = 1;
+  bytes image_data = 2;
+  string format = 3;
+  int32 width = 4;
+  int32 height = 5;
+}
+
+message HealthCheckResult {
+  HostStatus host_status = 1;
+  repeated DisplayStatus display_statuses = 2;
+  SystemInfo system_info = 3;
+}
+
+message UpdateAgentResult {
+  string current_version = 1;
+  string target_version = 2;
+  bool update_available = 3;
+  bool update_started = 4;
+  string update_progress = 5; // Progress description
+  string error_message = 6; // If update failed
+}
+
+message RestartBrowserResult {
+  repeated string restarted_displays = 1;
+  repeated string failed_displays = 2;
+  int32 processes_killed = 3;
+  int32 processes_started = 4;
+}
+
+// Also define as separate response for the HealthCheck RPC
+message HealthCheckResponse {
+  HostStatus host_status = 1;
+  repeated DisplayStatus display_statuses = 2;
+  SystemInfo system_info = 3;
+}
+
+// ================================
+// Event Types
+// ================================
+
+message HostEvent {
+  string event_id = 1;
+  EventType type = 2;
+  google.protobuf.Timestamp timestamp = 3;
+  
+  oneof payload {
+    DisplayStateChangedEvent display_state_changed = 10;
+    HostStatusChangedEvent host_status_changed = 11;
+    ErrorEvent error_event = 12;
+    HeartbeatEvent heartbeat = 13;
+  }
+}
+
+enum EventType {
+  DISPLAY_STATE_CHANGED = 0;
+  HOST_STATUS_CHANGED = 1;
+  ERROR_EVENT = 2;
+  HEARTBEAT = 3;
+}
+
+message DisplayStateChangedEvent {
+  string display_id = 1;
+  DisplayStatus status = 2;
+}
+
+message HostStatusChangedEvent {
+  HostStatus status = 1;
+}
+
+message ErrorEvent {
+  string component = 1;
+  string error_message = 2;
+  string error_code = 3;
+  string display_id = 4; // optional, if error is display-specific
+}
+
+message HeartbeatEvent {
+  HostStatus host_status = 1;
+  repeated DisplayStatus display_statuses = 2;
+}
+
+// ================================
+// Data Types
+// ================================
+
+message HostStatus {
+  bool online = 1;
+  double cpu_usage_percent = 2; // CPU usage percentage (0-100)
+  double memory_usage_percent = 3; // Memory usage percentage (0-100)
+  int64 memory_used_bytes = 4; // Memory used in bytes
+  int64 memory_total_bytes = 5; // Total memory in bytes
+  int32 browser_processes = 6;
+  string last_error = 7;
+  google.protobuf.Timestamp last_update = 8;
+  SystemMetrics system_metrics = 9; // Additional system metrics
+}
+
+message SystemMetrics {
+  double load_average_1m = 1; // Load average (1 minute)
+  double load_average_5m = 2; // Load average (5 minutes)
+  double load_average_15m = 3; // Load average (15 minutes)
+  int64 uptime_seconds = 4; // System uptime in seconds
+  int32 cpu_cores = 5; // Number of CPU cores
+  string cpu_model = 6; // CPU model name
+  double disk_usage_percent = 7; // Disk usage percentage
+  int64 disk_free_bytes = 8; // Free disk space in bytes
+  int64 disk_total_bytes = 9; // Total disk space in bytes
+  int32 network_connections = 10; // Number of network connections
+}
+
+message DisplayStatus {
+  string display_id = 1;
+  bool active = 2;
+  string current_url = 3;
+  google.protobuf.Timestamp last_refresh = 4;
+  bool is_responsive = 5;
+  int32 error_count = 6;
+  string last_error = 7;
+  AssignedDashboard assigned_dashboard = 8;
+}
+
+message AssignedDashboard {
+  string dashboard_id = 1;
+  string url = 2;
+  int32 refresh_interval_ms = 3;
+}
+
+message CookieData {
+  string name = 1;
+  string value = 2;
+  string domain = 3;
+  string path = 4;
+  int64 expires = 5; // Unix timestamp
+  bool http_only = 6;
+  bool secure = 7;
+  string same_site = 8; // "Strict", "Lax", "None"
+}
+
+message SystemInfo {
+  int64 uptime_seconds = 1;
+  string platform = 2;
+  string node_version = 3;
+  string agent_version = 4;
+  int32 total_displays = 5;
+  repeated string available_display_ids = 6;
+}
+
+// ================================
+// Discovery Service Types (for Backend)
+// ================================
+
+message MiniPC {
+  string id = 1;
+  string name = 2;
+  string hostname = 3;
+  string ip_address = 4;
+  int32 port = 5;
+  HostStatus status = 6;
+  google.protobuf.Timestamp last_heartbeat = 7;
+  google.protobuf.Timestamp last_discovered = 8;
+  string version = 9;
+  repeated string display_ids = 10;
+  MDNSServiceInfo mdns_service = 11;
+}
+
+message MDNSServiceInfo {
+  string service_name = 1;
+  string instance_name = 2;
+  map<string, string> txt_record = 3;
+  repeated string addresses = 4;
+  int32 port = 5;
+}

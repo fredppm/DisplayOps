@@ -1,5 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { HealthCheckResponse, ApiResponse } from '@/types/types';
+import { HealthCheckResponse, ApiResponse } from '@/types/shared-types';
+import { getGrpcHostManager } from '../../grpc-manager';
 
 export default async function handler(
   req: NextApiRequest,
@@ -17,7 +18,7 @@ export default async function handler(
   }
 
   try {
-    // Get host information
+    // Get host information from discovery service
     const hostInfo = await getHostInfo(hostId as string);
     
     if (!hostInfo) {
@@ -28,16 +29,68 @@ export default async function handler(
       });
     }
 
-    // Fetch status from host agent
-    const hostResponse = await fetchHostStatus(hostInfo.ipAddress, hostInfo.port);
+    // Use gRPC client for health check instead of HTTP
+    const grpcManager = getGrpcHostManager();
     
-    if (hostResponse.ok) {
-      const result = await hostResponse.json();
+    // Add host to gRPC manager if not already present
+    grpcManager.addHost({
+      id: hostId as string,
+      name: hostInfo.name || hostId as string,
+      hostname: hostInfo.ipAddress,
+      ipAddress: hostInfo.ipAddress,
+      port: hostInfo.port,
+      grpcPort: 8082 // Default gRPC port
+    });
+
+    // Get health check via gRPC
+    const healthResult = await grpcManager.executeCommand(hostId as string, {
+      command_id: `health_${Date.now()}`,
+      type: 'HEALTH_CHECK',
+      timestamp: { seconds: Math.floor(Date.now() / 1000), nanos: 0 }
+    });
+
+    if (healthResult.success) {
+      // Convert gRPC health check response to legacy format
+      const grpcData = healthResult.data.health_check_result;
+      const result: ApiResponse<HealthCheckResponse> = {
+        success: true,
+        data: {
+          hostStatus: {
+            online: grpcData.host_status.online,
+            cpuUsage: grpcData.host_status.cpu_usage_percent,
+            memoryUsage: grpcData.host_status.memory_usage_percent,
+            browserProcesses: grpcData.host_status.browser_processes,
+            lastError: grpcData.host_status.last_error || undefined
+          },
+          tvStatuses: [], // Keep empty as in original
+          displayStatuses: grpcData.display_statuses.map((display: any) => ({
+            active: display.active,
+            currentUrl: display.current_url || undefined,
+            lastRefresh: display.last_refresh ? new Date(display.last_refresh.seconds * 1000) : new Date(),
+            isResponsive: display.is_responsive,
+            errorCount: display.error_count,
+            lastError: display.last_error || undefined,
+            assignedDashboard: display.assigned_dashboard ? {
+              dashboardId: display.assigned_dashboard.dashboard_id,
+              url: display.assigned_dashboard.url,
+              refreshInterval: display.assigned_dashboard.refresh_interval_ms
+            } : undefined
+          })),
+          systemInfo: {
+            uptime: grpcData.system_info.uptime_seconds,
+            platform: grpcData.system_info.platform,
+            nodeVersion: grpcData.system_info.node_version,
+            agentVersion: grpcData.system_info.agent_version
+          }
+        },
+        timestamp: new Date()
+      };
+      
       return res.status(200).json(result);
     } else {
       return res.status(502).json({
         success: false,
-        error: `Host agent responded with status ${hostResponse.status}`,
+        error: `gRPC health check failed: ${healthResult.error}`,
         timestamp: new Date()
       });
     }
@@ -53,10 +106,10 @@ export default async function handler(
   }
 }
 
-async function getHostInfo(hostId: string): Promise<{ ipAddress: string; port: number } | null> {
+async function getHostInfo(hostId: string): Promise<{ ipAddress: string; port: number; name?: string } | null> {
   try {
     // Get host info from discovery service
-    const discoveryResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/discovery/hosts`);
+    const discoveryResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002'}/api/discovery/hosts`);
     
     if (discoveryResponse.ok) {
       const data = await discoveryResponse.json();
@@ -65,7 +118,8 @@ async function getHostInfo(hostId: string): Promise<{ ipAddress: string; port: n
       if (host) {
         return {
           ipAddress: host.ipAddress,
-          port: host.port
+          port: host.port,
+          name: host.name
         };
       }
     }
@@ -74,17 +128,4 @@ async function getHostInfo(hostId: string): Promise<{ ipAddress: string; port: n
   }
   
   return null;
-}
-
-async function fetchHostStatus(ipAddress: string, port: number): Promise<Response> {
-  const url = `http://${ipAddress}:${port}/api/status`;
-  
-  return fetch(url, {
-    method: 'GET',
-    headers: {
-      'Accept': 'application/json',
-    },
-    // 5 second timeout for status checks
-    signal: AbortSignal.timeout(5000)
-  });
 }

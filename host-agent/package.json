@@ -4,11 +4,11 @@
   "description": "Host agent for Office TV Management System - runs on mini PCs to control TV displays",
   "main": "dist/host-agent/src/main.js",
   "scripts": {
-    "dev": "concurrently --names \"TSC,ELECTRON\" --prefix-colors \"magenta,cyan\" \"npm run dev:tsc\" \"npm run dev:electron\"",
-    "dev:tsc": "tsc --watch",
+    "dev": "npm run copy-assets && concurrently --names \"TSC,ELECTRON\" --prefix-colors \"magenta,cyan\" \"npm run dev:tsc\" \"npm run dev:electron\"",
+    "dev:tsc": "tsc --watch --preserveWatchOutput",
     "dev:electron": "wait-on dist/host-agent/src/main.js && set NODE_ENV=development && electron .",
     "build": "tsc && npm run copy-assets",
-    "copy-assets": "copyfiles -u 1 \"src/preload/*.js\" \"src/renderer/*.html\" dist/host-agent/src/",
+    "copy-assets": "copyfiles -u 1 \"src/preload/*.js\" \"src/renderer/*.html\" dist/host-agent/src/ && copyfiles -u 1 \"../shared/proto/*.proto\" dist/shared/proto/",
     "start": "electron .",
     "start:prod": "npm run build && electron .",
     "pack": "electron-builder",
@@ -60,11 +60,15 @@
     "wait-on": "^7.2.0"
   },
   "dependencies": {
+    "@grpc/grpc-js": "^1.10.1",
+    "@grpc/proto-loader": "^0.7.10",
+    "@types/ws": "^8.18.1",
     "bonjour-service": "^1.2.1",
     "cors": "^2.8.5",
     "electron-updater": "^6.1.7",
     "express": "^4.18.2",
     "node-fetch": "^2.7.0",
-    "office-tv-management-system": "file:.."
+    "office-tv-management-system": "file:..",
+    "ws": "^8.18.3"
   }
 }

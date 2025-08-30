@@ -1,4 +1,4 @@
-import { MiniPC, HostStatus } from '@/types/types';
+import { MiniPC, HostStatus } from '@/types/shared-types';
 import axios from 'axios';
 
 export type HostDiscoveredCallback = (host: MiniPC) => void;
@@ -71,7 +71,7 @@ export class WindowsDiscoveryService {
   private async scanForHosts(): Promise<void> {
     // Throttle scanning - avoid scanning too frequently
     const now = Date.now();
-    if (now - this.lastScanTime < 30000) { // Minimum 30 seconds between scans
+    if (now - this.lastScanTime < 10000) { // Minimum 10 seconds between scans (reduced for debug)
       console.log('⏳ Skipping scan - too recent');
       return;
     }
@@ -94,11 +94,17 @@ export class WindowsDiscoveryService {
 
   private async checkHost(ip: string, port: number = 8080): Promise<any | null> {
     try {
-      // Simple status check
+      console.log(`🔍 Checking host ${ip}:${port}...`);
+      // Simple status check with aggressive timeout
       const response = await axios.get(`http://${ip}:${port}/api/status`, {
-        timeout: 5000,
-        validateStatus: (status) => status === 200
+        timeout: 3000, // Reduced timeout
+        validateStatus: (status) => status === 200,
+        headers: {
+          'User-Agent': 'Office-Display-Discovery/1.0'
+        }
       });
+      
+      console.log(`✅ Host ${ip}:${port} responded with status ${response.status}`);
 
       if (response.data && response.data.success) {
         // Also fetch mDNS info
@@ -126,6 +132,7 @@ export class WindowsDiscoveryService {
       }
     } catch (error) {
       // Host not available - expected during discovery
+      console.log(`❌ Host ${ip}:${port} not reachable:`, error instanceof Error ? error.message : String(error));
     }
     
     return null;
@@ -166,6 +173,7 @@ export class WindowsDiscoveryService {
       lastHeartbeat: new Date(),
       lastDiscovered: new Date(),
       version: hostData.health?.data?.version || '1.0.0',
+      tvs: [], // Legacy property
       displays: await this.getHostDisplays(normalizedIP, hostData.port) || ['display-1', 'display-2'], // Get real displays
       mdnsService
     };
@@ -237,6 +245,7 @@ export class WindowsDiscoveryService {
       lastHeartbeat: new Date(),
       lastDiscovered: new Date(),
       version: host.version || '1.0.0',
+      tvs: [], // Legacy property
       displays: displays
     };
 

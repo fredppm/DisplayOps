@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { MiniPC } from '@/types/types';
+import { MiniPC } from '@/types/shared-types';
 import { 
   Cookie, 
   Copy, 
@@ -257,6 +257,76 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
     addNotification('success', 'Cookies Valid', `Found ${validCookies.length} valid cookies for ${domain.domain}`);
   };
 
+  const refreshPagesAfterSync = async (successfulHosts: any[], allHosts: any[]) => {
+    try {
+      addNotification('info', 'Refreshing Pages', 'Refreshing all displays to apply cookies...');
+      
+      const refreshPromises = successfulHosts.map(async (syncResult) => {
+        const host = allHosts.find(h => h.hostname === syncResult.host || h.ipAddress === syncResult.host);
+        if (!host) return { success: false, host: syncResult.host, error: 'Host not found' };
+
+        // Get all displays for this host (assuming display-1, display-2, display-3)
+        const displays = ['display-1', 'display-2', 'display-3'];
+        
+        const displayRefreshPromises = displays.map(async (displayId) => {
+          try {
+            const response = await fetch(`/api/host/${host.id}/command`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                type: 'REFRESH_PAGE',
+                targetDisplay: displayId,
+                payload: {},
+                timestamp: new Date()
+              })
+            });
+
+            if (response.ok) {
+              const result = await response.json();
+              return { success: result.success || result.data, display: displayId };
+            } else {
+              return { success: false, display: displayId, error: `HTTP ${response.status}` };
+            }
+          } catch (error) {
+            return { 
+              success: false, 
+              display: displayId, 
+              error: error instanceof Error ? error.message : 'Connection failed' 
+            };
+          }
+        });
+
+        const displayResults = await Promise.all(displayRefreshPromises);
+        const successfulDisplays = displayResults.filter(r => r.success).length;
+        
+        return { 
+          success: successfulDisplays > 0, 
+          host: syncResult.host, 
+          refreshedDisplays: successfulDisplays,
+          totalDisplays: displays.length
+        };
+      });
+
+      const refreshResults = await Promise.all(refreshPromises);
+      const successfulRefreshes = refreshResults.filter(r => r.success);
+      
+      if (successfulRefreshes.length > 0) {
+        const totalRefreshed = successfulRefreshes.reduce((sum, r) => sum + (r.refreshedDisplays || 0), 0);
+        addNotification('success', 'Pages Refreshed', 
+          `Refreshed ${totalRefreshed} displays across ${successfulRefreshes.length} hosts. Cookies are now active!`);
+      } else {
+        addNotification('warning', 'Refresh Issues', 
+          'Some displays may not have refreshed. Cookies synced but may need manual refresh.');
+      }
+    } catch (error) {
+      console.error('Error refreshing pages:', error);
+      addNotification('warning', 'Refresh Error', 
+        'Cookies synced successfully but auto-refresh failed. You may need to manually refresh displays.');
+    }
+  };
+
   const syncToAllDisplays = async (domainId: string) => {
     const domain = authDomains.find(d => d.id === domainId);
     if (!domain || !domain.cookies.trim()) {
@@ -271,6 +341,7 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
 
       let successCount = 0;
       let errorCount = 0;
+      let hostCount = 0;
 
       // Process cookies locally in web-controller
       try {
@@ -300,7 +371,107 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
         errorCount++;
       }
 
-      if (successCount > 0) {
+      // Now sync cookies to all discovered hosts
+      try {
+        const hostsResponse = await fetch('/api/discovery/hosts');
+        if (hostsResponse.ok) {
+          const hostsData = await hostsResponse.json();
+          if (hostsData.success && hostsData.data && hostsData.data.length > 0) {
+            
+            addNotification('info', 'Host Discovery', `Found ${hostsData.data.length} hosts, syncing cookies...`);
+            
+            // Parse cookies string to CookieData[] format
+            const cookieLines = domain.cookies.split('\n').filter((line: string) => line.trim());
+            const parsedCookies = cookieLines.map((line: string) => {
+              const trimmed = line.trim();
+              if (trimmed.includes('=')) {
+                const equalIndex = trimmed.indexOf('=');
+                const name = trimmed.substring(0, equalIndex).trim();
+                const value = trimmed.substring(equalIndex + 1).trim();
+                return {
+                  name,
+                  value,
+                  domain: domain.domain,
+                  path: '/',
+                  secure: domain.domain.startsWith('https'),
+                  httpOnly: false,
+                  sameSite: 'Lax' as const
+                };
+              }
+              return null;
+            }).filter(Boolean);
+
+            // Send cookies to each host
+            const syncPromises = hostsData.data.map(async (host: any) => {
+              try {
+                const hostResponse = await fetch(`/api/host/${host.id}/command`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    type: 'SYNC_COOKIES',
+                    payload: {
+                      domain: domain.domain,
+                      cookies: parsedCookies
+                    },
+                    timestamp: new Date()
+                  })
+                });
+
+                if (hostResponse.ok) {
+                  const hostResult = await hostResponse.json();
+                  if (hostResult.success) {
+                    hostCount++;
+                    return { success: true, host: host.hostname || host.ipAddress };
+                  } else {
+                    return { success: false, host: host.hostname || host.ipAddress, error: hostResult.error };
+                  }
+                } else {
+                  return { success: false, host: host.hostname || host.ipAddress, error: `HTTP ${hostResponse.status}` };
+                }
+              } catch (error) {
+                return { 
+                  success: false, 
+                  host: host.hostname || host.ipAddress, 
+                  error: error instanceof Error ? error.message : 'Connection failed' 
+                };
+              }
+            });
+
+            const hostResults = await Promise.all(syncPromises);
+            
+            // Count successes and errors
+            const successfulHosts = hostResults.filter(r => r.success);
+            const failedHosts = hostResults.filter(r => !r.success);
+            
+            hostCount = successfulHosts.length;
+            errorCount += failedHosts.length;
+
+            if (successfulHosts.length > 0) {
+              addNotification('success', 'Host Sync Complete', 
+                `Successfully synced to ${successfulHosts.length} hosts: ${successfulHosts.map(h => h.host).join(', ')}`);
+              
+              // Auto-refresh pages after successful cookie sync
+              await refreshPagesAfterSync(successfulHosts, hostsData.data);
+            }
+            
+            if (failedHosts.length > 0) {
+              addNotification('warning', 'Host Sync Issues', 
+                `Failed to sync to ${failedHosts.length} hosts: ${failedHosts.map(h => `${h.host} (${h.error})`).join(', ')}`);
+            }
+          } else {
+            addNotification('warning', 'No Hosts Found', 'No hosts discovered. Make sure host-agents are running.');
+          }
+        } else {
+          addNotification('error', 'Host Discovery Failed', 'Could not discover hosts. Check discovery service.');
+        }
+      } catch (error) {
+        addNotification('error', 'Host Sync Error', 'Failed to discover or sync with hosts');
+        errorCount++;
+      }
+
+      if (successCount > 0 || hostCount > 0) {
         // Update last sync time and valid status
         setAuthDomains(prev => prev.map(d => 
           d.id === domainId ? { 
@@ -310,14 +481,14 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
           } : d
         ));
 
-        addNotification('success', 'Sync Complete', 
-          `Successfully processed ${successCount} cookies${errorCount > 0 ? `, ${errorCount} errors` : ''}. Data saved permanently!`);
+        const message = `Successfully processed ${successCount} cookies and synced to ${hostCount} hosts${errorCount > 0 ? `, ${errorCount} errors` : ''}. Data saved permanently!`;
+        addNotification('success', 'Sync Complete', message);
         
         // Auto-reload data to reflect server state (silently)
         setTimeout(() => loadSavedCookieData(false), 1000);
       } else {
         addNotification('error', 'Sync Failed', 
-          `Failed to process cookies. Check format and try again.`);
+          `Failed to process cookies or sync with hosts. Check format and host connectivity.`);
       }
 
     } catch (error) {

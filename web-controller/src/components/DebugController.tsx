@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { MiniPC } from '@/types/types';
+import { MiniPC } from '@/types/shared-types';
 import { 
   Bug, 
   BugOff, 

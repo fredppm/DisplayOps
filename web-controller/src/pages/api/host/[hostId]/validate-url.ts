@@ -13,23 +13,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    // Convert new command format to legacy format for host agent
-    const command = req.body;
-    let legacyCommand = { ...command };
-
-    // Map new command types to legacy types
-    if (command.type === 'REFRESH_PAGE') {
-      legacyCommand.type = 'refresh_page';
-    } else if (command.type === 'SYNC_COOKIES') {
-      legacyCommand.type = 'sync_cookies';
-    } else if (command.type === 'OPEN_DASHBOARD') {
-      legacyCommand.type = 'open_dashboard';
-    }
-
     // Proxy request directly to host (avoid internal fetch to discovery)
-    const hostResponse = await proxyToHost(hostId as string, '/api/command', {
+    const hostResponse = await proxyToHost(hostId as string, '/api/validate-url', {
       method: 'POST',
-      body: JSON.stringify(legacyCommand)
+      body: JSON.stringify(req.body)
     });
 
     const responseData = await hostResponse.json();
@@ -44,7 +31,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.status(200).json(responseData);
 
   } catch (error) {
-    console.error('Command proxy error:', error);
+    console.error('Validate URL proxy error:', error);
     
     if (error instanceof Error && error.message === 'Invalid host ID format') {
       return res.status(400).json({

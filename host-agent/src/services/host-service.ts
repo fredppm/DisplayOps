@@ -7,6 +7,8 @@ export class HostService {
   private hostStatus: HostStatus;
   private displayStatuses: Map<string, DisplayStatus>;
   private healthCheckInterval: NodeJS.Timeout | null = null;
+  private lastCpuInfo: any = null;
+  private lastCpuTime: number = Date.now();
 
   constructor(configManager: ConfigManager) {
     this.configManager = configManager;
@@ -57,10 +59,11 @@ export class HostService {
       // Update CPU usage (simplified)
       const cpuUsage = this.getCPUUsage();
       
-      // Update memory usage
-      const memInfo = process.memoryUsage();
+      // Update memory usage - REAL system memory, not process memory
       const totalMemory = os.totalmem();
-      const memoryUsage = (memInfo.rss / totalMemory) * 100;
+      const freeMemory = os.freemem();
+      const usedMemory = totalMemory - freeMemory;
+      const memoryUsage = (usedMemory / totalMemory) * 100;
 
       // Count browser processes (simplified - in real implementation would check actual processes)
       const browserProcesses = this.countBrowserProcesses();
@@ -80,23 +83,61 @@ export class HostService {
   }
 
   private getCPUUsage(): number {
-    // Simplified CPU usage calculation
-    // In a real implementation, you'd use a proper CPU monitoring library
-    const cpus = os.cpus();
-    let totalIdle = 0;
-    let totalTick = 0;
+    return this.calculateRealCpuUsage();
+  }
 
-    cpus.forEach(cpu => {
-      for (const type in cpu.times) {
-        totalTick += cpu.times[type as keyof typeof cpu.times];
+  private calculateRealCpuUsage(): number {
+    try {
+      const cpus = os.cpus();
+      const now = Date.now();
+      
+      // Calculate total CPU times for all cores
+      let totalIdle = 0;
+      let totalTick = 0;
+      
+      cpus.forEach((cpu: any) => {
+        for (const type in cpu.times) {
+          totalTick += cpu.times[type];
+        }
+        totalIdle += cpu.times.idle;
+      });
+      
+      // If we have previous measurement, calculate the difference
+      if (this.lastCpuInfo && (now - this.lastCpuTime) > 1000) {
+        const idleDiff = totalIdle - this.lastCpuInfo.idle;
+        const totalDiff = totalTick - this.lastCpuInfo.total;
+        
+        const cpuUsagePercent = totalDiff > 0 ? 100 - (idleDiff / totalDiff * 100) : 0;
+        
+        // Store current values for next calculation
+        this.lastCpuInfo = { idle: totalIdle, total: totalTick };
+        this.lastCpuTime = now;
+        
+        return Math.max(0, Math.min(100, cpuUsagePercent));
+      } else {
+        // First measurement or too soon - use load average as fallback
+        const loadAvg = os.loadavg();
+        const cpuCount = cpus.length;
+        const loadBasedUsage = Math.min((loadAvg[0] / cpuCount) * 100, 100);
+        
+        // Store current values
+        this.lastCpuInfo = { idle: totalIdle, total: totalTick };
+        this.lastCpuTime = now;
+        
+        return Math.max(0, loadBasedUsage);
       }
-      totalIdle += cpu.times.idle;
-    });
-
-    const idle = totalIdle / cpus.length;
-    const total = totalTick / cpus.length;
-    
-    return 100 - (100 * idle / total);
+    } catch (error) {
+      console.error('Error calculating CPU usage:', error);
+      
+      // Fallback to load average
+      try {
+        const loadAvg = os.loadavg();
+        const cpuCount = os.cpus().length;
+        return Math.min((loadAvg[0] / cpuCount) * 100, 100);
+      } catch (fallbackError) {
+        return 0; // Safe fallback
+      }
+    }
   }
 
   private countBrowserProcesses(): number {
@@ -219,5 +260,39 @@ export class HostService {
       clearInterval(this.healthCheckInterval);
       this.healthCheckInterval = null;
     }
+  }
+
+  // gRPC compatibility methods
+  public async setCookie(cookieData: any): Promise<boolean> {
+    try {
+      // This is a placeholder implementation
+      // In a real implementation, you'd use Electron's session API to set cookies
+      console.log(`Setting cookie: ${cookieData.name} for domain ${cookieData.domain}`);
+      return true;
+    } catch (error) {
+      console.error('Failed to set cookie:', error);
+      return false;
+    }
+  }
+
+  public async validateUrl(url: string, timeoutMs: number = 5000): Promise<boolean> {
+    try {
+      // Simple URL validation and reachability check
+      const urlObj = new URL(url);
+      
+      // For this implementation, we'll just validate the URL format
+      // In a real implementation, you'd make an HTTP request to check reachability
+      return urlObj.protocol === 'http:' || urlObj.protocol === 'https:';
+    } catch (error) {
+      return false;
+    }
+  }
+
+  public getHostStatus(): HostStatus {
+    return this.hostStatus;
+  }
+
+  public getDisplayStatuses(): DisplayStatus[] {
+    return Array.from(this.displayStatuses.values());
   }
 }

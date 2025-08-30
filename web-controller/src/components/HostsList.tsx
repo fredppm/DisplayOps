@@ -1,15 +1,61 @@
-import React, { useState } from 'react';
-import { MiniPC } from '@/types/types';
-import { Monitor, Wifi, WifiOff, Activity, AlertCircle, RefreshCw } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { MiniPC } from '@/types/shared-types';
+import { Monitor, Wifi, WifiOff, Activity, AlertCircle, RefreshCw, Eye, EyeOff, Bug, BugOff, Download, Trash2, Circle } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
 interface HostsListProps {
   hosts: MiniPC[];
   isDiscovering: boolean;
+  discoveryStatus?: {
+    isConnected: boolean;
+    lastUpdate: Date | null;
+    connectionError: string | null;
+    reconnectAttempts: number;
+  };
 }
 
-export const HostsList: React.FC<HostsListProps> = ({ hosts, isDiscovering }) => {
+interface RefreshStatus {
+  [key: string]: 'idle' | 'refreshing' | 'success' | 'error';
+}
+
+interface ActiveDisplay {
+  displayId: string;
+  windowId: string;
+  hasWindow: boolean;
+}
+
+interface NotificationProps {
+  type: 'success' | 'error' | 'warning' | 'info';
+  title: string;
+  message: string;
+}
+
+interface DebugStatus {
+  hostId: string;
+  enabled: boolean;
+  metrics?: {
+    cpu: number;
+    memory: number;
+    apiRequestsPerMinute: number;
+    activeWindows: number;
+    uptime: number;
+  };
+  eventCount?: number;
+  lastUpdate?: Date;
+  loading?: boolean;
+  error?: string;
+}
+
+export const HostsList: React.FC<HostsListProps> = ({ hosts, isDiscovering, discoveryStatus }) => {
   const [selectedHost, setSelectedHost] = useState<string | null>(null);
+  const [refreshStatus, setRefreshStatus] = useState<RefreshStatus>({});
+  const [notifications, setNotifications] = useState<NotificationProps[]>([]);
+  const [activeDisplays, setActiveDisplays] = useState<{[hostId: string]: ActiveDisplay[]}>({});
+  const [expandedHosts, setExpandedHosts] = useState<Set<string>>(new Set());
+  const [debugStatuses, setDebugStatuses] = useState<Map<string, DebugStatus>>(new Map());
+  const [showDebugControls, setShowDebugControls] = useState<Set<string>>(new Set());
+  
+  // Debug log removed to reduce console noise
 
   const getStatusColor = (host: MiniPC): string => {
     if (!host.status.online) return 'status-offline';
@@ -35,51 +81,339 @@ export const HostsList: React.FC<HostsListProps> = ({ hosts, isDiscovering }) =>
     }
   };
 
-  const handleRefreshHost = async (host: MiniPC) => {
+  const addNotification = (type: NotificationProps['type'], title: string, message: string) => {
+    const notification = { type, title, message };
+    setNotifications(prev => [...prev, notification]);
+    
+    setTimeout(() => {
+      setNotifications(prev => prev.filter(n => n !== notification));
+    }, 4000);
+  };
+
+  const removeNotification = (notification: NotificationProps) => {
+    setNotifications(prev => prev.filter(n => n !== notification));
+  };
+
+  const checkActiveDisplays = async (host: MiniPC) => {
     try {
-
-      
-      const response = await fetch(`http://${host.ipAddress}:${host.port}/health`);
+      const response = await fetch(`/api/host/${host.id}/windows`);
       if (response.ok) {
-
-      } else {
-
+        const result = await response.json();
+        if (result.success && result.data) {
+          const windows = result.data;
+          const displays: ActiveDisplay[] = [];
+          
+          ['display-1', 'display-2', 'display-3'].forEach(displayId => {
+            const window = windows.find((w: any) => w.id.includes(displayId));
+            displays.push({
+              displayId,
+              windowId: window?.id || '',
+              hasWindow: !!window
+            });
+          });
+          
+          setActiveDisplays(prev => ({
+            ...prev,
+            [host.id]: displays
+          }));
+        }
       }
     } catch (error) {
+      setActiveDisplays(prev => ({
+        ...prev,
+        [host.id]: ['display-1', 'display-2', 'display-3'].map(displayId => ({
+          displayId,
+          windowId: '',
+          hasWindow: false
+        }))
+      }));
+    }
+  };
 
+  const refreshDisplay = async (host: MiniPC, displayId: string) => {
+    const statusKey = `${host.id}-${displayId}`;
+    
+    setRefreshStatus(prev => ({ ...prev, [statusKey]: 'refreshing' }));
+    
+    try {
+      const response = await fetch(`/api/host/${host.id}/command`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          type: 'REFRESH_PAGE',
+          targetDisplay: displayId,
+          payload: {},
+          timestamp: new Date()
+        })
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        
+        if (result.success || result.data) {
+          setRefreshStatus(prev => ({ ...prev, [statusKey]: 'success' }));
+          addNotification('success', 'Display Refreshed', 
+            `${displayId.replace('display-', 'Display ')} on ${host.name || host.hostname} refreshed successfully`);
+        } else {
+          setRefreshStatus(prev => ({ ...prev, [statusKey]: 'error' }));
+          addNotification('error', 'Refresh Failed', 
+            result.error || 'Unknown error occurred during refresh');
+        }
+      } else {
+        setRefreshStatus(prev => ({ ...prev, [statusKey]: 'error' }));
+        addNotification('error', 'Refresh Request Failed', `HTTP ${response.status}`);
+      }
+    } catch (error: any) {
+      setRefreshStatus(prev => ({ ...prev, [statusKey]: 'error' }));
+      addNotification('error', 'Connection Error', 
+        `Failed to connect to ${host.name || host.hostname}`);
+    }
+
+    setTimeout(() => {
+      setRefreshStatus(prev => ({ ...prev, [statusKey]: 'idle' }));
+    }, 3000);
+  };
+
+  const refreshAllDisplaysOnHost = async (host: MiniPC) => {
+    const hostDisplays = activeDisplays[host.id] || [];
+    const activeDisplayIds = hostDisplays.filter(d => d.hasWindow).map(d => d.displayId);
+    
+    if (activeDisplayIds.length === 0) {
+      addNotification('warning', 'No Active Displays', 
+        `No active displays found on ${host.name || host.hostname}`);
+      return;
+    }
+    
+    addNotification('info', 'Refreshing Active Displays', 
+      `Refreshing ${activeDisplayIds.length} displays on ${host.name || host.hostname}`);
+
+    const refreshPromises = activeDisplayIds.map(displayId => refreshDisplay(host, displayId));
+    await Promise.all(refreshPromises);
+  };
+
+  const handleRefreshHost = async (host: MiniPC) => {
+    await checkActiveDisplays(host);
+    await refreshDebugStatus(host.id);
+  };
+
+  const toggleHostExpansion = (hostId: string) => {
+    setExpandedHosts(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(hostId)) {
+        newSet.delete(hostId);
+      } else {
+        newSet.add(hostId);
+      }
+      return newSet;
+    });
+  };
+
+  useEffect(() => {
+    hosts.forEach(host => {
+      if (host.status.online) {
+        checkActiveDisplays(host);
+        refreshDebugStatus(host.id);
+      }
+    });
+  }, [hosts]);
+
+  const refreshDebugStatus = async (hostId: string): Promise<void> => {
+    const host = hosts.find(h => h.id === hostId);
+    if (!host || !host.status.online) return;
+
+    setDebugStatuses(prev => {
+      const newMap = new Map(prev);
+      const current = newMap.get(hostId) || { hostId, enabled: false };
+      newMap.set(hostId, { ...current, loading: true, error: undefined });
+      return newMap;
+    });
+
+    try {
+      const response = await fetch(`/api/host/${hostId}/debug/status`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        
+        if (result.success) {
+          setDebugStatuses(prev => {
+            const newMap = new Map(prev);
+            newMap.set(hostId, {
+              hostId,
+              enabled: result.data.enabled,
+              metrics: result.data.metrics,
+              eventCount: Object.values(result.data.eventStats || {}).reduce((sum: number, count) => sum + (count as number), 0),
+              lastUpdate: new Date(),
+              loading: false
+            });
+            return newMap;
+          });
+        }
+      } else {
+        throw new Error(`HTTP ${response.status}`);
+      }
+    } catch (error) {
+      setDebugStatuses(prev => {
+        const newMap = new Map(prev);
+        const current = newMap.get(hostId) || { hostId, enabled: false };
+        newMap.set(hostId, { 
+          ...current, 
+          loading: false, 
+          error: error instanceof Error ? error.message : 'Connection failed'
+        });
+        return newMap;
+      });
+    }
+  };
+
+  const toggleDebug = async (hostId: string): Promise<void> => {
+    const host = hosts.find(h => h.id === hostId);
+    const status = debugStatuses.get(hostId);
+    
+    if (!host || !host.status.online) return;
+
+    const action = status?.enabled ? 'disable' : 'enable';
+    
+    try {
+      const response = await fetch(`/api/host/${hostId}/debug/toggle`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action })
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success) {
+          await refreshDebugStatus(hostId);
+          addNotification('success', 'Debug Mode', 
+            `Debug ${action}d on ${host.name || host.hostname}`);
+        }
+      }
+    } catch (error) {
+      addNotification('error', 'Debug Error', 
+        `Failed to ${action} debug on ${host.name || host.hostname}`);
+    }
+  };
+
+  const clearDebugEvents = async (hostId: string): Promise<void> => {
+    const host = hosts.find(h => h.id === hostId);
+    if (!host || !host.status.online) return;
+
+    try {
+      const response = await fetch(`/api/host/${hostId}/debug/events`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      if (response.ok) {
+        await refreshDebugStatus(hostId);
+        addNotification('success', 'Debug Events', 
+          `Cleared debug events on ${host.name || host.hostname}`);
+      }
+    } catch (error) {
+      addNotification('error', 'Debug Error', 
+        `Failed to clear debug events on ${host.name || host.hostname}`);
+    }
+  };
+
+  const downloadDebugEvents = async (hostId: string): Promise<void> => {
+    const host = hosts.find(h => h.id === hostId);
+    if (!host || !host.status.online) return;
+
+    try {
+      const response = await fetch(`/api/host/${hostId}/debug/events?limit=1000`);
+      
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.data) {
+          const dataStr = JSON.stringify(result.data, null, 2);
+          const blob = new Blob([dataStr], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `debug-events-${host.hostname}-${new Date().toISOString().split('T')[0]}.json`;
+          a.click();
+          
+          URL.revokeObjectURL(url);
+          addNotification('success', 'Debug Export', 
+            `Downloaded debug events from ${host.name || host.hostname}`);
+        }
+      }
+    } catch (error) {
+      addNotification('error', 'Debug Error', 
+        `Failed to download debug events from ${host.name || host.hostname}`);
+    }
+  };
+
+  const toggleDebugControls = (hostId: string) => {
+    setShowDebugControls(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(hostId)) {
+        newSet.delete(hostId);
+      } else {
+        newSet.add(hostId);
+      }
+      return newSet;
+    });
+  };
+
+  const getNotificationColor = (type: string) => {
+    switch (type) {
+      case 'success': return 'bg-green-100 border-green-400 text-green-700';
+      case 'error': return 'bg-red-100 border-red-400 text-red-700';
+      case 'warning': return 'bg-yellow-100 border-yellow-400 text-yellow-700';
+      case 'info': return 'bg-blue-100 border-blue-400 text-blue-700';
+      default: return 'bg-gray-100 border-gray-400 text-gray-700';
     }
   };
 
   return (
     <div className="space-y-6">
+      {/* Notifications */}
+      {notifications.length > 0 && (
+        <div className="fixed top-4 right-4 z-50 space-y-2 max-w-md">
+          {notifications.map((notification, index) => (
+            <div
+              key={index}
+              className={`border-l-4 p-4 rounded shadow-lg ${getNotificationColor(notification.type)}`}
+            >
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="font-semibold">{notification.title}</p>
+                  <p className="text-sm">{notification.message}</p>
+                </div>
+                <button
+                  onClick={() => removeNotification(notification)}
+                  className="ml-2 text-lg leading-none hover:opacity-70"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Host Agents</h2>
-          <p className="text-gray-600 mt-1">
-            Discovered mini PCs running the Office Display host agent
+          <p className="text-gray-600 mt-1 text-sm">
+            {hosts.length} {hosts.length === 1 ? 'host' : 'hosts'} discovered
           </p>
         </div>
         
         <div className="flex items-center space-x-3">
           {isDiscovering && (
-            <div className="flex items-center text-yellow-600">
-              <RefreshCw className="w-5 h-5 animate-spin mr-2" />
-              <span className="text-sm">Discovering hosts...</span>
+            <div className="flex items-center text-blue-600">
+              <RefreshCw className="w-4 h-4 animate-spin mr-2" />
+              <span className="text-sm">Discovering...</span>
             </div>
           )}
-          
-          <button
-            onClick={() => window.location.reload()}
-            className="flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-          >
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Refresh
-          </button>
-          
-          <div className="text-sm text-gray-500">
-            {hosts.length} {hosts.length === 1 ? 'host' : 'hosts'} found
-          </div>
         </div>
       </div>
 
@@ -103,19 +437,17 @@ export const HostsList: React.FC<HostsListProps> = ({ hosts, isDiscovering }) =>
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {hosts.map((host) => (
             <div
               key={host.id}
-              className={`card hover:shadow-md transition-shadow cursor-pointer ${
-                selectedHost === host.id ? 'ring-2 ring-primary-500' : ''
-              }`}
+              className="card hover:shadow-md transition-all duration-200 cursor-pointer"
               onClick={() => setSelectedHost(selectedHost === host.id ? null : host.id)}
             >
               {/* Host Header */}
-              <div className="flex items-start justify-between mb-4">
+              <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center">
-                  <Monitor className="w-8 h-8 text-primary-600 mr-3" />
+                  <Monitor className="w-6 h-6 text-primary-600 mr-3" />
                   <div>
                     <h3 className="text-lg font-semibold text-gray-900">
                       {host.name}
@@ -128,6 +460,44 @@ export const HostsList: React.FC<HostsListProps> = ({ hosts, isDiscovering }) =>
                   <span className={getStatusColor(host)}>
                     {getStatusText(host)}
                   </span>
+                  
+                  {/* Debug Status Indicator */}
+                  <div className="flex items-center mr-2">
+                    <Circle 
+                      className={`w-2 h-2 ${
+                        debugStatuses.get(host.id)?.loading ? 'text-yellow-500 animate-pulse' :
+                        debugStatuses.get(host.id)?.enabled ? 'text-green-500' : 
+                        debugStatuses.get(host.id)?.error ? 'text-red-500' : 'text-gray-300'
+                      }`} 
+                      fill="currentColor"
+                    />
+                  </div>
+                  
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleDebugControls(host.id);
+                    }}
+                    className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
+                    title="Show debug controls"
+                  >
+                    <Bug className="w-4 h-4" />
+                  </button>
+                  
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleHostExpansion(host.id);
+                    }}
+                    className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
+                    title="Show display controls"
+                  >
+                    {expandedHosts.has(host.id) ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
+                  </button>
                   
                   <button
                     onClick={(e) => {
@@ -143,52 +513,26 @@ export const HostsList: React.FC<HostsListProps> = ({ hosts, isDiscovering }) =>
               </div>
 
               {/* Connection Info */}
-              <div className="space-y-2 mb-4">
-                <div className="flex items-center text-sm text-gray-600">
-                  {host.status.online ? (
-                    <Wifi className="w-4 h-4 mr-2 text-green-500" />
-                  ) : (
-                    <WifiOff className="w-4 h-4 mr-2 text-red-500" />
-                  )}
-                  <span>{host.ipAddress}:{host.port}</span>
-                </div>
-                
-                <div className="flex items-center text-sm text-gray-600">
-                  <Activity className="w-4 h-4 mr-2" />
-                  <span>Version {host.version}</span>
-                </div>
-              </div>
-
-              {/* System Metrics */}
-              <div className="grid grid-cols-2 gap-4 mb-4">
-                <div>
-                  <div className="text-xs text-gray-500 uppercase tracking-wide">CPU</div>
-                  <div className="text-lg font-semibold text-gray-900">
-                    {host.status.cpuUsage.toFixed(1)}%
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs text-gray-500 uppercase tracking-wide">Memory</div>
-                  <div className="text-lg font-semibold text-gray-900">
-                    {host.status.memoryUsage.toFixed(1)}%
-                  </div>
-                </div>
-              </div>
-
-              {/* Displays */}
               <div className="mb-4">
-                <div className="text-xs text-gray-500 uppercase tracking-wide mb-2">
-                  Displays ({host.displays.length})
+                <div className="flex items-center text-sm text-gray-600">
+                  <span>{host.ipAddress}:{host.port} • v{host.version}</span>
                 </div>
-                <div className="flex space-x-2">
-                  {host.displays.map((displayId) => (
-                    <div
-                      key={displayId}
-                      className="flex-1 bg-gray-100 rounded px-2 py-1 text-xs text-center"
-                    >
-                      {displayId.replace('display-', 'Display ')}
-                    </div>
-                  ))}
+              </div>
+
+              {/* System Metrics - Simplified */}
+              <div className="flex items-center space-x-4 mb-4 text-sm text-gray-600">
+                <span>CPU: {host.status.cpuUsage.toFixed(0)}%</span>
+                <span>•</span>
+                <span>Memory: {host.status.memoryUsage.toFixed(0)}%</span>
+                <span>•</span>
+                <span>{host.status.browserProcesses} processes</span>
+              </div>
+
+              {/* Displays - Simplified */}
+              <div className="mb-3">
+                <div className="flex items-center space-x-2 text-sm text-gray-600">
+                  <Monitor className="w-4 h-4" />
+                  <span>{host.displays.length} displays configured</span>
                 </div>
               </div>
 
@@ -199,12 +543,165 @@ export const HostsList: React.FC<HostsListProps> = ({ hosts, isDiscovering }) =>
 
               {/* Error Display */}
               {host.status.lastError && (
-                <div className="mt-4 p-3 bg-red-50 rounded-lg border border-red-200">
+                <div className="mt-3 p-2 bg-red-50 rounded border border-red-200">
                   <div className="flex items-start">
                     <AlertCircle className="w-4 h-4 text-red-500 mr-2 mt-0.5 flex-shrink-0" />
-                    <div className="text-sm text-red-700">
+                    <div className="text-xs text-red-700">
                       {host.status.lastError}
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Debug Controls */}
+              {showDebugControls.has(host.id) && (
+                <div className="mt-4 pt-4 border-t border-gray-200">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-sm font-medium text-gray-700">Debug Controls</h4>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleDebug(host.id);
+                        }}
+                        disabled={debugStatuses.get(host.id)?.loading}
+                        className={`text-xs px-2 py-1 rounded transition-colors ${
+                          debugStatuses.get(host.id)?.enabled 
+                            ? 'bg-red-100 text-red-700 hover:bg-red-200' 
+                            : 'bg-green-100 text-green-700 hover:bg-green-200'
+                        }`}
+                      >
+                        {debugStatuses.get(host.id)?.enabled ? (
+                          <><BugOff className="w-3 h-3 inline mr-1" />Disable</>
+                        ) : (
+                          <><Bug className="w-3 h-3 inline mr-1" />Enable</>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                  
+                  {/* Debug Status & Metrics */}
+                  {debugStatuses.get(host.id)?.error ? (
+                    <div className="text-xs text-red-600 mb-3">
+                      Error: {debugStatuses.get(host.id)?.error}
+                    </div>
+                  ) : debugStatuses.get(host.id)?.enabled && debugStatuses.get(host.id)?.metrics ? (
+                    <div className="grid grid-cols-2 gap-2 mb-3 text-xs">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">API Req:</span>
+                        <span className="font-mono">{debugStatuses.get(host.id)?.metrics?.apiRequestsPerMinute || 0}/min</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Events:</span>
+                        <span className="font-mono">{debugStatuses.get(host.id)?.eventCount || 0}</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-xs text-gray-500 mb-3">
+                      {debugStatuses.get(host.id)?.loading ? 'Loading...' : 'Debug disabled'}
+                    </div>
+                  )}
+                  
+                  {/* Debug Actions */}
+                  <div className="flex items-center space-x-1">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        downloadDebugEvents(host.id);
+                      }}
+                      disabled={!debugStatuses.get(host.id)?.enabled || debugStatuses.get(host.id)?.loading}
+                      className="flex-1 bg-blue-100 text-blue-700 hover:bg-blue-200 disabled:bg-gray-200 disabled:text-gray-500 px-2 py-1 rounded text-xs font-medium transition-colors"
+                    >
+                      <Download className="w-3 h-3 inline mr-1" />
+                      Export
+                    </button>
+                    
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        clearDebugEvents(host.id);
+                      }}
+                      disabled={!debugStatuses.get(host.id)?.enabled || debugStatuses.get(host.id)?.loading}
+                      className="flex-1 bg-orange-100 text-orange-700 hover:bg-orange-200 disabled:bg-gray-200 disabled:text-gray-500 px-2 py-1 rounded text-xs font-medium transition-colors"
+                    >
+                      <Trash2 className="w-3 h-3 inline mr-1" />
+                      Clear
+                    </button>
+                  </div>
+                </div>
+              )}
+              
+              {/* Display Refresh Controls */}
+              {expandedHosts.has(host.id) && (
+                <div className="mt-4 pt-4 border-t border-gray-200">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-sm font-medium text-gray-700">Display Controls</h4>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        refreshAllDisplaysOnHost(host);
+                      }}
+                      disabled={!host.status.online}
+                      className="text-xs bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white px-2 py-1 rounded transition-colors"
+                    >
+                      Refresh All
+                    </button>
+                  </div>
+                  
+                  <div className="grid grid-cols-3 gap-2">
+                    {['display-1', 'display-2', 'display-3'].map((displayId) => {
+                      const statusKey = `${host.id}-${displayId}`;
+                      const status = refreshStatus[statusKey] || 'idle';
+                      const hostDisplays = activeDisplays[host.id] || [];
+                      const displayInfo = hostDisplays.find(d => d.displayId === displayId);
+                      const hasWindow = displayInfo?.hasWindow || false;
+                      
+                      return (
+                        <div
+                          key={displayId}
+                          className={`border rounded-lg p-3 text-center transition-colors ${
+                            hasWindow 
+                              ? 'border-green-200 bg-green-50' 
+                              : 'border-gray-200 bg-gray-50'
+                          }`}
+                        >
+                          <div className={`font-medium text-sm mb-2 ${
+                            hasWindow ? 'text-green-700' : 'text-gray-500'
+                          }`}>
+                            {displayId.replace('display-', 'Display ')}
+                          </div>
+                          
+                          <div className={`text-xs mb-3 ${
+                            hasWindow ? 'text-green-600' : 'text-gray-400'
+                          }`}>
+                            {hasWindow ? '🟢 Active' : '⚪ No Dashboard'}
+                          </div>
+                          
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              refreshDisplay(host, displayId);
+                            }}
+                            disabled={!host.status.online || status === 'refreshing' || !hasWindow}
+                            className={`w-full py-2 px-3 rounded text-xs font-medium transition-colors ${
+                              hasWindow 
+                                ? 'bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white'
+                                : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                            }`}
+                          >
+                            {status === 'refreshing' ? 'Refreshing...' : 
+                             hasWindow ? 'Refresh' : 'No Dashboard'}
+                          </button>
+                          
+                          {status === 'success' && (
+                            <div className="text-xs text-green-600 mt-2">✓ Success</div>
+                          )}
+                          {status === 'error' && (
+                            <div className="text-xs text-red-600 mt-2">✗ Error</div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}

@@ -218,6 +218,11 @@ CONTROLLER_URL=http://controller-ip:3000
 AGENT_ID=minipc-01
 ```
 
+**Development Mode Features:**
+- When `NODE_ENV` is not set to `production`, developer tools are enabled in browser windows
+- Press `F12` in any dashboard window to toggle dev tools
+- Dev tools are automatically disabled in production for security and performance
+
 ### Configuration Files
 - `web-controller/data/config.json`: System configuration
 - `host-agent/config/agent.json`: Agent-specific settings

@@ -1,55 +1,49 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { WindowsDiscoveryService } from '@/lib/windows-discovery-service';
-import { MiniPC, ApiResponse } from '@/types/types';
-
-// Global discovery service instance
-let discoveryService: WindowsDiscoveryService | null = null;
-let discoveredHosts: MiniPC[] = [];
-
-// Initialize discovery service
-const initializeDiscoveryService = async () => {
-  if (!discoveryService) {
-    discoveryService = new WindowsDiscoveryService();
-    
-    // Set up event handlers
-    discoveryService.onHostDiscovered((host) => {
-      const existingIndex = discoveredHosts.findIndex(h => h.id === host.id);
-      if (existingIndex >= 0) {
-        discoveredHosts[existingIndex] = host;
-      } else {
-        discoveredHosts.push(host);
-      }
-    });
-
-    discoveryService.onHostRemoved((hostId) => {
-      discoveredHosts = discoveredHosts.filter(h => h.id !== hostId);
-    });
-
-    // Start discovery
-    try {
-      await discoveryService.startDiscovery();
-      console.log('Discovery service started successfully');
-    } catch (error) {
-      console.error('Failed to start discovery service:', error);
-    }
-  }
-};
+import { discoveryService } from '@/lib/discovery-singleton';
+import { MiniPC, ApiResponse } from '@/types/shared-types';
+// import { getGrpcHostManager } from '../grpc-manager'; // Temporarily disabled
 
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<ApiResponse<MiniPC[]>>
 ) {
   try {
+    console.log('🔍 API call received:', req.method);
+    
     switch (req.method) {
       case 'GET':
-        // Initialize discovery if not already done
-        await initializeDiscoveryService();
+        console.log('🚀 Initializing discovery service...');
         
+        // Initialize discovery singleton if not already done
+        try {
+          await discoveryService.initialize();
+          console.log('✅ Discovery service initialized');
+        } catch (error) {
+          console.error('❌ Discovery service initialization failed:', error);
+          throw error;
+        }
+        
+        const hosts = discoveryService.getHosts();
+        
+        // Sync hosts with gRPC manager - temporarily disabled
+        // const grpcManager = getGrpcHostManager();
+        // hosts.forEach(host => {
+        //   grpcManager.addHost({
+        //     id: host.id,
+        //     name: host.name,
+        //     hostname: host.hostname,
+        //     ipAddress: host.ipAddress,
+        //     port: host.port,
+        //     grpcPort: 8082 // Default gRPC port
+        //   });
+        // });
         const response: ApiResponse<MiniPC[]> = {
           success: true,
-          data: discoveredHosts,
+          data: hosts,
           timestamp: new Date()
         };
+        
+        console.log('📡 REST API returning hosts:', hosts.length);
         
         res.status(200).json(response);
         break;
@@ -68,15 +62,12 @@ export default async function handler(
           return;
         }
 
-        await initializeDiscoveryService();
-        
-        if (discoveryService) {
-          discoveryService.addManualHost(host);
-        }
+        await discoveryService.initialize();
+        discoveryService.addManualHost(host);
         
         const successResponse: ApiResponse<MiniPC[]> = {
           success: true,
-          data: discoveredHosts,
+          data: discoveryService.getHosts(),
           timestamp: new Date()
         };
         
@@ -85,11 +76,7 @@ export default async function handler(
 
       case 'DELETE':
         // Stop discovery service
-        if (discoveryService) {
-          discoveryService.stopDiscovery();
-          discoveryService = null;
-          discoveredHosts = [];
-        }
+        await discoveryService.stop();
         
         const deleteResponse: ApiResponse<MiniPC[]> = {
           success: true,
@@ -123,15 +110,4 @@ export default async function handler(
   }
 }
 
-// Cleanup on process exit
-process.on('SIGTERM', () => {
-  if (discoveryService) {
-    discoveryService.stopDiscovery();
-  }
-});
-
-process.on('SIGINT', () => {
-  if (discoveryService) {
-    discoveryService.stopDiscovery();
-  }
-});
+// Cleanup is handled by the discovery singleton

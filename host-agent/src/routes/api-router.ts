@@ -3,7 +3,9 @@ import { HostService } from '../services/host-service';
 import { WindowManager, WindowConfig } from '../managers/window-manager';
 import { URLValidator } from '../services/url-validator';
 import { DebugService } from '../services/debug-service';
-// import { CookieService, CookieImportRequest } from '../services/cookie-service';
+import { WebSocketService } from '../services/websocket-service';
+import { StateManager } from '../services/state-manager';
+import { CookieService } from '../services/cookie-service';
 import { 
   ApiCommand, 
   CommandType, 
@@ -22,9 +24,11 @@ export class ApiRouter {
   private displayMonitor: any; // DisplayMonitor
   private mdnsService: any; // MDNSService
   private configManager: any; // ConfigManager
-  // private cookieService: CookieService;
+  private webSocketService?: WebSocketService;
+  private stateManager?: StateManager;
+  private cookieService: CookieService;
 
-  constructor(hostService: HostService, windowManager: WindowManager, debugService?: DebugService, displayIdentifier?: any, displayMonitor?: any, mdnsService?: any, configManager?: any) {
+  constructor(hostService: HostService, windowManager: WindowManager, debugService?: DebugService, displayIdentifier?: any, displayMonitor?: any, mdnsService?: any, configManager?: any, webSocketService?: WebSocketService, stateManager?: StateManager) {
     this.hostService = hostService;
     this.windowManager = windowManager;
     this.debugService = debugService!; // Will be provided from main.ts
@@ -32,7 +36,9 @@ export class ApiRouter {
     this.displayMonitor = displayMonitor;
     this.mdnsService = mdnsService;
     this.configManager = configManager;
-    // this.cookieService = new CookieService();
+    this.webSocketService = webSocketService;
+    this.stateManager = stateManager;
+    this.cookieService = new CookieService();
     this.router = Router();
     this.setupRoutes();
     this.setupDebugMiddleware();
@@ -87,6 +93,11 @@ export class ApiRouter {
 
     // mDNS service endpoints
     this.router.get('/mdns/info', this.getMDNSInfo.bind(this));
+    
+    // State management endpoints
+    this.router.get('/state/displays', this.getDisplayStates.bind(this));
+    this.router.get('/state/stats', this.getStateStats.bind(this));
+    this.router.post('/state/restore', this.restoreDisplays.bind(this));
   }
 
   private setupDebugMiddleware(): void {
@@ -216,8 +227,9 @@ export class ApiRouter {
   }
 
   private async handleOpenDashboard(payload: OpenDashboardCommand): Promise<string> {
+    const displayId = `display-${payload.monitorIndex + 1}`;
     const windowConfig: WindowConfig = {
-      id: `dashboard-${payload.dashboardId}-${Date.now()}`,
+      id: `dashboard-${payload.dashboardId}-${displayId}-${Date.now()}`,
       url: payload.url,
       monitorIndex: payload.monitorIndex,
       fullscreen: payload.fullscreen,
@@ -227,31 +239,120 @@ export class ApiRouter {
     const windowId = await this.windowManager.createWindow(windowConfig);
     
     // Update display status
-    this.hostService.updateDisplayStatus(`display-${payload.monitorIndex + 1}`, {
+    this.hostService.updateDisplayStatus(displayId, {
       active: true,
       currentUrl: payload.url,
       lastRefresh: new Date(),
       isResponsive: true
     });
 
+    // Save dashboard deployment to persistent state
+    if (this.stateManager) {
+      this.stateManager.saveDashboardDeployment(displayId, payload.dashboardId, payload.url, payload.refreshInterval);
+    }
+
+    // Notify via WebSocket about dashboard deployment
+    if (this.webSocketService) {
+      this.webSocketService.broadcastDashboardDeployed(displayId, payload.dashboardId, payload.url);
+    }
+
     return windowId;
   }
 
   private async handleRefreshPage(targetDisplay: string): Promise<boolean> {
     const windows = this.windowManager.getAllWindows();
-    const targetWindow = windows.find(w => w.id.includes(targetDisplay));
+    let targetWindow = windows.find(w => w.id.includes(targetDisplay));
     
     if (!targetWindow) {
-      throw new Error(`No window found for display: ${targetDisplay}`);
+      console.log(`No active window found for ${targetDisplay}, checking if dashboard should be restored...`);
+      
+      // Check if there's a saved state for this display
+      if (this.stateManager) {
+        const displayState = this.stateManager.getDisplayState(targetDisplay);
+        
+        if (displayState?.assignedDashboard) {
+          console.log(`Found saved dashboard for ${targetDisplay}, attempting to restore...`);
+          
+          // Import AutoRestoreService to restore the dashboard
+          const { AutoRestoreService } = await import('../services/auto-restore-service');
+          const autoRestoreService = new AutoRestoreService(this.stateManager, this.windowManager);
+          
+          const restored = await autoRestoreService.restoreDashboard(targetDisplay);
+          
+          if (restored) {
+            // Wait a moment for the window to be fully created
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            // Try to find the window again after restoration
+            const updatedWindows = this.windowManager.getAllWindows();
+            targetWindow = updatedWindows.find(w => w.id.includes(targetDisplay));
+            
+            if (targetWindow) {
+              console.log(`✅ Dashboard restored and window found for ${targetDisplay}: ${targetWindow.id}`);
+            } else {
+              // Debug: log all window IDs to see what's available
+              const windowIds = updatedWindows.map(w => w.id);
+              console.error(`❌ Window not found for ${targetDisplay}. Available windows: ${windowIds.join(', ')}`);
+              throw new Error(`Dashboard restoration completed but window not found for display: ${targetDisplay}`);
+            }
+          } else {
+            throw new Error(`Failed to restore dashboard for display: ${targetDisplay}`);
+          }
+        } else {
+          throw new Error(`No window or saved dashboard found for display: ${targetDisplay}. Please deploy a dashboard first.`);
+        }
+      } else {
+        throw new Error(`No window found for display: ${targetDisplay} and state manager not available`);
+      }
     }
 
-    return this.windowManager.refreshWindow(targetWindow.id);
+    const success = this.windowManager.refreshWindow(targetWindow.id);
+    
+    // Update state manager about refresh
+    if (success && this.stateManager) {
+      this.stateManager.markDisplayRefreshed(targetDisplay, targetWindow.id);
+    }
+    
+    // Notify via WebSocket about display refresh
+    if (success && this.webSocketService) {
+      this.webSocketService.broadcastDisplayRefreshed(targetDisplay, targetWindow.id);
+    }
+    
+    return success;
   }
 
   private async handleSyncCookies(payload: SyncCookiesCommand): Promise<boolean> {
-    // TODO: Implement cookie synchronization
-    console.log('Cookie sync not yet implemented:', payload);
-    return true;
+    try {
+      console.log('🍪 Syncing cookies:', payload);
+      
+      if (!payload.domain || !payload.cookies || !Array.isArray(payload.cookies)) {
+        console.error('Invalid cookie sync payload:', payload);
+        return false;
+      }
+
+      // Convert CookieData[] back to string format for CookieService
+      const cookieString = payload.cookies
+        .map(cookie => `${cookie.name}=${cookie.value}`)
+        .join('\n');
+
+      // Import cookies using CookieService
+      const result = await this.cookieService.importCookies({
+        domain: payload.domain,
+        cookies: cookieString,
+        timestamp: new Date()
+      });
+
+      if (result.success) {
+        console.log(`✅ Successfully synced ${result.injectedCount} cookies for ${payload.domain}`);
+        return true;
+      } else {
+        console.error(`❌ Failed to sync cookies for ${payload.domain}:`, result.errors);
+        return false;
+      }
+    } catch (error) {
+      console.error('Error in handleSyncCookies:', error);
+      return false;
+    }
   }
 
   private async handleRestartBrowser(targetDisplay: string): Promise<boolean> {
@@ -945,6 +1046,70 @@ export class ApiRouter {
       };
 
       const response = this.hostService.createApiResponse(true, mdnsInfo);
+      res.json(response);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const response = this.hostService.createApiResponse(false, undefined, errorMessage);
+      res.status(500).json(response);
+    }
+  }
+
+  // State management endpoints
+  private async getDisplayStates(req: Request, res: Response): Promise<void> {
+    try {
+      if (!this.stateManager) {
+        const response = this.hostService.createApiResponse(false, undefined, 'State manager not available');
+        res.status(503).json(response);
+        return;
+      }
+
+      const displayStates = this.stateManager.getAllDisplayStates();
+      const response = this.hostService.createApiResponse(true, displayStates);
+      res.json(response);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const response = this.hostService.createApiResponse(false, undefined, errorMessage);
+      res.status(500).json(response);
+    }
+  }
+
+  private async getStateStats(req: Request, res: Response): Promise<void> {
+    try {
+      if (!this.stateManager) {
+        const response = this.hostService.createApiResponse(false, undefined, 'State manager not available');
+        res.status(503).json(response);
+        return;
+      }
+
+      const stats = this.stateManager.getStateStats();
+      const response = this.hostService.createApiResponse(true, stats);
+      res.json(response);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const response = this.hostService.createApiResponse(false, undefined, errorMessage);
+      res.status(500).json(response);
+    }
+  }
+
+  private async restoreDisplays(req: Request, res: Response): Promise<void> {
+    try {
+      if (!this.stateManager) {
+        const response = this.hostService.createApiResponse(false, undefined, 'State manager not available');
+        res.status(503).json(response);
+        return;
+      }
+
+      // Import AutoRestoreService here to avoid circular dependencies
+      const { AutoRestoreService } = await import('../services/auto-restore-service');
+      const autoRestoreService = new AutoRestoreService(this.stateManager, this.windowManager);
+      
+      await autoRestoreService.restoreAllDashboards();
+      const stats = autoRestoreService.getRestoreStats();
+      
+      const response = this.hostService.createApiResponse(true, {
+        message: 'Dashboard restoration completed',
+        stats
+      });
       res.json(response);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
