@@ -1,10 +1,8 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
-import { join } from 'path';
 // 🚀 gRPC Migration: Express/REST imports removed - using gRPC only
 // import express from 'express';
 // import cors from 'cors';
 // import { createServer } from 'http';
-import BonjourService from 'bonjour-service';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -28,8 +26,6 @@ import { DisplayMonitor } from './services/display-monitor';
 import { GrpcService } from './services/grpc-service';
 import { StateManager } from './services/state-manager';
 import { AutoRestoreService } from './services/auto-restore-service';
-// 🚀 gRPC Migration: ApiRouter removed
-// import { ApiRouter } from './routes/api-router';
 import { WindowManager } from './managers/window-manager';
 import { ConfigManager } from './managers/config-manager';
 import { DebugOverlayManager } from './managers/debug-overlay-manager';

@@ -111,7 +111,7 @@ export class WindowsDiscoveryService {
         const localhostHost = {
           name: 'localhost-agent',
           host: 'localhost',
-          port: 8080,
+          port: 8082, // gRPC port
           addresses: ['127.0.0.1'],
           txt: { agentId: 'localhost-agent' },
           fqdn: 'localhost._officedisplay._tcp.local'
@@ -365,7 +365,7 @@ export class WindowsDiscoveryService {
       name: host.name || 'Manual Host',
       hostname: host.hostname || 'localhost',
       ipAddress: host.ipAddress || '127.0.0.1',
-      port: host.port || 8080,
+      port: host.port || 8082, // gRPC port
       status: host.status || {
         online: true,
         cpuUsage: 0,

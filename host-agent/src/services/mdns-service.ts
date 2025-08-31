@@ -23,18 +23,19 @@ export class MDNSService {
       // Stop existing service if any
       this.stopAdvertising();
 
-      // Publish the service
+      // Use gRPC port (8082) directly for mDNS
+      const grpcPort = 8082;
       this.service = this.bonjour.publish({
         name: serviceName,
         type: '_officedisplay._tcp',
-        port: config.apiPort,
+        port: grpcPort,
         txt: this.getTxtRecord()
       });
 
       console.log(`mDNS service published:`, {
         name: serviceName,
         type: '_officedisplay._tcp.local',
-        port: config.apiPort
+        port: grpcPort
       });
 
       // Set up periodic updates
@@ -76,15 +77,11 @@ export class MDNSService {
       displays: config.displays.map(d => d.id).join(','),
       platform: systemInfo.platform,
       arch: systemInfo.arch,
-      // Round uptime to minutes to reduce unnecessary updates
       uptime: Math.floor(systemInfo.uptime / 60).toString(),
       nodeVersion: systemInfo.nodeVersion,
       electronVersion: systemInfo.electronVersion || 'unknown',
       status: 'online',
-      // Add gRPC port information  
       grpcPort: '8082'
-      // Remove timestamp to avoid constant updates
-      // timestamp: new Date().toISOString()
     };
   }
 
@@ -171,7 +168,7 @@ export class MDNSService {
     return {
       name: `${config.hostname}-${config.agentId}`,
       type: '_officedisplay._tcp.local',
-      port: config.apiPort,
+      port: 8082, // gRPC port
       txt: this.getTxtRecord(),
       addresses: this.getLocalAddresses()
     };

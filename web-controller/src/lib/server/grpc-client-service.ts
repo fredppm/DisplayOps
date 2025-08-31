@@ -76,8 +76,8 @@ export class GrpcClientService extends EventEmitter {
       return;
     }
 
-    // Get gRPC port from mDNS TXT record, fallback to 8082
-    const grpcPort = host.mdnsService?.txtRecord?.grpcPort || '8082';
+    // Use the port directly from mDNS discovery (now gRPC port) or fallback to 8082
+    const grpcPort = host.port || 8082;
     const grpcAddress = `${host.ipAddress}:${grpcPort}`;
 
     console.log(`📡 gRPC: Connecting to host ${grpcAddress}...`);

@@ -6,7 +6,6 @@ import os from 'os';
 export interface AgentConfig {
   agentId: string;
   hostname: string;
-  apiPort: number;
   controllerUrl?: string;
   version: string;
   displays: DisplayConfig[];
@@ -64,7 +63,6 @@ function getRealDisplaysConfig(): DisplayConfig[] {
 const DEFAULT_CONFIG: AgentConfig = {
   agentId: `agent-${os.hostname().toLowerCase()}`,
   hostname: os.hostname(),
-  apiPort: 8080,
   version: '1.0.0',
   displays: getRealDisplaysConfig(),
   settings: {
@@ -155,9 +153,6 @@ export class ConfigManager {
     return this.config.hostname;
   }
 
-  public getApiPort(): number {
-    return this.config.apiPort;
-  }
 
   public getVersion(): string {
     return this.config.version;
