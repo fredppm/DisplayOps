@@ -1,5 +1,82 @@
 // Office Display Credentials Sync - Background Service Worker
 
+// Enhanced logging system
+const Logger = {
+  levels: {
+    ERROR: 0,
+    WARN: 1,
+    INFO: 2,
+    DEBUG: 3
+  },
+  
+  currentLevel: 2, // INFO by default
+  
+  formatMessage(level, category, message, data = null) {
+    const timestamp = new Date().toISOString();
+    const logData = {
+      timestamp,
+      level,
+      category,
+      message,
+      data
+    };
+    
+    const prefix = `[${timestamp}] ${level.toUpperCase()} [${category}]`;
+    
+    if (data) {
+      console.log(`${prefix} ${message}`, data);
+    } else {
+      console.log(`${prefix} ${message}`);
+    }
+    
+    // Store recent logs for debugging
+    this.addToHistory(logData);
+  },
+  
+  error(category, message, data) {
+    if (this.currentLevel >= this.levels.ERROR) {
+      this.formatMessage('error', category, message, data);
+    }
+  },
+  
+  warn(category, message, data) {
+    if (this.currentLevel >= this.levels.WARN) {
+      this.formatMessage('warn', category, message, data);
+    }
+  },
+  
+  info(category, message, data) {
+    if (this.currentLevel >= this.levels.INFO) {
+      this.formatMessage('info', category, message, data);
+    }
+  },
+  
+  debug(category, message, data) {
+    if (this.currentLevel >= this.levels.DEBUG) {
+      this.formatMessage('debug', category, message, data);
+    }
+  },
+  
+  // Keep last 50 log entries for debugging
+  history: [],
+  maxHistory: 50,
+  
+  addToHistory(logData) {
+    this.history.unshift(logData);
+    if (this.history.length > this.maxHistory) {
+      this.history.pop();
+    }
+  },
+  
+  getHistory() {
+    return this.history;
+  },
+  
+  clearHistory() {
+    this.history = [];
+  }
+};
+
 // Configuration
 const DEFAULT_ENDPOINTS = [
   'http://localhost:3000',
@@ -13,6 +90,23 @@ const ICON_STATES = {
   READY: 'ready', 
   SYNCED: 'synced',
   ERROR: 'error'
+};
+
+// Connection states
+const CONNECTION_STATES = {
+  DISCONNECTED: 'disconnected',
+  CONNECTING: 'connecting',
+  CONNECTED: 'connected',
+  RECONNECTING: 'reconnecting'
+};
+
+// Reconnection configuration
+const RECONNECTION_CONFIG = {
+  INITIAL_DELAY: 2000,     // Start with 2s delay
+  MAX_DELAY: 30000,        // Max 30s between attempts
+  MULTIPLIER: 1.5,         // Exponential backoff
+  MAX_ATTEMPTS: 10,        // Stop after 10 failed attempts
+  HEALTH_CHECK_INTERVAL: 15000  // Check connection every 15s
 };
 
 // Dashboard patterns for auto-detection
@@ -32,71 +126,228 @@ let currentState = {
   officeDisplay: null,
   domains: new Map(),
   currentDomain: null,
-  hasCredentials: false
+  hasCredentials: false,
+  connectionState: CONNECTION_STATES.DISCONNECTED,
+  reconnectionAttempts: 0,
+  reconnectionTimer: null,
+  healthCheckTimer: null,
+  lastConnectionCheck: null
 };
 
 // Initialize extension
 chrome.runtime.onInstalled.addListener(async () => {
-  console.log('Office Display Extension installed');
+  Logger.info('EXTENSION', 'Office Display Extension installed');
   await initializeExtension();
 });
 
 chrome.runtime.onStartup.addListener(async () => {
-  console.log('Office Display Extension starting up');
+  Logger.info('EXTENSION', 'Office Display Extension starting up');
   await initializeExtension();
 });
 
 // Initialize extension state
 async function initializeExtension() {
   try {
+    Logger.info('INIT', 'Initializing Office Display Extension...');
+    
     // Load stored configuration
     const stored = await chrome.storage.local.get(['officeDisplayEndpoint', 'monitoredDomains']);
-    
-    // Auto-detect Office Display endpoint if not configured
-    if (!stored.officeDisplayEndpoint) {
-      const endpoint = await autoDetectOfficeDisplay();
-      if (endpoint) {
-        await chrome.storage.local.set({ officeDisplayEndpoint: endpoint });
-        currentState.officeDisplay = endpoint;
-      }
-    } else {
-      currentState.officeDisplay = stored.officeDisplayEndpoint;
-    }
+    Logger.debug('INIT', 'Loaded stored configuration', { endpoint: stored.officeDisplayEndpoint, domainsCount: Object.keys(stored.monitoredDomains || {}).length });
     
     // Load monitored domains
     if (stored.monitoredDomains) {
       currentState.domains = new Map(Object.entries(stored.monitoredDomains));
     }
     
-    updateIcon(ICON_STATES.IDLE);
+    // Initialize connection management
+    await initializeConnection(stored.officeDisplayEndpoint);
     
   } catch (error) {
-    console.error('Failed to initialize extension:', error);
+    Logger.error('INIT', 'Failed to initialize extension', error);
+    currentState.connectionState = CONNECTION_STATES.DISCONNECTED;
+    updateIcon(ICON_STATES.ERROR);
   }
+}
+
+// Initialize connection with auto-detection and reconnection
+async function initializeConnection(storedEndpoint = null) {
+  Logger.info('CONNECTION', 'Initializing connection management...', { storedEndpoint });
+  
+  // Try stored endpoint first, then auto-detect
+  let endpoint = storedEndpoint;
+  
+  if (!endpoint || !(await testConnection(endpoint))) {
+    Logger.info('CONNECTION', 'Auto-detecting Office Display endpoint...');
+    currentState.connectionState = CONNECTION_STATES.CONNECTING;
+    endpoint = await autoDetectOfficeDisplay();
+  }
+  
+  if (endpoint) {
+    currentState.officeDisplay = endpoint;
+    await chrome.storage.local.set({ officeDisplayEndpoint: endpoint });
+    
+    if (await testConnection(endpoint)) {
+      currentState.connectionState = CONNECTION_STATES.CONNECTED;
+      currentState.reconnectionAttempts = 0;
+      currentState.lastConnectionCheck = Date.now();
+      Logger.info('CONNECTION', 'Connected to Office Display', { endpoint });
+    } else {
+      currentState.connectionState = CONNECTION_STATES.DISCONNECTED;
+      Logger.warn('CONNECTION', 'Failed to connect to detected endpoint', { endpoint });
+    }
+  } else {
+    currentState.connectionState = CONNECTION_STATES.DISCONNECTED;
+    Logger.warn('CONNECTION', 'No valid endpoint found');
+  }
+  
+  // Start health monitoring
+  startHealthMonitoring();
+  
+  // Update UI
+  updateIcon(currentState.connectionState === CONNECTION_STATES.CONNECTED ? ICON_STATES.IDLE : ICON_STATES.ERROR);
 }
 
 // Auto-detect Office Display endpoint
 async function autoDetectOfficeDisplay() {
-  console.log('Auto-detecting Office Display endpoint...');
+  console.log('🔍 Auto-detecting Office Display endpoint...');
   
   for (const endpoint of DEFAULT_ENDPOINTS) {
     try {
+      console.log(`  Testing endpoint: ${endpoint}`);
       const response = await fetch(`${endpoint}/api/cookies/status`, {
         method: 'GET',
-        signal: AbortSignal.timeout(2000) // 2s timeout
+        signal: AbortSignal.timeout(5000) // Increased to 5s timeout
       });
       
       if (response.ok) {
-        console.log(`Found Office Display at: ${endpoint}`);
+        console.log(`✅ Found Office Display at: ${endpoint}`);
         return endpoint;
+      } else {
+        console.log(`  ❌ Endpoint ${endpoint} returned ${response.status}`);
       }
     } catch (error) {
-      // Continue to next endpoint
+      console.log(`  ❌ Endpoint ${endpoint} failed:`, error.message);
     }
   }
   
-  console.log('No Office Display endpoint found, using default');
-  return DEFAULT_ENDPOINTS[0];
+  console.log('❌ No Office Display endpoint found');
+  return null; // Don't use default if nothing found
+}
+
+// Test connection to specific endpoint
+async function testConnection(endpoint) {
+  if (!endpoint) return false;
+  
+  try {
+    const response = await fetch(`${endpoint}/api/cookies/status`, {
+      method: 'GET',
+      signal: AbortSignal.timeout(5000)
+    });
+    return response.ok;
+  } catch (error) {
+    return false;
+  }
+}
+
+// Start health monitoring and reconnection logic
+function startHealthMonitoring() {
+  // Clear existing timer
+  if (currentState.healthCheckTimer) {
+    clearInterval(currentState.healthCheckTimer);
+  }
+  
+  console.log('❤️ Starting health monitoring...');
+  
+  currentState.healthCheckTimer = setInterval(async () => {
+    await checkConnectionHealth();
+  }, RECONNECTION_CONFIG.HEALTH_CHECK_INTERVAL);
+}
+
+// Check connection health and trigger reconnection if needed
+async function checkConnectionHealth() {
+  if (!currentState.officeDisplay) {
+    console.log('🔍 No endpoint configured, attempting auto-detection...');
+    await attemptReconnection();
+    return;
+  }
+  
+  const isConnected = await testConnection(currentState.officeDisplay);
+  
+  if (isConnected) {
+    if (currentState.connectionState !== CONNECTION_STATES.CONNECTED) {
+      console.log('✅ Connection restored to:', currentState.officeDisplay);
+      currentState.connectionState = CONNECTION_STATES.CONNECTED;
+      currentState.reconnectionAttempts = 0;
+      updateIcon(currentState.hasCredentials ? ICON_STATES.READY : ICON_STATES.IDLE);
+    }
+    currentState.lastConnectionCheck = Date.now();
+  } else {
+    if (currentState.connectionState === CONNECTION_STATES.CONNECTED) {
+      console.log('❌ Connection lost to:', currentState.officeDisplay);
+      currentState.connectionState = CONNECTION_STATES.DISCONNECTED;
+      updateIcon(ICON_STATES.ERROR);
+    }
+    
+    // Attempt reconnection if not already trying
+    if (currentState.connectionState !== CONNECTION_STATES.RECONNECTING) {
+      await attemptReconnection();
+    }
+  }
+}
+
+// Attempt reconnection with exponential backoff
+async function attemptReconnection() {
+  if (currentState.reconnectionAttempts >= RECONNECTION_CONFIG.MAX_ATTEMPTS) {
+    console.log('❌ Max reconnection attempts reached, stopping');
+    return;
+  }
+  
+  currentState.connectionState = CONNECTION_STATES.RECONNECTING;
+  currentState.reconnectionAttempts++;
+  
+  const delay = Math.min(
+    RECONNECTION_CONFIG.INITIAL_DELAY * Math.pow(RECONNECTION_CONFIG.MULTIPLIER, currentState.reconnectionAttempts - 1),
+    RECONNECTION_CONFIG.MAX_DELAY
+  );
+  
+  console.log(`🔄 Attempting reconnection ${currentState.reconnectionAttempts}/${RECONNECTION_CONFIG.MAX_ATTEMPTS} in ${delay}ms...`);
+  
+  // Clear existing timer
+  if (currentState.reconnectionTimer) {
+    clearTimeout(currentState.reconnectionTimer);
+  }
+  
+  currentState.reconnectionTimer = setTimeout(async () => {
+    try {
+      // Try current endpoint first
+      if (currentState.officeDisplay && await testConnection(currentState.officeDisplay)) {
+        console.log('✅ Reconnected to existing endpoint:', currentState.officeDisplay);
+        currentState.connectionState = CONNECTION_STATES.CONNECTED;
+        currentState.reconnectionAttempts = 0;
+        updateIcon(currentState.hasCredentials ? ICON_STATES.READY : ICON_STATES.IDLE);
+        return;
+      }
+      
+      // Try auto-detection
+      const newEndpoint = await autoDetectOfficeDisplay();
+      if (newEndpoint && await testConnection(newEndpoint)) {
+        console.log('✅ Reconnected to new endpoint:', newEndpoint);
+        currentState.officeDisplay = newEndpoint;
+        await chrome.storage.local.set({ officeDisplayEndpoint: newEndpoint });
+        currentState.connectionState = CONNECTION_STATES.CONNECTED;
+        currentState.reconnectionAttempts = 0;
+        updateIcon(currentState.hasCredentials ? ICON_STATES.READY : ICON_STATES.IDLE);
+        return;
+      }
+      
+      console.log('❌ Reconnection attempt failed');
+      currentState.connectionState = CONNECTION_STATES.DISCONNECTED;
+      
+    } catch (error) {
+      console.error('❌ Reconnection error:', error);
+      currentState.connectionState = CONNECTION_STATES.DISCONNECTED;
+    }
+  }, delay);
 }
 
 // Handle tab activation/update
@@ -242,6 +493,16 @@ async function syncCredentials(domain) {
     throw new Error('Office Display endpoint not configured');
   }
   
+  // Check connection before syncing
+  if (currentState.connectionState !== CONNECTION_STATES.CONNECTED) {
+    console.log('🔄 Connection not established, attempting to connect...');
+    await checkConnectionHealth();
+    
+    if (currentState.connectionState !== CONNECTION_STATES.CONNECTED) {
+      throw new Error('Cannot connect to Office Display. Please check if the service is running.');
+    }
+  }
+  
   try {
     // Get all cookies for domain
     const cookies = await chrome.cookies.getAll({ domain });
@@ -255,12 +516,35 @@ async function syncCredentials(domain) {
       throw new Error('No authentication cookies found');
     }
     
-    // Format cookies for API
-    const cookieString = authCookies
-      .map(cookie => `${cookie.name}=${cookie.value}`)
-      .join('\n');
+    // Format cookies for API - send structured objects instead of string
+    console.log('🍪 [EXTENSION] Extracting complete cookie data for', authCookies.length, 'cookies');
     
-    // Send to Office Display
+    const cookieObjects = authCookies.map(cookie => {
+      const cookieObj = {
+        name: cookie.name,
+        value: cookie.value,
+        domain: cookie.domain,
+        path: cookie.path,
+        secure: cookie.secure,
+        httpOnly: cookie.httpOnly,
+        sameSite: cookie.sameSite,
+        expirationDate: cookie.expirationDate
+      };
+      
+      console.log('🍪 [EXTENSION] Cookie extracted:', {
+        name: cookie.name,
+        domain: cookie.domain,
+        path: cookie.path,
+        secure: cookie.secure,
+        httpOnly: cookie.httpOnly,
+        sameSite: cookie.sameSite,
+        valueLength: cookie.value?.length || 0
+      });
+      
+      return cookieObj;
+    });
+    
+    // Send to Office Display with structured cookie objects
     const response = await fetch(`${currentState.officeDisplay}/api/cookies/import`, {
       method: 'POST',
       headers: {
@@ -268,7 +552,8 @@ async function syncCredentials(domain) {
       },
       body: JSON.stringify({
         domain: `https://${domain}`,
-        cookies: cookieString,
+        cookies: cookieObjects,  // Send objects instead of string
+        cookieFormat: 'structured', // Flag to indicate new format
         timestamp: new Date()
       })
     });
@@ -348,6 +633,9 @@ async function handleMessage(message, sender, sendResponse) {
             officeDisplay: currentState.officeDisplay,
             currentDomain: currentState.currentDomain,
             hasCredentials: currentState.hasCredentials,
+            connectionState: currentState.connectionState,
+            reconnectionAttempts: currentState.reconnectionAttempts,
+            lastConnectionCheck: currentState.lastConnectionCheck,
             domains: Array.from(currentState.domains.entries()).map(([domain, info]) => ({
               domain,
               ...info
@@ -366,19 +654,40 @@ async function handleMessage(message, sender, sendResponse) {
         break;
         
       case 'SET_ENDPOINT':
+        console.log('🔧 Setting new endpoint:', message.endpoint);
         currentState.officeDisplay = message.endpoint;
         await chrome.storage.local.set({ officeDisplayEndpoint: message.endpoint });
-        sendResponse({ success: true });
+        
+        // Test new endpoint immediately
+        currentState.connectionState = CONNECTION_STATES.CONNECTING;
+        const isConnected = await testConnection(message.endpoint);
+        
+        if (isConnected) {
+          currentState.connectionState = CONNECTION_STATES.CONNECTED;
+          currentState.reconnectionAttempts = 0;
+          console.log('✅ New endpoint connected successfully');
+        } else {
+          currentState.connectionState = CONNECTION_STATES.DISCONNECTED;
+          console.log('❌ New endpoint failed to connect');
+        }
+        
+        sendResponse({ success: true, data: { connected: isConnected } });
         break;
         
       case 'TEST_CONNECTION':
         try {
-          const response = await fetch(`${message.endpoint}/api/cookies/status`);
-          const isValid = response.ok;
+          const isValid = await testConnection(message.endpoint);
           sendResponse({ success: true, data: { isValid } });
-        } catch {
-          sendResponse({ success: true, data: { isValid: false } });
+        } catch (error) {
+          sendResponse({ success: true, data: { isValid: false, error: error.message } });
         }
+        break;
+        
+      case 'FORCE_RECONNECT':
+        Logger.info('CONNECTION', 'Forcing reconnection...');
+        currentState.reconnectionAttempts = 0;
+        await attemptReconnection();
+        sendResponse({ success: true });
         break;
         
       default:
@@ -388,3 +697,18 @@ async function handleMessage(message, sender, sendResponse) {
     sendResponse({ success: false, error: error.message });
   }
 }
+
+// Cleanup on extension unload
+chrome.runtime.onSuspend.addListener(() => {
+  console.log('🧹 Extension suspending, cleaning up timers...');
+  
+  if (currentState.healthCheckTimer) {
+    clearInterval(currentState.healthCheckTimer);
+    currentState.healthCheckTimer = null;
+  }
+  
+  if (currentState.reconnectionTimer) {
+    clearTimeout(currentState.reconnectionTimer);
+    currentState.reconnectionTimer = null;
+  }
+});

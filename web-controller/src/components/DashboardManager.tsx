@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MiniPC, Dashboard } from '@/types/shared-types';
 import { 
   Plus, 
@@ -86,35 +86,45 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ hosts }) => 
     setNotifications(prev => prev.filter(n => n.id !== id));
   };
 
-  // Function to sync real-time assignments from hosts
+  // 🚀 MIGRATED: Sync assignments using real-time gRPC/SSE data instead of HTTP polling
   const syncAssignmentsFromHosts = async () => {
+    console.log('🔄 Syncing dashboard assignments from real-time gRPC data...');
     const newRealTimeAssignments: Record<string, { hostId: string, displayId: string, dashboardId: string, url: string, isActive: boolean }> = {};
     
     for (const host of hosts) {
       if (!host.status.online) continue;
       
       try {
-        // Get display states from host
-        const response = await fetch(`/api/host/${host.id}/displays`);
-        if (response.ok) {
-          const result = await response.json();
-          if (result.success && result.data) {
-            const displayStates = result.data;
-            
-            // Process each display state
-            Object.entries(displayStates).forEach(([displayId, state]: [string, any]) => {
-              if (state.assignedDashboard) {
-                const assignmentKey = `${host.id}-${displayId}`;
-                newRealTimeAssignments[assignmentKey] = {
-                  hostId: host.id,
-                  displayId,
-                  dashboardId: state.assignedDashboard.dashboardId,
-                  url: state.assignedDashboard.url,
-                  isActive: state.isActive
-                };
+        // 🚀 Use displays from real-time gRPC/SSE data (no HTTP fetch needed!)
+        console.log(`📺 Processing host ${host.id} with ${host.displays?.length || 0} displays from gRPC`);
+        
+        if (host.displays && host.displays.length > 0) {
+          // Process each display from the gRPC data
+          for (const displayId of host.displays) {
+            try {
+              // Only need to fetch assignment info if not available in host object
+              // For now, make a targeted request for just this display's assignment
+              const response = await fetch(`/api/host/${host.id}/displays/${displayId}/assignment`);
+              if (response.ok) {
+                const result = await response.json();
+                if (result.success && result.data?.assignedDashboard) {
+                  const assignmentKey = `${host.id}-${displayId}`;
+                  newRealTimeAssignments[assignmentKey] = {
+                    hostId: host.id,
+                    displayId,
+                    dashboardId: result.data.assignedDashboard.dashboardId,
+                    url: result.data.assignedDashboard.url,
+                    isActive: result.data.isActive || false
+                  };
+                }
               }
-            });
+            } catch (error) {
+              console.debug(`Could not get assignment for display ${displayId}:`, error);
+              // Continue processing other displays
+            }
           }
+        } else {
+          console.debug(`📺 Host ${host.id}: No displays available from gRPC data yet`);
         }
       } catch (error) {
         console.error(`Error syncing assignments from host ${host.id}:`, error);
@@ -134,6 +144,12 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ hosts }) => 
     });
     setAssignments(syncedAssignments);
   };
+
+  // 🚀 NEW: Auto-sync when hosts change (real-time gRPC updates)
+  useEffect(() => {
+    console.log('📡 Hosts updated from gRPC/SSE, auto-syncing dashboard assignments...');
+    syncAssignmentsFromHosts();
+  }, [hosts]); // React to real-time host changes
 
   // Dashboard management functions
   const startEditingDashboard = (dashboard: Dashboard) => {
@@ -230,37 +246,43 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ hosts }) => 
     try {
 
       
-      // First validate the URL
+      // ✅ Validate URL via web-controller API
       addNotification('info', 'Validating URL', `Checking ${dashboard.name} accessibility...`);
       
-      const validateResponse = await fetch(`/api/host/${host.id}/validate-url`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          url: dashboard.url,
-          timeout: 10000
-        })
-      });
+      try {
+        const validateResponse = await fetch(`/api/host/${host.id}/validate-url`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            url: dashboard.url,
+            timeout: 10000
+          })
+        });
 
-      if (validateResponse.ok) {
-        const validateResult = await validateResponse.json();
-        
-        if (!validateResult.success) {
-          addNotification('error', 'URL Validation Failed', validateResult.error || 'Unknown validation error');
-          return;
-        }
+        if (validateResponse.ok) {
+          const validateResult = await validateResponse.json();
+          
+          if (!validateResult.success) {
+            addNotification('error', 'URL Validation Failed', validateResult.error || 'Unknown validation error');
+            return;
+          }
 
-        const validation = validateResult.data?.validation;
-        if (!validation?.isReachable) {
-          addNotification('warning', 'URL Not Reachable', 
-            `The URL ${dashboard.name} is not reachable: ${validation?.error || 'Connection failed'}`);
-          // Continue anyway - the user might want to deploy it
+          const validation = validateResult.validate_url_result;
+          if (!validation?.is_valid) {
+            addNotification('warning', 'URL Not Reachable', 
+              `The URL ${dashboard.name} is not reachable: ${validation?.error || 'Connection failed'}`);
+            // Continue anyway - the user might want to deploy it
+          }
         }
+      } catch (error) {
+        // If validation fails, log but continue - URL might still work
+        console.warn(`URL validation failed for ${dashboard.name}:`, error);
+        addNotification('warning', 'Validation Unavailable', 'Could not validate URL, but continuing deployment...');
       }
 
-      // Deploy the dashboard
+      // ✅ Deploy dashboard via web-controller API (which uses gRPC)
       addNotification('info', 'Deploying Dashboard', `Opening ${dashboard.name} on ${displayId.replace('display-', 'Display ')}...`);
       
       const response = await fetch(`/api/host/${host.id}/command`, {
@@ -294,30 +316,20 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ hosts }) => 
           }));
           
           addNotification('success', 'Dashboard Deployed Successfully', 
-            `${dashboard.name} is now displaying on ${host.name} - ${displayId.replace('display-', 'Display ')}`);
+            `${dashboard.name} is now displaying on ${host.hostname} - ${displayId.replace('display-', 'Display ')}`);
         } else {
           addNotification('error', 'Deployment Failed', 
             result.error || 'Unknown error occurred during deployment');
         }
       } else {
-        // Try to get error details from response
-        let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
-        try {
-          const errorData = await response.json();
-          if (errorData.error) {
-            errorMessage = errorData.error;
-          }
-        } catch {
-          // Ignore JSON parsing errors
-        }
-        
-        addNotification('error', 'Deployment Request Failed', errorMessage);
+        const errorData = await response.json();
+        addNotification('error', 'Deployment Request Failed', errorData.error || `HTTP ${response.status}`);
       }
     } catch (error: any) {
       let errorMessage = 'Unknown error occurred';
       
       if (error.name === 'TypeError' && error.message.includes('fetch')) {
-        errorMessage = `Cannot connect to host ${host.name} (${host.ipAddress}:${host.port})`;
+        errorMessage = `Cannot connect to web controller API`;
       } else if (error.message) {
         errorMessage = error.message;
       }
@@ -350,6 +362,7 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ hosts }) => 
     try {
       addNotification('info', 'Refreshing Dashboard', `Refreshing ${dashboardName} on ${displayId.replace('display-', 'Display ')}...`);
       
+      // ✅ Refresh display via web-controller API (which uses gRPC)
       const response = await fetch(`/api/host/${host.id}/command`, {
         method: 'POST',
         headers: {
@@ -367,29 +380,20 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ hosts }) => 
         
         if (result.success) {
           addNotification('success', 'Dashboard Refreshed', 
-            `${dashboardName} has been refreshed on ${host.name} - ${displayId.replace('display-', 'Display ')}`);
+            `${dashboardName} has been refreshed on ${host.hostname} - ${displayId.replace('display-', 'Display ')}`);
         } else {
           addNotification('error', 'Refresh Failed', 
             result.error || 'Unknown error occurred during refresh');
         }
       } else {
-        let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
-        try {
-          const errorData = await response.json();
-          if (errorData.error) {
-            errorMessage = errorData.error;
-          }
-        } catch {
-          // Ignore JSON parsing errors
-        }
-        
-        addNotification('error', 'Refresh Request Failed', errorMessage);
+        const errorData = await response.json();
+        addNotification('error', 'Refresh Request Failed', errorData.error || `HTTP ${response.status}`);
       }
     } catch (error: any) {
       let errorMessage = 'Unknown error occurred';
       
       if (error.name === 'TypeError' && error.message.includes('fetch')) {
-        errorMessage = `Cannot connect to host ${host.name} (${host.ipAddress}:${host.port})`;
+        errorMessage = `Cannot connect to web controller API`;
       } else if (error.message) {
         errorMessage = error.message;
       }
@@ -399,16 +403,8 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ hosts }) => 
     }
   };
 
-  // Sync assignments from hosts on component mount and when hosts change
-  React.useEffect(() => {
-    if (hosts.length > 0) {
-      syncAssignmentsFromHosts();
-      
-      // Set up periodic sync every 10 seconds
-      const interval = setInterval(syncAssignmentsFromHosts, 10000);
-      return () => clearInterval(interval);
-    }
-  }, [hosts]);
+  // ❌ REMOVED: HTTP polling replaced with real-time gRPC/SSE events
+  // The useEffect above now handles real-time sync automatically
 
   return (
     <div className="space-y-6">
@@ -713,7 +709,7 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ hosts }) => 
                   <div className="flex items-center">
                     <Monitor className="w-6 h-6 text-primary-600 mr-3" />
                     <div>
-                      <h4 className="font-medium text-gray-900">{host.name}</h4>
+                      <h4 className="font-medium text-gray-900">{host.hostname}</h4>
                       <p className="text-sm text-gray-500">{host.ipAddress}</p>
                     </div>
                   </div>

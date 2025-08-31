@@ -6,9 +6,6 @@ import { HostsList } from '@/components/HostsList';
 import { DashboardManager } from '@/components/DashboardManager';
 import { AuthorizationManager } from '@/components/AuthorizationManager';
 import { ExtensionDropdown } from '@/components/ExtensionDropdown';
-import { SystemStatus } from '@/components/SystemStatus';
-import { DebugController } from '@/components/DebugController';
-import { DisplayRefreshController } from '@/components/DisplayRefreshController';
 // WebSocketStatus removed - using SSE now
 // WebSocket manager removed - using SSE aggregator now
 import { useSSEHostDiscovery } from '@/hooks/useSSEHostDiscovery';

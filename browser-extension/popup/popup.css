@@ -133,9 +133,79 @@ body {
   background: var(--status-connected);
 }
 
+.status-indicator.connecting .dot {
+  background: var(--status-warning);
+  animation: pulse 1.5s infinite;
+}
+
+.status-indicator.reconnecting .dot {
+  background: var(--status-warning);
+  animation: pulse 1s infinite;
+}
+
 .status-indicator.error .dot {
   background: var(--status-error);
 }
+
+/* Reconnect info styling */
+.reconnect-info {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* Connection actions */
+.connection-actions {
+  margin-top: 8px;
+  text-align: center;
+}
+
+/* Reconnect button */
+.reconnect-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--btn-secondary);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.reconnect-button:hover {
+  background: var(--btn-secondary-hover);
+  transform: translateY(-1px);
+}
+
+.reconnect-button:disabled {
+  background: var(--btn-disabled);
+  cursor: not-allowed;
+  transform: none;
+}
+
+.reconnect-button.reconnecting {
+  background: var(--status-warning);
+}
+
+/* Pulse animation for connecting states */
+@keyframes pulse {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(1.1);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 
 /* Loading State */
 .loading-state {

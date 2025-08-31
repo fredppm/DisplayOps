@@ -9,6 +9,7 @@ interface StoredCookie {
   secure: boolean;
   httpOnly: boolean;
   sameSite: string;
+  expirationDate?: number;
   importedAt: Date;
 }
 
@@ -85,12 +86,27 @@ export class CookieStorageManager {
       let name = '';
       let value = '';
 
+      let cookieDomain = domain;
+      let cookiePath = '/';
+      let cookieSecure = domain.startsWith('https');
+      let cookieHttpOnly = false;
+      let cookieSameSite = 'lax';
+      
       // Parse tab-separated format (DevTools copy)
       if (trimmed.includes('\t')) {
         const parts = trimmed.split('\t');
         if (parts.length >= 2) {
           name = parts[0]?.trim() || '';
           value = parts[1]?.trim() || '';
+          
+          // Extract additional fields from DevTools table format if available
+          if (parts.length >= 9) {
+            cookieDomain = parts[2]?.trim() || domain;
+            cookiePath = parts[3]?.trim() || '/';
+            cookieHttpOnly = parts[6]?.trim() === '✓';
+            cookieSecure = parts[7]?.trim() === '✓';
+            cookieSameSite = (parts[8]?.trim() || 'Lax').toLowerCase();
+          }
         }
       }
       // Parse simple name=value format
@@ -104,11 +120,11 @@ export class CookieStorageManager {
         cookies.push({
           name,
           value,
-          domain: domain,
-          path: '/',
-          secure: domain.startsWith('https'),
-          httpOnly: false,
-          sameSite: 'lax',
+          domain: cookieDomain,
+          path: cookiePath,
+          secure: cookieSecure,
+          httpOnly: cookieHttpOnly,
+          sameSite: cookieSameSite,
           importedAt: new Date()
         });
       }
@@ -118,9 +134,111 @@ export class CookieStorageManager {
   }
 
   /**
-   * Import cookies for a domain
+   * Import cookies from structured objects with merge/replace option
    */
-  public static importCookies(domain: string, cookiesStr: string, description?: string): {
+  public static importCookiesStructured(domain: string, cookieObjects: any[], description?: string, replaceAll: boolean = true): {
+    success: boolean;
+    injectedCount: number;
+    skippedCount: number;
+    errors: string[];
+  } {
+    try {
+      console.log('🍪 [STORAGE] Importing structured cookies for', domain, ':', cookieObjects.length, 'cookies');
+      
+      const storage = this.loadStorage();
+      const cookies: StoredCookie[] = [];
+      
+      for (const cookie of cookieObjects) {
+        console.log('🍪 [STORAGE] Processing cookie:', {
+          name: cookie.name,
+          domain: cookie.domain,
+          path: cookie.path,
+          secure: cookie.secure,
+          httpOnly: cookie.httpOnly,
+          sameSite: cookie.sameSite
+        });
+        
+        cookies.push({
+          name: cookie.name,
+          value: cookie.value,
+          domain: cookie.domain || domain,
+          path: cookie.path || '/',
+          secure: cookie.secure || false,
+          httpOnly: cookie.httpOnly || false,
+          sameSite: cookie.sameSite || 'lax',
+          expirationDate: cookie.expirationDate,
+          importedAt: new Date()
+        });
+      }
+      
+      if (cookies.length === 0) {
+        return {
+          success: false,
+          injectedCount: 0,
+          skippedCount: 0,
+          errors: ['No valid cookies found in structured format']
+        };
+      }
+
+      // Handle merge vs replace logic for structured cookies
+      if (replaceAll || !storage.domains[domain]) {
+        // Replace all cookies or create new domain
+        storage.domains[domain] = {
+          domain,
+          cookies,
+          lastImport: new Date(),
+          description: description || `Cookies for ${domain}`
+        };
+      } else {
+        // Merge/add cookies to existing domain
+        const existingDomain = storage.domains[domain];
+        const mergedCookies = [...existingDomain.cookies];
+        
+        // Add or update each new cookie
+        for (const newCookie of cookies) {
+          const existingIndex = mergedCookies.findIndex(c => c.name === newCookie.name);
+          if (existingIndex >= 0) {
+            // Update existing cookie
+            mergedCookies[existingIndex] = newCookie;
+          } else {
+            // Add new cookie
+            mergedCookies.push(newCookie);
+          }
+        }
+        
+        storage.domains[domain] = {
+          ...existingDomain,
+          cookies: mergedCookies,
+          lastImport: new Date()
+        };
+      }
+
+      this.saveStorage(storage);
+
+      console.log(`📦 [STORAGE] Stored ${cookies.length} structured cookies for ${domain}`);
+
+      return {
+        success: true,
+        injectedCount: cookies.length,
+        skippedCount: 0,
+        errors: []
+      };
+
+    } catch (error) {
+      console.error('Error importing structured cookies:', error);
+      return {
+        success: false,
+        injectedCount: 0,
+        skippedCount: 0,
+        errors: [error instanceof Error ? error.message : 'Unknown error']
+      };
+    }
+  }
+
+  /**
+   * Import cookies for a domain with merge/replace option (legacy string format)
+   */
+  public static importCookies(domain: string, cookiesStr: string, description?: string, replaceAll: boolean = true): {
     success: boolean;
     injectedCount: number;
     skippedCount: number;
@@ -139,13 +257,38 @@ export class CookieStorageManager {
         };
       }
 
-      // Store domain cookies
-      storage.domains[domain] = {
-        domain,
-        cookies,
-        lastImport: new Date(),
-        description: description || `Cookies for ${domain}`
-      };
+      // Handle merge vs replace logic
+      if (replaceAll || !storage.domains[domain]) {
+        // Replace all cookies or create new domain
+        storage.domains[domain] = {
+          domain,
+          cookies,
+          lastImport: new Date(),
+          description: description || `Cookies for ${domain}`
+        };
+      } else {
+        // Merge/add cookies to existing domain
+        const existingDomain = storage.domains[domain];
+        const mergedCookies = [...existingDomain.cookies];
+        
+        // Add or update each new cookie
+        for (const newCookie of cookies) {
+          const existingIndex = mergedCookies.findIndex(c => c.name === newCookie.name);
+          if (existingIndex >= 0) {
+            // Update existing cookie
+            mergedCookies[existingIndex] = newCookie;
+          } else {
+            // Add new cookie
+            mergedCookies.push(newCookie);
+          }
+        }
+        
+        storage.domains[domain] = {
+          ...existingDomain,
+          cookies: mergedCookies,
+          lastImport: new Date()
+        };
+      }
 
       this.saveStorage(storage);
 
@@ -224,6 +367,124 @@ export class CookieStorageManager {
     } catch (error) {
       console.error('Error clearing cookies:', error);
       return false;
+    }
+  }
+
+  /**
+   * Add or update a single cookie to a domain
+   */
+  public static addOrUpdateCookie(domain: string, cookieData: {
+    name: string;
+    value: string;
+    domain?: string;
+    path?: string;
+    secure?: boolean;
+    httpOnly?: boolean;
+    sameSite?: string;
+    expirationDate?: number;
+  }): {
+    success: boolean;
+    message: string;
+  } {
+    try {
+      const storage = this.loadStorage();
+      
+      // Ensure domain exists
+      if (!storage.domains[domain]) {
+        storage.domains[domain] = {
+          domain,
+          cookies: [],
+          lastImport: new Date(),
+          description: `Cookies for ${domain}`
+        };
+      }
+
+      const newCookie: StoredCookie = {
+        name: cookieData.name,
+        value: cookieData.value,
+        domain: cookieData.domain || domain,
+        path: cookieData.path || '/',
+        secure: cookieData.secure || false,
+        httpOnly: cookieData.httpOnly || false,
+        sameSite: cookieData.sameSite || 'lax',
+        expirationDate: cookieData.expirationDate,
+        importedAt: new Date()
+      };
+
+      // Check if cookie already exists (by name)
+      const existingIndex = storage.domains[domain].cookies.findIndex(
+        cookie => cookie.name === cookieData.name
+      );
+
+      if (existingIndex >= 0) {
+        // Update existing cookie
+        storage.domains[domain].cookies[existingIndex] = newCookie;
+      } else {
+        // Add new cookie
+        storage.domains[domain].cookies.push(newCookie);
+      }
+
+      // Update last import time
+      storage.domains[domain].lastImport = new Date();
+
+      this.saveStorage(storage);
+
+      console.log(`🍪 Added/Updated cookie ${cookieData.name} for ${domain}`);
+
+      return {
+        success: true,
+        message: existingIndex >= 0 ? 'Cookie updated' : 'Cookie added'
+      };
+
+    } catch (error) {
+      console.error('Error adding/updating cookie:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  }
+
+  /**
+   * Remove a specific cookie by name
+   */
+  public static removeCookie(domain: string, cookieName: string): {
+    success: boolean;
+    message: string;
+  } {
+    try {
+      const storage = this.loadStorage();
+      
+      if (!storage.domains[domain]) {
+        return {
+          success: false,
+          message: 'Domain not found'
+        };
+      }
+
+      const initialCount = storage.domains[domain].cookies.length;
+      storage.domains[domain].cookies = storage.domains[domain].cookies.filter(
+        cookie => cookie.name !== cookieName
+      );
+
+      const removed = initialCount > storage.domains[domain].cookies.length;
+      
+      if (removed) {
+        this.saveStorage(storage);
+        console.log(`🗑️ Removed cookie ${cookieName} from ${domain}`);
+      }
+
+      return {
+        success: removed,
+        message: removed ? 'Cookie removed' : 'Cookie not found'
+      };
+
+    } catch (error) {
+      console.error('Error removing cookie:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Unknown error'
+      };
     }
   }
 

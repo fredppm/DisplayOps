@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { proxyToHost } from '@/lib/host-utils';
+import { grpcManager } from '@/lib/server/grpc-manager';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { hostId } = req.query;
@@ -13,35 +13,59 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    // Convert new command format to legacy format for host agent
+    // 🚀 Use gRPC instead of HTTP proxy
+    await grpcManager.initialize();
+    
     const command = req.body;
-    let legacyCommand = { ...command };
+    let result;
 
-    // Map new command types to legacy types
-    if (command.type === 'REFRESH_PAGE') {
-      legacyCommand.type = 'refresh_page';
-    } else if (command.type === 'SYNC_COOKIES') {
-      legacyCommand.type = 'sync_cookies';
-    } else if (command.type === 'OPEN_DASHBOARD') {
-      legacyCommand.type = 'open_dashboard';
+    // Route command to appropriate gRPC method
+    switch (command.type) {
+      case 'open_dashboard':
+      case 'OPEN_DASHBOARD':
+        result = await grpcManager.openDashboard(hostId as string, command.targetDisplay, {
+          dashboardId: command.payload?.dashboardId || 'unknown',
+          url: command.payload?.url,
+          fullscreen: command.payload?.fullscreen !== false,
+          refreshInterval: command.payload?.refreshInterval || 300000
+        });
+        break;
+
+      case 'refresh_page':
+      case 'REFRESH_PAGE':
+        result = await grpcManager.refreshDisplay(hostId as string, command.targetDisplay);
+        break;
+
+      case 'sync_cookies':
+      case 'SYNC_COOKIES':
+        result = await grpcManager.syncCookies(hostId as string, command.payload?.cookies || [], command.payload?.domain);
+        break;
+
+      case 'identify_displays':
+      case 'IDENTIFY_DISPLAYS':
+        result = await grpcManager.identifyDisplays(hostId as string, command.payload?.duration || 5);
+        break;
+
+      case 'HEALTH_CHECK':
+        result = await grpcManager.getHealthStatus(hostId as string);
+        break;
+
+      case 'TAKE_SCREENSHOT':
+        result = await grpcManager.takeScreenshot(hostId as string, command.targetDisplay, command.payload?.format || 'png');
+        break;
+
+      case 'RESTART_BROWSER':
+        result = await grpcManager.restartBrowser(hostId as string, command.payload?.displayIds, command.payload?.forceKill);
+        break;
+
+      default:
+        return res.status(400).json({
+          success: false,
+          error: `Unknown command type: ${command.type}`
+        });
     }
 
-    // Proxy request directly to host (avoid internal fetch to discovery)
-    const hostResponse = await proxyToHost(hostId as string, '/api/command', {
-      method: 'POST',
-      body: JSON.stringify(legacyCommand)
-    });
-
-    const responseData = await hostResponse.json();
-
-    if (!hostResponse.ok) {
-      return res.status(hostResponse.status).json({
-        success: false,
-        error: responseData.error || `Host returned ${hostResponse.status}`
-      });
-    }
-
-    res.status(200).json(responseData);
+    res.status(200).json(result);
 
   } catch (error) {
     console.error('Command proxy error:', error);

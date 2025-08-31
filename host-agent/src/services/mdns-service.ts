@@ -26,14 +26,14 @@ export class MDNSService {
       // Publish the service
       this.service = this.bonjour.publish({
         name: serviceName,
-        type: 'officetv',
+        type: '_officedisplay._tcp',
         port: config.apiPort,
         txt: this.getTxtRecord()
       });
 
       console.log(`mDNS service published:`, {
         name: serviceName,
-        type: '_officetv._tcp.local',
+        type: '_officedisplay._tcp.local',
         port: config.apiPort
       });
 
@@ -76,16 +76,26 @@ export class MDNSService {
       displays: config.displays.map(d => d.id).join(','),
       platform: systemInfo.platform,
       arch: systemInfo.arch,
-      uptime: Math.floor(systemInfo.uptime).toString(),
+      // Round uptime to minutes to reduce unnecessary updates
+      uptime: Math.floor(systemInfo.uptime / 60).toString(),
       nodeVersion: systemInfo.nodeVersion,
       electronVersion: systemInfo.electronVersion || 'unknown',
       status: 'online',
-      timestamp: new Date().toISOString()
+      // Add gRPC port information  
+      grpcPort: '8082'
+      // Remove timestamp to avoid constant updates
+      // timestamp: new Date().toISOString()
     };
   }
 
   private startPeriodicUpdates(): void {
     const interval = this.configManager.getSettings().mdnsUpdateInterval;
+    
+    // Only start periodic updates if interval is reasonable (> 5 minutes)
+    if (interval < 300000) { // 5 minutes
+      console.log(`mDNS periodic updates disabled (interval too frequent: ${interval}ms)`);
+      return;
+    }
     
     this.updateInterval = setInterval(() => {
       this.updateTxtRecord();
@@ -100,21 +110,55 @@ export class MDNSService {
     }
 
     try {
-      // Update TXT record with current information
+      // Check if TXT record actually changed before restarting
       const newTxtRecord = this.getTxtRecord();
+      const currentTxtRecord = this.service.txt || {};
       
-      // Note: bonjour-service doesn't have a direct update method
-      // We need to stop and restart the service with new TXT record
-      this.stopAdvertising();
-      this.startAdvertising();
+      // Compare TXT records to see if update is needed
+      if (this.isTxtRecordChanged(currentTxtRecord, newTxtRecord)) {
+        console.log('mDNS TXT record changed, updating service...');
+        
+        // Note: bonjour-service doesn't have a direct update method
+        // We need to stop and restart the service with new TXT record
+        this.stopAdvertising();
+        this.startAdvertising();
+      } else {
+        // No changes needed, just log that we checked
+        console.log('mDNS TXT record unchanged, skipping update');
+      }
       
     } catch (error) {
       console.error('Error updating mDNS TXT record:', error);
     }
   }
 
+  private isTxtRecordChanged(current: Record<string, string>, updated: Record<string, string>): boolean {
+    // Get keys from both objects
+    const currentKeys = Object.keys(current);
+    const updatedKeys = Object.keys(updated);
+    
+    // Check if number of keys is different
+    if (currentKeys.length !== updatedKeys.length) {
+      return true;
+    }
+    
+    // Check if any key-value pair is different
+    for (const key of updatedKeys) {
+      if (current[key] !== updated[key]) {
+        return true;
+      }
+    }
+    
+    return false;
+  }
+
   public isAdvertising(): boolean {
     return this.service !== null;
+  }
+
+  public forceUpdateTxtRecord(): void {
+    console.log('Force updating mDNS TXT record...');
+    this.updateTxtRecord();
   }
 
   public getServiceInfo() {
@@ -126,7 +170,7 @@ export class MDNSService {
     
     return {
       name: `${config.hostname}-${config.agentId}`,
-      type: '_officetv._tcp.local',
+      type: '_officedisplay._tcp.local',
       port: config.apiPort,
       txt: this.getTxtRecord(),
       addresses: this.getLocalAddresses()

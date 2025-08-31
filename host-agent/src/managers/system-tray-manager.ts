@@ -108,10 +108,25 @@ export class SystemTrayManager {
   }
 
   private getIconPath(state: 'idle' | 'ready' | 'error' = 'idle'): string {
-    // Try state-specific icon first, then fallback to default
+    // Try multiple path strategies for different build contexts
     const iconPaths = [
+      // For compiled/built version
       path.join(__dirname, `../../assets/vtex-tray-icon-${state}.png`),
+      path.join(__dirname, `../assets/vtex-tray-icon-${state}.png`),
+      
+      // For development version
+      path.join(__dirname, `../../../assets/vtex-tray-icon-${state}.png`),
+      path.join(process.cwd(), `host-agent/assets/vtex-tray-icon-${state}.png`),
+      path.join(process.cwd(), `assets/vtex-tray-icon-${state}.png`),
+      
+      // Fallback to default icons
       path.join(__dirname, '../../assets/vtex-tray-icon.png'),
+      path.join(__dirname, '../assets/vtex-tray-icon.png'),
+      path.join(__dirname, '../../../assets/vtex-tray-icon.png'),
+      path.join(process.cwd(), 'host-agent/assets/vtex-tray-icon.png'),
+      path.join(process.cwd(), 'assets/vtex-tray-icon.png'),
+      
+      // SVG fallbacks
       path.join(__dirname, '../../assets/vtex-icon.svg'),
       path.join(__dirname, '../../assets/icon.png')
     ];
@@ -120,17 +135,19 @@ export class SystemTrayManager {
     const fs = require('fs');
     for (const iconPath of iconPaths) {
       if (fs.existsSync(iconPath)) {
-        logger.info(`Found icon at: ${iconPath}`);
+        logger.info(`✅ Found icon at: ${iconPath}`);
         return iconPath;
       }
     }
 
     // Fallback to empty string (Electron default)
-    logger.warn('No icon files found in expected locations');
+    logger.warn('🚨 No icon files found in expected locations');
     return '';
   }
 
   private createFallbackIcon(state: 'idle' | 'ready' | 'error' = 'idle'): Electron.NativeImage {
+    logger.warn(`Creating fallback icon for state: ${state}`);
+    
     // Create state-specific fallback icon colors
     const stateColors = {
       idle: '#666666',    // Gray for idle
@@ -140,16 +157,70 @@ export class SystemTrayManager {
     
     const color = stateColors[state];
     
-    // Create a simple 16x16 circle with "V" for VTEX in state color
-    const canvas = `
-      <svg width="16" height="16" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="8" cy="8" r="7" fill="${color}" stroke="#ffffff" stroke-width="1"/>
-        <text x="8" y="12" font-family="Arial" font-size="10" font-weight="bold" fill="white" text-anchor="middle">V</text>
-      </svg>
-    `;
+    try {
+      // Create a simple 16x16 circle with "V" for VTEX in state color
+      const canvas = `
+        <svg width="16" height="16" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="8" cy="8" r="7" fill="${color}" stroke="#ffffff" stroke-width="1"/>
+          <text x="8" y="12" font-family="Arial" font-size="10" font-weight="bold" fill="white" text-anchor="middle">V</text>
+        </svg>
+      `;
+      
+      const buffer = Buffer.from(canvas, 'utf8');
+      const icon = nativeImage.createFromBuffer(buffer);
+      
+      logger.info(`Fallback icon created successfully, isEmpty: ${icon.isEmpty()}, size: ${JSON.stringify(icon.getSize())}`);
+      
+      // If SVG doesn't work, create a simple bitmap fallback
+      if (icon.isEmpty()) {
+        logger.warn('SVG fallback failed, creating bitmap fallback');
+        return this.createBitmapFallback(state);
+      }
+      
+      return icon;
+    } catch (error) {
+      logger.error('Failed to create SVG fallback icon:', error);
+      return this.createBitmapFallback(state);
+    }
+  }
+
+  private createBitmapFallback(state: 'idle' | 'ready' | 'error' = 'idle'): Electron.NativeImage {
+    // Create a simple 16x16 bitmap as absolute fallback
+    const size = 16;
+    const buffer = Buffer.alloc(size * size * 4); // RGBA
     
-    const buffer = Buffer.from(canvas, 'utf8');
-    return nativeImage.createFromBuffer(buffer);
+    // Fill with transparent background
+    for (let i = 0; i < buffer.length; i += 4) {
+      buffer[i] = 0;     // R
+      buffer[i + 1] = 0; // G
+      buffer[i + 2] = 0; // B
+      buffer[i + 3] = 0; // A (transparent)
+    }
+    
+    // Draw a simple colored square in the middle
+    const stateColors = {
+      idle: [102, 102, 102],    // Gray
+      ready: [0, 200, 81],      // Green  
+      error: [255, 68, 68]      // Red
+    };
+    
+    const [r, g, b] = stateColors[state];
+    
+    // Draw 8x8 square in center
+    for (let y = 4; y < 12; y++) {
+      for (let x = 4; x < 12; x++) {
+        const index = (y * size + x) * 4;
+        buffer[index] = r;       // R
+        buffer[index + 1] = g;   // G
+        buffer[index + 2] = b;   // B
+        buffer[index + 3] = 255; // A (opaque)
+      }
+    }
+    
+    const icon = nativeImage.createFromBuffer(buffer, { width: size, height: size });
+    logger.info(`Bitmap fallback created, isEmpty: ${icon.isEmpty()}`);
+    
+    return icon;
   }
 
   public updateStatus(status: {

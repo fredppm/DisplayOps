@@ -11,27 +11,16 @@ export interface Dashboard {
   category?: string;
 }
 
-export interface TVConfiguration {
-  id: string;
-  name: string;
-  miniPcId: string;
-  monitorIndex: number; // 0 or 1 for dual monitor setup
-  assignedDashboard?: string; // Dashboard ID
-  status: TVStatus;
-  lastUpdate: Date;
-}
 
 export interface MiniPC {
   id: string;
-  name: string;
-  hostname: string;
-  ipAddress: string;
+  hostname: string; // DNS name (e.g., 'VTEX-B9LH6Z3')
+  ipAddress: string; // IP address (e.g., '192.168.1.227')
   port: number;
   status: HostStatus;
   lastHeartbeat: Date;
   lastDiscovered: Date;
   version: string;
-  tvs: string[]; // TV IDs (legacy)
   displays: string[]; // Display IDs (e.g., ['display-1', 'display-2', 'display-3'])
   mdnsService?: MDNSServiceInfo;
 }
@@ -52,14 +41,6 @@ export interface HostStatus {
   lastError?: string;
 }
 
-export interface TVStatus {
-  active: boolean;
-  currentUrl?: string;
-  lastRefresh: Date;
-  isResponsive: boolean;
-  errorCount: number;
-  lastError?: string;
-}
 
 // Display Status type for individual displays
 export interface DisplayStatus {
@@ -148,8 +129,7 @@ export interface ApiResponse<T = any> {
 
 export interface HealthCheckResponse {
   hostStatus: HostStatus;
-  tvStatuses: TVStatus[];
-  displayStatuses: DisplayStatus[]; // Add displayStatuses property
+  displayStatuses: DisplayStatus[];
   systemInfo: {
     uptime: number;
     platform: string;
@@ -162,7 +142,6 @@ export interface HealthCheckResponse {
 export interface SystemConfiguration {
   dashboards: Dashboard[];
   miniPCs: MiniPC[];
-  tvs: TVConfiguration[];
   settings: SystemSettings;
 }
 

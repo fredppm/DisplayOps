@@ -1,51 +1,62 @@
 import { MiniPC, HostStatus } from '@/types/shared-types';
-import axios from 'axios';
+import { MDNSDiscoveryService } from './mdns-discovery-service';
+import { GrpcClientService } from './server/grpc-client-service';
 
 export type HostDiscoveredCallback = (host: MiniPC) => void;
 export type HostRemovedCallback = (hostId: string) => void;
 
 /**
- * Windows-friendly discovery service
- * Uses manual IP scanning instead of mDNS for better Windows compatibility
+ * 🚀 Modern gRPC-enabled discovery service for Office Display hosts
+ * 
+ * NEW Features:
+ * - Real-time gRPC streaming events (NO MORE POLLING!)
+ * - Automatic host discovery via mDNS (_officedisplay._tcp.local)
+ * - Instant display change notifications via gRPC streams
+ * - Automatic reconnection handling
+ * 
+ * REMOVED:
+ * - HTTP polling (replaced with gRPC streaming)
+ * - Fixed IP ranges (now purely mDNS-based)
+ * - Scan intervals (events are real-time)
  */
 export class WindowsDiscoveryService {
   private discoveredHosts: Map<string, MiniPC> = new Map();
   private onHostDiscoveredCallback: HostDiscoveredCallback | null = null;
   private onHostRemovedCallback: HostRemovedCallback | null = null;
   private isRunning: boolean = false;
-  private scanInterval: NodeJS.Timeout | null = null;
-  private lastScanTime: number = 0;
+  private mdnsService: MDNSDiscoveryService;
+  private grpcService: GrpcClientService | null = null;
 
-  // Default IPs to scan (can be configured)
-  private ipRanges: string[] = [
-    '127.0.0.1', // Only scan 127.0.0.1 to avoid duplicates
-    // Add more IPs as needed: '192.168.1.100', '192.168.1.101', etc.
-  ];
+  constructor() {
+    this.mdnsService = new MDNSDiscoveryService();
+    
+    try {
+      this.grpcService = new GrpcClientService();
+      this.setupGrpcEventHandlers();
+    } catch (error) {
+      console.warn('⚠️ gRPC service not available, continuing with mDNS only:', error instanceof Error ? error.message : error);
+      // gRPC service will be null, we'll handle this in other methods
+    }
+  }
 
   public async startDiscovery(): Promise<void> {
     if (this.isRunning) {
-      console.log('Windows discovery service already running');
+      console.log('🚀 gRPC Discovery service already running');
       return;
     }
 
     try {
-      console.log('Starting Windows-friendly discovery service...');
-      console.log('Scanning IPs:', this.ipRanges.join(', '));
+      console.log('🚀 Starting modern gRPC-enabled discovery service...');
       
       this.isRunning = true;
       
-      // Initial scan
-      await this.scanForHosts();
+      // Start mDNS discovery for host detection
+      this.startMDNSDiscovery();
       
-      // Set up periodic scanning
-      this.scanInterval = setInterval(() => {
-        this.scanForHosts();
-      }, 30000); // Scan every 30 seconds (optimized for faster discovery)
-      
-      console.log('Windows discovery service started successfully');
+      console.log('✅ gRPC Discovery service started - no more polling!');
       
     } catch (error) {
-      console.error('Failed to start Windows discovery service:', error);
+      console.error('❌ Failed to start gRPC discovery service:', error);
       throw error;
     }
   }
@@ -55,153 +66,202 @@ export class WindowsDiscoveryService {
       return;
     }
 
-    console.log('Stopping Windows discovery service...');
+    console.log('🛑 Stopping gRPC discovery service...');
     
-    if (this.scanInterval) {
-      clearInterval(this.scanInterval);
-      this.scanInterval = null;
+    // Stop gRPC service if available
+    if (this.grpcService) {
+      this.grpcService.stop();
+    }
+
+    // Stop mDNS discovery
+    if (this.mdnsService) {
+      this.mdnsService.stopDiscovery();
     }
     
     this.discoveredHosts.clear();
     this.isRunning = false;
     
-    console.log('Windows discovery service stopped');
+    console.log('✅ gRPC Discovery service stopped');
   }
 
-  private async scanForHosts(): Promise<void> {
-    // Throttle scanning - avoid scanning too frequently
-    const now = Date.now();
-    if (now - this.lastScanTime < 10000) { // Minimum 10 seconds between scans (reduced for debug)
-      console.log('⏳ Skipping scan - too recent');
-      return;
+  private startMDNSDiscovery(): void {
+    console.log('🔍 Starting mDNS discovery for gRPC hosts...');
+    
+    try {
+      // Set up mDNS callbacks - now connects gRPC instead of HTTP polling
+      this.mdnsService.onHostDiscovered((discoveredHost) => {
+        console.log('📡 mDNS discovered host:', discoveredHost.txt?.agentId || discoveredHost.name);
+        this.connectToDiscoveredHost(discoveredHost);
+      });
+
+      this.mdnsService.onHostRemoved((hostId: string) => {
+        console.log('📡 mDNS host removed:', hostId);
+        // Note: gRPC service will handle disconnections automatically
+        // via heartbeat timeouts, so no immediate action needed here
+      });
+
+      // Start mDNS discovery
+      this.mdnsService.startDiscovery();
+      
+    } catch (error) {
+      console.error('❌ Failed to start mDNS discovery:', error);
+      // Continue with fallback localhost if enabled
+      if (process.env.OFFICE_DISPLAY_INCLUDE_LOCALHOST === 'true') {
+        console.log('🔄 Fallback: Attempting localhost connection...');
+        const localhostHost = {
+          name: 'localhost-agent',
+          host: 'localhost',
+          port: 8080,
+          addresses: ['127.0.0.1'],
+          txt: { agentId: 'localhost-agent' },
+          fqdn: 'localhost._officedisplay._tcp.local'
+        };
+        this.connectToDiscoveredHost(localhostHost);
+      }
+    }
+  }
+
+  // Connect to discovered host via gRPC using agentId as unique identifier
+  private async connectToDiscoveredHost(discoveredHost: any): Promise<void> {
+    try {
+      // Use agentId as unique identifier
+      const agentId = discoveredHost.txt?.agentId || discoveredHost.name;
+      const hostId = agentId;
+      
+      // Select primary IP (prefer non link-local, non-docker IPs)
+      const primaryIP = this.selectPrimaryIP(discoveredHost.addresses);
+      
+      console.log(`📡 gRPC: Connecting to host ${hostId} at ${primaryIP} (from ${discoveredHost.addresses.length} IPs)`);
+      
+      const host: MiniPC = {
+        id: hostId,
+        hostname: discoveredHost.host, // DNS name (e.g., 'VTEX-B9LH6Z3')
+        ipAddress: primaryIP, // IP address (e.g., '192.168.1.227')
+        port: discoveredHost.port,
+        status: {
+          online: false, // Will be updated via gRPC events
+          cpuUsage: 0,
+          memoryUsage: 0,
+          browserProcesses: 0
+        },
+        lastHeartbeat: new Date(),
+        lastDiscovered: new Date(),
+        version: discoveredHost.txt?.version || 'unknown',
+        displays: discoveredHost.txt?.displays?.split(',') || [],
+        mdnsService: {
+          serviceName: '_officedisplay._tcp.local',
+          instanceName: discoveredHost.name,
+          txtRecord: discoveredHost.txt,
+          addresses: discoveredHost.addresses,
+          port: discoveredHost.port
+        }
+      };
+
+      // Attempt gRPC connection
+      if (this.grpcService) {
+        await this.grpcService.connectToHost(host);
+      } else {
+        // Fallback: mark host as discovered but without gRPC connection
+        this.discoveredHosts.set(host.id, host);
+        if (this.onHostDiscoveredCallback) {
+          this.onHostDiscoveredCallback(host);
+        }
+      }
+      
+    } catch (error) {
+      console.error(`❌ Failed to connect to host ${discoveredHost.txt?.agentId || discoveredHost.name}:`, error);
+    }
+  }
+  
+  // Helper method to select the best IP address for connection
+  private selectPrimaryIP(addresses: string[]): string {
+    if (!addresses || addresses.length === 0) {
+      return 'localhost';
     }
     
-    this.lastScanTime = now;
-    console.log('🔍 Scanning for Office Display hosts...');
+    // Filter out IPv6 addresses for now
+    const ipv4Addresses = addresses.filter(addr => 
+      !addr.includes(':') && // Not IPv6
+      addr !== '127.0.0.1' && // Not localhost
+      addr !== '0.0.0.0' // Not wildcard
+    );
     
-    const scanPromises = this.ipRanges.map(ip => this.checkHost(ip));
-    const results = await Promise.allSettled(scanPromises);
+    if (ipv4Addresses.length === 0) {
+      return addresses[0]; // Fallback to first address
+    }
     
-    results.forEach((result, index) => {
-      const ip = this.ipRanges[index];
-      if (result.status === 'fulfilled' && result.value) {
-        this.handleHostFound(ip, result.value);
-      } else {
-        this.handleHostLost(ip);
+    // Prefer addresses that are not link-local (169.254.x.x) or Docker (172.x.x.x)
+    const preferredAddresses = ipv4Addresses.filter(addr => 
+      !addr.startsWith('169.254.') && // Not link-local
+      !addr.startsWith('172.') // Not Docker (this might be too broad, adjust if needed)
+    );
+    
+    return preferredAddresses.length > 0 ? preferredAddresses[0] : ipv4Addresses[0];
+  }
+
+  // 🚀 NEW: Setup gRPC event handlers for real-time updates
+  private setupGrpcEventHandlers(): void {
+    if (!this.grpcService) return;
+    
+    // Handle when gRPC successfully connects to a host
+    this.grpcService.on('host-connected', ({ hostId, host }) => {
+      console.log(`✅ gRPC: Connected to host ${hostId}`);
+      this.handleHostConnected(host);
+    });
+
+    // Handle when gRPC disconnects from a host
+    this.grpcService.on('host-disconnected', ({ hostId, host, reason }) => {
+      console.log(`📡 gRPC: Disconnected from host ${hostId} (${reason})`);
+      this.handleHostDisconnected(hostId);
+    });
+
+    // Handle real-time display changes from gRPC stream
+    this.grpcService.on('displays-changed', ({ hostId, host, displays, changeType, changedDisplay }) => {
+      console.log(`📺 gRPC: Host ${hostId} displays changed (${changeType})`);
+      this.handleHostDisplaysChanged(hostId, displays, changeType);
+    });
+
+    // Handle host status changes
+    this.grpcService.on('host-status-changed', ({ hostId, host, status }) => {
+      console.log(`🔄 gRPC: Host ${hostId} status changed`);
+      this.handleHostStatusChanged(hostId, status);
+    });
+    
+    // Handle heartbeats to update host status
+    this.grpcService.on('host-event', (hostEvent) => {
+      if (hostEvent.type === 'HEARTBEAT' && hostEvent.payload?.hostStatus) {
+        console.log(`💓 gRPC: Received heartbeat for ${hostEvent.hostId}:`, {
+          cpu: hostEvent.payload.hostStatus.cpu_usage_percent,
+          memory: hostEvent.payload.hostStatus.memory_usage_percent,
+          online: hostEvent.payload.hostStatus.online
+        });
+        this.updateHostStatusFromHeartbeat(hostEvent.hostId, hostEvent.payload.hostStatus);
       }
     });
   }
 
-  private async checkHost(ip: string, port: number = 8080): Promise<any | null> {
-    try {
-      console.log(`🔍 Checking host ${ip}:${port}...`);
-      // Simple status check with aggressive timeout
-      const response = await axios.get(`http://${ip}:${port}/api/status`, {
-        timeout: 3000, // Reduced timeout
-        validateStatus: (status) => status === 200,
-        headers: {
-          'User-Agent': 'Office-Display-Discovery/1.0'
-        }
-      });
-      
-      console.log(`✅ Host ${ip}:${port} responded with status ${response.status}`);
+  // ❌ REMOVED: verifyHostReachable method - no longer needed with pure gRPC approach
 
-      if (response.data && response.data.success) {
-        // Also fetch mDNS info
-        let mdnsInfo = null;
-        try {
-          const mdnsResponse = await axios.get(`http://${ip}:${port}/api/mdns/info`, {
-            timeout: 3000,
-            validateStatus: (status) => status === 200
-          });
-          if (mdnsResponse.data && mdnsResponse.data.success) {
-            mdnsInfo = mdnsResponse.data.data;
-          }
-        } catch (mdnsError) {
-          // mDNS info is optional, don't fail if not available
-          console.log(`📡 mDNS info not available for ${ip}: ${mdnsError instanceof Error ? mdnsError.message : 'Unknown error'}`);
-        }
-
-        return {
-          ip,
-          port,
-          health: { success: true },
-          status: response.data,
-          mdnsInfo
-        };
-      }
-    } catch (error) {
-      // Host not available - expected during discovery
-      console.log(`❌ Host ${ip}:${port} not reachable:`, error instanceof Error ? error.message : String(error));
-    }
-    
-    return null;
-  }
-
-  private async handleHostFound(ip: string, hostData: any): Promise<void> {
-    // Normalize IP to avoid duplicates (localhost -> 127.0.0.1)
-    const normalizedIP = ip === 'localhost' ? '127.0.0.1' : ip;
-    const hostId = `agent-${normalizedIP.replace(/\./g, '-')}-${hostData.port}`;
-    
-    const hostStatus: HostStatus = {
-      online: true,
-      cpuUsage: hostData.status?.data?.hostStatus?.cpuUsage || 0,
-      memoryUsage: hostData.status?.data?.hostStatus?.memoryUsage || 0,
-      browserProcesses: hostData.status?.data?.hostStatus?.browserProcesses || 0
-    };
-
-    // Build mDNS service info if available
-    let mdnsService = undefined;
-    if (hostData.mdnsInfo && hostData.mdnsInfo.serviceInfo) {
-      const serviceInfo = hostData.mdnsInfo.serviceInfo;
-      mdnsService = {
-        serviceName: serviceInfo.type || '_officetv._tcp.local',
-        instanceName: serviceInfo.name || 'N/A',
-        txtRecord: serviceInfo.txt || {},
-        addresses: serviceInfo.addresses || [normalizedIP],
-        port: serviceInfo.port || hostData.port
-      };
-    }
-
-    const host: MiniPC = {
-      id: hostId,
-      name: `Office Display Host`,
-      hostname: normalizedIP,
-      ipAddress: normalizedIP,
-      port: hostData.port,
-      status: hostStatus,
-      lastHeartbeat: new Date(),
-      lastDiscovered: new Date(),
-      version: hostData.health?.data?.version || '1.0.0',
-      tvs: [], // Legacy property
-      displays: await this.getHostDisplays(normalizedIP, hostData.port) || ['display-1', 'display-2'], // Get real displays
-      mdnsService
-    };
-
-    const existing = this.discoveredHosts.get(hostId);
+  // 🚀 NEW: Handle gRPC host connection events
+  private handleHostConnected(host: MiniPC): void {
+    const existing = this.discoveredHosts.get(host.id);
     if (!existing) {
-      console.log(`✅ Windows discovery: Found new host at ${ip}${mdnsService ? ' with mDNS service' : ''}`);
-      this.discoveredHosts.set(hostId, host);
+      console.log(`✅ gRPC Discovery: New host connected ${host.id}`);
+      this.discoveredHosts.set(host.id, host);
       
       if (this.onHostDiscoveredCallback) {
         this.onHostDiscoveredCallback(host);
       }
     } else {
       // Update existing host
-      this.discoveredHosts.set(hostId, { ...existing, ...host, lastHeartbeat: new Date() });
-      
-      if (this.onHostDiscoveredCallback) {
-        this.onHostDiscoveredCallback(host);
-      }
+      this.discoveredHosts.set(host.id, { ...existing, ...host, lastHeartbeat: new Date() });
+      console.debug(`💓 gRPC Discovery: Host ${host.id} connection refreshed`);
     }
   }
 
-  private handleHostLost(ip: string): void {
-    const normalizedIP = ip === 'localhost' ? '127.0.0.1' : ip;
-    const hostId = `agent-${normalizedIP.replace(/\./g, '-')}-8080`;
-    
+  private handleHostDisconnected(hostId: string): void {
     if (this.discoveredHosts.has(hostId)) {
-      console.log(`⬇️  Windows discovery: Host lost at ${ip}`);
+      console.log(`⬇️ gRPC Discovery: Host disconnected ${hostId}`);
       this.discoveredHosts.delete(hostId);
       
       if (this.onHostRemovedCallback) {
@@ -209,6 +269,78 @@ export class WindowsDiscoveryService {
       }
     }
   }
+
+  private handleHostDisplaysChanged(hostId: string, grpcDisplays: any[], changeType: string): void {
+    const host = this.discoveredHosts.get(hostId);
+    if (!host) return;
+
+    // Convert gRPC display format to our format
+    const displays = grpcDisplays.map(d => d.display_id || `display-${d.electron_id}`);
+    
+    const updatedHost = {
+      ...host,
+      displays,
+      lastHeartbeat: new Date()
+    };
+
+    console.log(`📺 gRPC Discovery: Host ${hostId} displays changed (${changeType}): ${displays.length} displays`);
+
+    this.discoveredHosts.set(hostId, updatedHost);
+    
+    // Notify as significant change since displays actually changed
+    if (this.onHostDiscoveredCallback) {
+      this.onHostDiscoveredCallback(updatedHost);
+    }
+  }
+
+  private updateHostStatusFromHeartbeat(hostId: string, hostStatus: any): void {
+    const host = this.discoveredHosts.get(hostId);
+    if (!host) return;
+
+    // Convert gRPC status format to our internal format
+    const updatedStatus = {
+      online: hostStatus.online || false,
+      cpuUsage: parseFloat(hostStatus.cpu_usage_percent) || 0,
+      memoryUsage: parseFloat(hostStatus.memory_usage_percent) || 0,
+      browserProcesses: parseInt(hostStatus.browser_processes) || 0,
+      lastError: hostStatus.last_error || undefined
+    };
+
+    const updatedHost = {
+      ...host,
+      status: updatedStatus,
+      lastHeartbeat: new Date()
+    };
+
+    this.discoveredHosts.set(hostId, updatedHost);
+    
+    // Notify callback about status update
+    if (this.onHostDiscoveredCallback) {
+      this.onHostDiscoveredCallback(updatedHost);
+    }
+  }
+
+  private handleHostStatusChanged(hostId: string, status: any): void {
+    const host = this.discoveredHosts.get(hostId);
+    if (!host) return;
+
+    const updatedHost = {
+      ...host,
+      status: {
+        ...host.status,
+        ...status
+      },
+      lastHeartbeat: new Date()
+    };
+
+    this.discoveredHosts.set(hostId, updatedHost);
+    console.debug(`🔄 gRPC Discovery: Host ${hostId} status updated`);
+  }
+
+  // ❌ REMOVED: All HTTP polling methods replaced with gRPC streaming
+  // - checkHost: replaced with verifyHostReachable + gRPC connection
+  // - handleHostFound: replaced with handleHostConnected
+  // - handleHostLost: replaced with handleHostDisconnected
 
   public onHostDiscovered(callback: HostDiscoveredCallback): void {
     this.onHostDiscoveredCallback = callback;
@@ -226,10 +358,8 @@ export class WindowsDiscoveryService {
     return this.isRunning;
   }
 
-  // Add manual host for testing
+  // 🚀 NEW: Add manual host for testing (updated for gRPC)
   public async addManualHost(host: Partial<MiniPC>): Promise<void> {
-    const displays = await this.getHostDisplays(host.hostname || 'localhost', host.port || 8080) || host.displays || ['display-1', 'display-2'];
-    
     const fullHost: MiniPC = {
       id: host.id || `manual-${Date.now()}`,
       name: host.name || 'Manual Host',
@@ -237,7 +367,7 @@ export class WindowsDiscoveryService {
       ipAddress: host.ipAddress || '127.0.0.1',
       port: host.port || 8080,
       status: host.status || {
-        online: false,
+        online: true,
         cpuUsage: 0,
         memoryUsage: 0,
         browserProcesses: 0
@@ -246,49 +376,34 @@ export class WindowsDiscoveryService {
       lastDiscovered: new Date(),
       version: host.version || '1.0.0',
       tvs: [], // Legacy property
-      displays: displays
+      displays: host.displays || [] // Will be populated by gRPC events
     };
 
+    // Add to discovered hosts and connect gRPC
     this.discoveredHosts.set(fullHost.id, fullHost);
     
+    // Try to connect gRPC stream if available
+    if (this.grpcService) {
+      try {
+        await this.grpcService.connectToHost(fullHost);
+      } catch (error) {
+        console.warn(`Manual host ${fullHost.id} added but gRPC connection failed:`, error);
+      }
+    } else {
+      console.log(`Manual host ${fullHost.id} added (gRPC not available)`);
+    }
+
     if (this.onHostDiscoveredCallback) {
       this.onHostDiscoveredCallback(fullHost);
     }
   }
 
-  // Get real displays from host
-  private async getHostDisplays(hostname: string, port: number): Promise<string[] | null> {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
+  // ❌ REMOVED: getHostDisplays - displays now come via gRPC events
+  // ❌ REMOVED: setIPRanges - no more fixed IPs, purely mDNS
+  // ❌ REMOVED: hasSignificantChanges - handled by gRPC event handlers
 
-      const response = await fetch(`http://${hostname}:${port}/api/displays`, {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
-        signal: controller.signal
-      });
-
-      clearTimeout(timeoutId);
-
-      if (response.ok) {
-        const result = await response.json();
-        if (result.success && Array.isArray(result.data)) {
-          const displayIds = result.data.map((display: any, index: number) => `display-${index + 1}`);
-          console.log(`📺 Host ${hostname}: Detected ${displayIds.length} real displays`);
-          return displayIds;
-        }
-      }
-    } catch (error: any) {
-      // Silently fail and use defaults - this is expected during host startup
-      console.debug(`Could not get displays from ${hostname}:${port}:`, error.message);
-    }
-    
-    return null;
-  }
-
-  // Configure IPs to scan
-  public setIPRanges(ips: string[]): void {
-    this.ipRanges = ips;
-    console.log('Updated scan IPs:', this.ipRanges.join(', '));
+  // 🚀 NEW: Get gRPC service for command execution
+  public getGrpcService(): GrpcClientService | null {
+    return this.grpcService;
   }
 }

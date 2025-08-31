@@ -7,6 +7,7 @@ class DiscoverySingleton {
   private discoveryService: WindowsDiscoveryService | null = null;
   private discoveredHosts: MiniPC[] = [];
   private isInitialized: boolean = false;
+  private initializationPromise: Promise<void> | null = null;
   private eventHandlers: Set<(hosts: MiniPC[], changeType?: string, changedHost?: MiniPC) => void> = new Set();
 
   private constructor() {}
@@ -19,11 +20,23 @@ class DiscoverySingleton {
   }
 
   public async initialize(): Promise<void> {
+    // Return existing initialization promise if already in progress
+    if (this.initializationPromise) {
+      console.log('⏳ Discovery service initialization in progress, waiting...');
+      return this.initializationPromise;
+    }
+
     if (this.isInitialized) {
       console.log('🔄 Discovery service already initialized');
       return;
     }
 
+    // Create and store the initialization promise
+    this.initializationPromise = this.performInitialization();
+    return this.initializationPromise;
+  }
+
+  private async performInitialization(): Promise<void> {
     if (!this.discoveryService) {
       this.discoveryService = new WindowsDiscoveryService();
       
@@ -37,6 +50,14 @@ class DiscoverySingleton {
         } else {
           this.discoveredHosts.push(host);
           isNewHost = true;
+        }
+
+        // Update host cache for host-utils
+        try {
+          const { updateHostCache } = require('./host-utils');
+          updateHostCache(host.id, host.ipAddress, host.port);
+        } catch (error) {
+          console.debug('Could not update host cache:', error);
         }
 
         // Notify all event handlers
@@ -54,23 +75,19 @@ class DiscoverySingleton {
         console.log('📡 Host removed:', hostId);
       });
 
-      // Start discovery in background (non-blocking)
+      // Start discovery service
       try {
         console.log('🚀 Starting discovery singleton service...');
-        this.isInitialized = true; // Mark as initialized immediately
         
-        // Start discovery asynchronously without waiting
-        this.discoveryService.startDiscovery().then(() => {
-          console.log('✅ Discovery singleton service started');
-          console.log('📋 Current discovered hosts:', this.discoveredHosts.length);
-        }).catch((error) => {
-          console.error('❌ Failed to start discovery singleton service:', error);
-          // Don't throw here since the service is already marked as initialized
-        });
+        await this.discoveryService.startDiscovery();
+        this.isInitialized = true;
         
-        console.log('✅ Discovery singleton initialized (background scanning)');
+        console.log('✅ Discovery singleton service started');
+        console.log('📋 Current discovered hosts:', this.discoveredHosts.length);
+        
       } catch (error) {
         console.error('❌ Failed to initialize discovery singleton service:', error);
+        this.initializationPromise = null; // Reset so it can be retried
         throw error;
       }
     }
@@ -78,6 +95,10 @@ class DiscoverySingleton {
 
   public getHosts(): MiniPC[] {
     return [...this.discoveredHosts]; // Return a copy
+  }
+
+  public getDiscoveredHosts(): MiniPC[] {
+    return this.getHosts(); // Alias for compatibility
   }
 
   public addManualHost(host: MiniPC): void {
@@ -110,11 +131,29 @@ class DiscoverySingleton {
       this.discoveryService = null;
       this.discoveredHosts = [];
       this.isInitialized = false;
+      this.initializationPromise = null;
       this.eventHandlers.clear();
       console.log('🛑 Discovery singleton service stopped');
     }
   }
+
+  // 🚀 NEW: Get gRPC service for command execution
+  public getGrpcService() {
+    if (!this.discoveryService) {
+      throw new Error('Discovery service not initialized');
+    }
+    const grpcService = this.discoveryService.getGrpcService();
+    if (!grpcService) {
+      throw new Error('gRPC service not available');
+    }
+    return grpcService;
+  }
 }
 
 export const discoveryService = DiscoverySingleton.getInstance();
+
+// Export function for host-utils compatibility
+export function getDiscoveryService() {
+  return discoveryService;
+}
 

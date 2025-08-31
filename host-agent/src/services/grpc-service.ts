@@ -539,14 +539,14 @@ export class GrpcService extends EventEmitter {
   private getHostStatus(): any {
     const systemMetrics = this.getSystemMetrics();
     const legacyStatus = this.hostService.getHostStatus(); // Only for error info and browser processes
-    
-    return {
+
+    const result = {
       online: true, // Always online if gRPC is responding
       cpu_usage_percent: systemMetrics.cpuUsage,
       memory_usage_percent: systemMetrics.memoryUsagePercent,
       memory_used_bytes: systemMetrics.memoryUsedBytes,
       memory_total_bytes: systemMetrics.memoryTotalBytes,
-      browser_processes: legacyStatus.browserProcesses, // Keep browser process count
+      browser_processes: legacyStatus.browserProcesses || 0, // Default to 0 if undefined
       last_error: legacyStatus.lastError || '',
       last_update: { seconds: Math.floor(Date.now() / 1000), nanos: 0 },
       system_metrics: {
@@ -562,6 +562,8 @@ export class GrpcService extends EventEmitter {
         network_connections: systemMetrics.networkConnections
       }
     };
+
+    return result;
   }
 
   private getSystemMetrics(): any {
@@ -757,36 +759,41 @@ export class GrpcService extends EventEmitter {
         const totalDiff = totalTick - this.lastCpuInfo.total;
         
         const cpuUsagePercent = totalDiff > 0 ? 100 - (idleDiff / totalDiff * 100) : 0;
-        
+      
         // Store current values for next calculation
         this.lastCpuInfo = { idle: totalIdle, total: totalTick };
         this.lastCpuTime = now;
         
         return Math.max(0, Math.min(100, cpuUsagePercent));
       } else {
-        // First measurement or too soon - use load average as fallback
-        const loadAvg = os.loadavg();
-        const cpuCount = cpus.length;
-        const loadBasedUsage = Math.min((loadAvg[0] / cpuCount) * 100, 100);
+        // First measurement or too soon - use multiple fallbacks for Windows
         
-        // Store current values
+        let fallbackUsage = 0;
+        
+        // Try load average first (works on Unix-like systems)
+        try {
+          const loadAvg = os.loadavg();
+          const cpuCount = cpus.length;
+          fallbackUsage = Math.min((loadAvg[0] / cpuCount) * 100, 100);
+        } catch (e) {
+        }
+        
+        // If load average is 0 or not available (Windows), start with 0 and wait for real measurement
+        if (fallbackUsage === 0 && process.platform === 'win32') {
+          fallbackUsage = 0;
+        }
+        
+        // Store current values for next time
         this.lastCpuInfo = { idle: totalIdle, total: totalTick };
         this.lastCpuTime = now;
         
-        return Math.max(0, loadBasedUsage);
+        return Math.max(0, Math.min(100, fallbackUsage)); // Return fixed fallback value on first measurement
       }
     } catch (error) {
-      logger.error('Error calculating CPU usage:', error);
+      console.error('Error calculating CPU usage:', error);
       
-      // Fallback to load average
-      try {
-        const os = require('os');
-        const loadAvg = os.loadavg();
-        const cpuCount = os.cpus().length;
-        return Math.min((loadAvg[0] / cpuCount) * 100, 100);
-      } catch (fallbackError) {
-        return 0; // Safe fallback
-      }
+      // Ultimate fallback
+      return 15; // Return a reasonable default value
     }
   }
 

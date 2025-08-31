@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { proxyToHost } from '@/lib/host-utils';
+import { discoveryService } from '@/lib/discovery-singleton';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { hostId } = req.query;
@@ -13,35 +13,38 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    // Proxy request directly to host (avoid internal fetch to discovery)
-    const hostResponse = await proxyToHost(hostId as string, '/api/windows', {
-      method: 'GET'
-    });
-
-    const responseData = await hostResponse.json();
-
-    if (!hostResponse.ok) {
-      return res.status(hostResponse.status).json({
-        success: false,
-        error: responseData.error || `Host returned ${hostResponse.status}`
-      });
-    }
+    // Ensure discovery service is initialized
+    await discoveryService.initialize();
+    
+    // Get gRPC service from discovery
+    const grpcService = discoveryService.getGrpcService();
+    
+    // Use gRPC to get host health status (which includes display info)
+    const healthResponse = await grpcService.getHealthStatus(hostId as string);
+    
+    // Convert gRPC response to windows/displays format
+    const responseData = {
+      success: true,
+      displays: healthResponse.display_statuses || [],
+      system_info: healthResponse.system_info || {},
+      host_status: healthResponse.host_status || {}
+    };
 
     res.status(200).json(responseData);
 
-  } catch (error) {
-    console.error('Windows proxy error:', error);
+  } catch (error: any) {
+    console.error('Windows gRPC error:', error);
     
-    if (error instanceof Error && error.message === 'Invalid host ID format') {
-      return res.status(400).json({
+    if (error?.message?.includes('not connected') || error?.message?.includes('not found')) {
+      return res.status(404).json({
         success: false,
-        error: 'Invalid host ID format'
+        error: 'Host not found or not connected'
       });
     }
     
     res.status(500).json({
       success: false,
-      error: 'Internal server error'
+      error: error?.message || 'Internal server error'
     });
   }
 }

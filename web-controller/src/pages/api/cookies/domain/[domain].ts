@@ -21,15 +21,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     
     const cookies = CookieStorageManager.getCookiesForDomain(decodedDomain);
     
-    // Convert cookies back to string format for the textarea
-    const cookieString = cookies.map(cookie => `${cookie.name}=${cookie.value}`).join('\n');
-    
     return res.status(200).json({
       success: true,
       data: {
         domain: decodedDomain,
-        cookies: cookieString,
-        cookieCount: cookies.length
+        cookies: cookies, // Return structured cookies
+        count: cookies.length
       }
     });
 

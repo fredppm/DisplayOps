@@ -211,6 +211,9 @@ message HostEvent {
     HostStatusChangedEvent host_status_changed = 11;
     ErrorEvent error_event = 12;
     HeartbeatEvent heartbeat = 13;
+    DisplaysChangedEvent displays_changed = 14;
+    HostOnlineEvent host_online = 15;
+    HostOfflineEvent host_offline = 16;
   }
 }
 
@@ -219,6 +222,9 @@ enum EventType {
   HOST_STATUS_CHANGED = 1;
   ERROR_EVENT = 2;
   HEARTBEAT = 3;
+  DISPLAYS_CHANGED = 4;
+  HOST_ONLINE = 5;
+  HOST_OFFLINE = 6;
 }
 
 message DisplayStateChangedEvent {
@@ -240,6 +246,38 @@ message ErrorEvent {
 message HeartbeatEvent {
   HostStatus host_status = 1;
   repeated DisplayStatus display_statuses = 2;
+}
+
+message DisplaysChangedEvent {
+  repeated DisplayInfo displays = 1;
+  string change_type = 2; // "added", "removed", "modified", "reordered"
+  DisplayInfo changed_display = 3; // specific display that changed
+}
+
+message HostOnlineEvent {
+  HostStatus host_status = 1;
+  SystemInfo system_info = 2;
+}
+
+message HostOfflineEvent {
+  string reason = 1; // "shutdown", "error", "restart"
+}
+
+message DisplayInfo {
+  string display_id = 1;
+  int32 electron_id = 2;
+  DisplayBounds bounds = 3;
+  DisplayBounds work_area = 4;
+  bool primary = 5;
+  float scale_factor = 6;
+  string name = 7;
+}
+
+message DisplayBounds {
+  int32 x = 1;
+  int32 y = 2;
+  int32 width = 3;
+  int32 height = 4;
 }
 
 // ================================

@@ -29,7 +29,7 @@ export class DebugOverlayManager {
     this.config = {
       enabled: false,
       position: 'right',
-      opacity: 0.6,  // Reduzido para 60% para ser mais transparente
+      opacity: 0.8,  // Aumentado para 80% - menos transparente
       hotkey: 'CommandOrControl+Shift+D'
     };
 

@@ -70,7 +70,7 @@ const DEFAULT_CONFIG: AgentConfig = {
   settings: {
     maxWindows: 4,
     healthCheckInterval: 120000, // 2 minutes instead of 30 seconds
-    mdnsUpdateInterval: 300000, // 5 minutes instead of 1 minute
+    mdnsUpdateInterval: 1800000, // 30 minutes - reduce frequent restarts
     autoStart: true,
     debugMode: false
   }
@@ -97,15 +97,23 @@ export class ConfigManager {
         const loadedConfig = JSON.parse(configData);
         
         // Merge with defaults to ensure all properties exist
-        return {
+        const mergedConfig = {
           ...DEFAULT_CONFIG,
           ...loadedConfig,
           settings: {
             ...DEFAULT_CONFIG.settings,
-            ...loadedConfig.settings
+            ...loadedConfig.settings,
+            // Force update mDNS interval to new default if still at old value
+            mdnsUpdateInterval: loadedConfig.settings?.mdnsUpdateInterval === 300000 ? 
+              DEFAULT_CONFIG.settings.mdnsUpdateInterval : 
+              (loadedConfig.settings?.mdnsUpdateInterval || DEFAULT_CONFIG.settings.mdnsUpdateInterval)
           },
           displays: loadedConfig.displays || DEFAULT_CONFIG.displays
         };
+        
+        // Save the updated config with new defaults
+        this.saveConfig(mergedConfig);
+        return mergedConfig;
       }
     } catch (error) {
       console.error('Error loading config:', error);

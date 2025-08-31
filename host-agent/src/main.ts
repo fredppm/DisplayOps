@@ -1,8 +1,9 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 import { join } from 'path';
-import express from 'express';
-import cors from 'cors';
-import { createServer } from 'http';
+// 🚀 gRPC Migration: Express/REST imports removed - using gRPC only
+// import express from 'express';
+// import cors from 'cors';
+// import { createServer } from 'http';
 import BonjourService from 'bonjour-service';
 import fs from 'fs';
 import os from 'os';
@@ -27,11 +28,13 @@ import { DisplayMonitor } from './services/display-monitor';
 import { GrpcService } from './services/grpc-service';
 import { StateManager } from './services/state-manager';
 import { AutoRestoreService } from './services/auto-restore-service';
-import { ApiRouter } from './routes/api-router';
+// 🚀 gRPC Migration: ApiRouter removed
+// import { ApiRouter } from './routes/api-router';
 import { WindowManager } from './managers/window-manager';
 import { ConfigManager } from './managers/config-manager';
 import { DebugOverlayManager } from './managers/debug-overlay-manager';
 import { SystemTrayManager } from './managers/system-tray-manager';
+import { CookieManager } from './managers/cookie-manager';
 import { logger } from './utils/logger';
 
 // Port availability check
@@ -190,8 +193,10 @@ class HostAgent {
   private configManager: ConfigManager;
   private debugOverlayManager: DebugOverlayManager;
   private systemTrayManager: SystemTrayManager;
-  private expressApp: express.Application;
-  private server: any;
+  private cookieManager: CookieManager;
+  // 🚀 gRPC Migration: Express/REST server removed - using gRPC only
+  // private expressApp: express.Application;
+  // private server: any;
   
   constructor() {
     this.configManager = new ConfigManager();
@@ -223,14 +228,20 @@ class HostAgent {
       this.configManager
     );
     this.systemTrayManager = new SystemTrayManager(this.configManager);
-    this.expressApp = express();
-    
-    this.setupExpress();
+    this.cookieManager = new CookieManager();
+    // 🚀 gRPC Migration: Express/REST API removed - using gRPC only
+    // this.expressApp = express();
+    // this.setupExpress();
     this.setupElectron();
     // setupDisplayMonitoring() moved to after app is ready
   }
 
+  // 🚀 gRPC Migration: Express/REST API removed - using gRPC only
   private async setupExpress(): Promise<void> {
+    console.log('⚠️ setupExpress() is deprecated - using gRPC only');
+    return;
+    
+    /* REMOVED: REST API Server
     // Check if port is available before starting server
     const port = this.configManager.getApiPort();
     const portAvailable = await ensurePortAvailable(port);
@@ -265,16 +276,18 @@ class HostAgent {
     // Start server
     this.server = this.expressApp.listen(port, async () => {
       logger.success(`Host agent API server listening on port ${port}`);
-      
-
-      // Start gRPC service
-      try {
-        await this.grpcService.start();
-        logger.success('gRPC service started successfully');
-      } catch (error) {
-        logger.error('Failed to start gRPC service:', error);
-      }
     });
+    */ 
+  }
+
+  // 🚀 NEW: Start gRPC service independently 
+  private async startGrpcService(): Promise<void> {
+    try {
+      await this.grpcService.start();
+      logger.success('✅ gRPC service started - no REST API needed');
+    } catch (error) {
+      logger.error('❌ Failed to start gRPC service:', error);
+    }
   }
 
   private setupElectron(): void {
@@ -303,11 +316,15 @@ class HostAgent {
       // Set up system tray callbacks
       this.systemTrayManager.setCallbacks({
         onRefreshDisplays: () => this.handleRefreshDisplays(),
-        onShowDebugOverlay: () => this.handleToggleDebugOverlay()
+        onShowDebugOverlay: () => this.handleToggleDebugOverlay(),
+        onOpenCookieEditor: () => this.handleOpenCookieEditor()
       });
       
       // Update display configuration from system
       this.configManager.updateDisplaysFromSystem();
+      
+      // 🚀 Start gRPC service first
+      this.startGrpcService();
       
       // Start mDNS service advertising
       this.mdnsService.startAdvertising();
@@ -429,10 +446,47 @@ class HostAgent {
       return true;
     });
 
+    ipcMain.handle('window:maximize', async () => {
+      // Find the cookie editor window
+      if (this.cookieManager && (this.cookieManager as any).cookieWindow) {
+        const window = (this.cookieManager as any).cookieWindow;
+        if (!window.isDestroyed()) {
+          if (window.isMaximized()) {
+            window.unmaximize();
+          } else {
+            window.maximize();
+          }
+        }
+      }
+      return true;
+    });
+
     // Handle debug overlay close
     ipcMain.handle('debug:close', async () => {
       this.debugOverlayManager.disable();
       return true;
+    });
+
+    // Handle cookie management IPC requests
+    ipcMain.handle('get-all-cookies', async () => {
+      return await this.cookieManager.getAllCookies();
+    });
+
+    ipcMain.handle('set-cookie', async (event, url, cookie) => {
+      return await this.cookieManager.setCookie(url, cookie);
+    });
+
+    ipcMain.handle('remove-cookie', async (event, url, name) => {
+      return await this.cookieManager.removeCookie(url, name);
+    });
+
+    ipcMain.handle('clear-all-cookies', async () => {
+      return await this.cookieManager.clearAllCookies();
+    });
+
+    // Cookie editor window controls
+    ipcMain.handle('cookie-editor:close', () => {
+      this.cookieManager.close();
     });
   }
 
@@ -465,8 +519,8 @@ class HostAgent {
       // Trigger dashboard restoration after display changes
       this.autoRestoreService.onDisplayChange();
       
-      // Could broadcast to connected web controllers via WebSocket here
-      // For now, they can poll the /api/displays endpoint
+      // 🚀 NEW: Broadcast display changes via gRPC streaming
+      this.broadcastDisplaysChangedEvent(event);
     });
 
     // Listen for debug state changes (sync between hotkey and remote control)
@@ -487,6 +541,55 @@ class HostAgent {
         this.debugOverlayManager.disable();
       }
     });
+  }
+
+  // 🚀 NEW: Broadcast display changes via gRPC streaming
+  private broadcastDisplaysChangedEvent(displayChangeEvent: any): void {
+    try {
+      const grpcEvent = {
+        event_id: `displays_changed_${Date.now()}`,
+        type: 'DISPLAYS_CHANGED',
+        timestamp: { 
+          seconds: Math.floor(displayChangeEvent.timestamp.getTime() / 1000), 
+          nanos: (displayChangeEvent.timestamp.getTime() % 1000) * 1000000
+        },
+        displays_changed: {
+          displays: displayChangeEvent.displays.map(this.convertDisplayToGrpc.bind(this)),
+          change_type: displayChangeEvent.type,
+          changed_display: displayChangeEvent.changedDisplay ? 
+            this.convertDisplayToGrpc(displayChangeEvent.changedDisplay) : undefined
+        }
+      };
+
+      // Broadcast to all gRPC stream clients
+      this.grpcService.broadcastEvent(grpcEvent);
+      
+      logger.info(`📡 gRPC: Broadcasted DISPLAYS_CHANGED event (${displayChangeEvent.type})`);
+    } catch (error) {
+      logger.error('Failed to broadcast display change event via gRPC:', error);
+    }
+  }
+
+  private convertDisplayToGrpc(displayInfo: any): any {
+    return {
+      display_id: `display-${displayInfo.id}`,
+      electron_id: displayInfo.id,
+      bounds: {
+        x: displayInfo.bounds.x,
+        y: displayInfo.bounds.y,
+        width: displayInfo.bounds.width,
+        height: displayInfo.bounds.height
+      },
+      work_area: {
+        x: displayInfo.workArea.x,
+        y: displayInfo.workArea.y,
+        width: displayInfo.workArea.width,
+        height: displayInfo.workArea.height
+      },
+      primary: displayInfo.isPrimary,
+      scale_factor: displayInfo.scaleFactor,
+      name: displayInfo.name || `Display ${displayInfo.id}`
+    };
   }
 
   private setupWindowManagerEvents(): void {
@@ -547,6 +650,16 @@ class HostAgent {
     }
   }
 
+  private async handleOpenCookieEditor(): Promise<void> {
+    logger.info('Opening cookie editor from system tray request');
+    
+    try {
+      await this.cookieManager.openCookieEditor();
+    } catch (error) {
+      logger.error('Failed to open cookie editor:', error);
+    }
+  }
+
   private cleanup(): void {
     logger.info('Cleaning up host agent...');
     
@@ -563,6 +676,11 @@ class HostAgent {
     // Cleanup system tray
     if (this.systemTrayManager) {
       this.systemTrayManager.cleanup();
+    }
+    
+    // Cleanup cookie manager
+    if (this.cookieManager) {
+      this.cookieManager.close();
     }
     
     // Cleanup display identifier
@@ -591,12 +709,8 @@ class HostAgent {
       this.stateManager.cleanup();
     }
     
-    // Close Express server
-    if (this.server) {
-      this.server.close(() => {
-        logger.debug('Express server closed');
-      });
-    }
+    // Express server removed - using gRPC only
+    // Server cleanup is handled by gRPC service
   }
 
   public start(): void {

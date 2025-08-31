@@ -38,18 +38,66 @@ function updateUI() {
   setupEventListeners();
 }
 
-// Update connection status
+// Update connection status with enhanced states
 function updateConnectionStatus() {
   const statusEl = document.getElementById('connectionStatus');
-  const dotEl = statusEl.querySelector('.dot');
   const textEl = statusEl.querySelector('.text');
+  const reconnectInfoEl = document.getElementById('reconnectInfo');
+  const connectionActionsEl = document.getElementById('connectionActions');
   
-  if (currentState.officeDisplay) {
-    statusEl.className = 'status-indicator connected';
-    textEl.textContent = 'Connected';
-  } else {
-    statusEl.className = 'status-indicator error';
-    textEl.textContent = 'Disconnected';
+  const connectionState = currentState.connectionState || 'disconnected';
+  const reconnectAttempts = currentState.reconnectionAttempts || 0;
+  const lastCheck = currentState.lastConnectionCheck;
+  
+  // Update status indicator class and text
+  switch (connectionState) {
+    case 'connected':
+      statusEl.className = 'status-indicator connected';
+      textEl.textContent = 'Connected';
+      reconnectInfoEl.style.display = 'none';
+      connectionActionsEl.style.display = 'none';
+      break;
+      
+    case 'connecting':
+      statusEl.className = 'status-indicator connecting';
+      textEl.textContent = 'Connecting...';
+      reconnectInfoEl.style.display = 'none';
+      connectionActionsEl.style.display = 'none';
+      break;
+      
+    case 'reconnecting':
+      statusEl.className = 'status-indicator reconnecting';
+      textEl.textContent = `Reconnecting... (${reconnectAttempts}/10)`;
+      reconnectInfoEl.style.display = 'none';
+      connectionActionsEl.style.display = 'none';
+      break;
+      
+    case 'disconnected':
+    default:
+      statusEl.className = 'status-indicator error';
+      textEl.textContent = 'Disconnected';
+      
+      // Show reconnection info if attempts have been made
+      if (reconnectAttempts > 0) {
+        reconnectInfoEl.textContent = `${reconnectAttempts} reconnection attempts`;
+        reconnectInfoEl.style.display = 'inline';
+      } else {
+        reconnectInfoEl.style.display = 'none';
+      }
+      
+      // Show reconnect button
+      connectionActionsEl.style.display = 'block';
+      break;
+  }
+  
+  // Show last connection check time if available
+  if (lastCheck && connectionState === 'connected') {
+    const timeDiff = Date.now() - lastCheck;
+    if (timeDiff > 60000) { // More than 1 minute
+      const minutes = Math.floor(timeDiff / 60000);
+      reconnectInfoEl.textContent = `Last check: ${minutes}m ago`;
+      reconnectInfoEl.style.display = 'inline';
+    }
   }
 }
 
@@ -196,6 +244,9 @@ function setupEventListeners() {
   
   // Save button  
   document.getElementById('saveButton').addEventListener('click', handleSave);
+  
+  // Reconnect button
+  document.getElementById('reconnectButton').addEventListener('click', handleReconnect);
 }
 
 // Handle sync credentials
@@ -337,9 +388,21 @@ async function handleSave() {
     });
     
     if (response.success) {
-      showMessage('Configuration saved!', 'success');
-      currentState.officeDisplay = endpoint;
-      updateConnectionStatus();
+      const connected = response.data?.connected;
+      if (connected) {
+        showMessage('Configuration saved and connected!', 'success');
+      } else {
+        showMessage('Configuration saved, but connection failed', 'warning');
+      }
+      
+      // Refresh state to get updated connection status
+      setTimeout(async () => {
+        const stateResponse = await sendMessage({ type: 'GET_STATE' });
+        if (stateResponse.success) {
+          currentState = stateResponse.data;
+          updateConnectionStatus();
+        }
+      }, 500);
     } else {
       throw new Error(response.error || 'Failed to save');
     }
@@ -347,6 +410,52 @@ async function handleSave() {
   } catch (error) {
     console.error('Save failed:', error);
     showMessage('Failed to save configuration', 'error');
+  }
+}
+
+// Handle manual reconnection
+async function handleReconnect() {
+  const reconnectButton = document.getElementById('reconnectButton');
+  const buttonText = reconnectButton.querySelector('.button-text');
+  const buttonSpinner = reconnectButton.querySelector('.button-spinner');
+  
+  try {
+    // Update button state
+    reconnectButton.disabled = true;
+    reconnectButton.className = 'reconnect-button reconnecting';
+    buttonText.textContent = '🔄 Reconnecting...';
+    buttonSpinner.style.display = 'block';
+    
+    // Send reconnect message
+    const response = await sendMessage({ type: 'FORCE_RECONNECT' });
+    
+    if (response.success) {
+      showMessage('Reconnection initiated', 'info');
+      
+      // Wait a bit then refresh state
+      setTimeout(async () => {
+        const stateResponse = await sendMessage({ type: 'GET_STATE' });
+        if (stateResponse.success) {
+          currentState = stateResponse.data;
+          updateConnectionStatus();
+          updateCurrentDomain();
+        }
+      }, 2000);
+    } else {
+      throw new Error(response.error || 'Reconnection failed');
+    }
+    
+  } catch (error) {
+    console.error('Reconnect failed:', error);
+    showMessage(`Reconnect error: ${error.message}`, 'error');
+  } finally {
+    // Reset button state
+    setTimeout(() => {
+      reconnectButton.disabled = false;
+      reconnectButton.className = 'reconnect-button';
+      buttonText.textContent = '🔄 Reconnect';
+      buttonSpinner.style.display = 'none';
+    }, 1500);
   }
 }
 
@@ -388,3 +497,4 @@ function sendMessage(message) {
     chrome.runtime.sendMessage(message, resolve);
   });
 }
+

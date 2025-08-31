@@ -141,8 +141,16 @@ export const useSSEHostDiscovery = (): UseSSEHostDiscoveryReturn => {
   useEffect(() => {
     connect();
 
+    // Cleanup on page unload
+    const handleBeforeUnload = () => {
+      disconnect();
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
     return () => {
       disconnect();
+      window.removeEventListener('beforeunload', handleBeforeUnload);
     };
   }, [connect, disconnect]);
 

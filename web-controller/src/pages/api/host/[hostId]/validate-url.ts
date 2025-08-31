@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { proxyToHost } from '@/lib/host-utils';
+import { grpcManager } from '@/lib/server/grpc-manager';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { hostId } = req.query;
@@ -13,22 +13,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    // Proxy request directly to host (avoid internal fetch to discovery)
-    const hostResponse = await proxyToHost(hostId as string, '/api/validate-url', {
-      method: 'POST',
-      body: JSON.stringify(req.body)
-    });
+    // 🚀 Use gRPC instead of HTTP proxy
+    await grpcManager.initialize();
+    
+    const { url, timeout } = req.body;
+    
+    const result = await grpcManager.validateUrl(
+      hostId as string,
+      url,
+      timeout || 10000
+    );
 
-    const responseData = await hostResponse.json();
-
-    if (!hostResponse.ok) {
-      return res.status(hostResponse.status).json({
-        success: false,
-        error: responseData.error || `Host returned ${hostResponse.status}`
-      });
-    }
-
-    res.status(200).json(responseData);
+    res.status(200).json(result);
 
   } catch (error) {
     console.error('Validate URL proxy error:', error);

@@ -137,6 +137,7 @@ export const HostsList: React.FC<HostsListProps> = ({ hosts, isDiscovering, disc
     setRefreshStatus(prev => ({ ...prev, [statusKey]: 'refreshing' }));
     
     try {
+      // ✅ Refresh display via web-controller API (which uses gRPC)
       const response = await fetch(`/api/host/${host.id}/command`, {
         method: 'POST',
         headers: {
@@ -153,10 +154,10 @@ export const HostsList: React.FC<HostsListProps> = ({ hosts, isDiscovering, disc
       if (response.ok) {
         const result = await response.json();
         
-        if (result.success || result.data) {
+        if (result.success) {
           setRefreshStatus(prev => ({ ...prev, [statusKey]: 'success' }));
           addNotification('success', 'Display Refreshed', 
-            `${displayId.replace('display-', 'Display ')} on ${host.name || host.hostname} refreshed successfully`);
+            `${displayId.replace('display-', 'Display ')} on ${host.hostname} refreshed successfully`);
         } else {
           setRefreshStatus(prev => ({ ...prev, [statusKey]: 'error' }));
           addNotification('error', 'Refresh Failed', 
@@ -164,12 +165,13 @@ export const HostsList: React.FC<HostsListProps> = ({ hosts, isDiscovering, disc
         }
       } else {
         setRefreshStatus(prev => ({ ...prev, [statusKey]: 'error' }));
-        addNotification('error', 'Refresh Request Failed', `HTTP ${response.status}`);
+        const errorData = await response.json();
+        addNotification('error', 'Refresh Request Failed', errorData.error || `HTTP ${response.status}`);
       }
     } catch (error: any) {
       setRefreshStatus(prev => ({ ...prev, [statusKey]: 'error' }));
       addNotification('error', 'Connection Error', 
-        `Failed to connect to ${host.name || host.hostname}`);
+        `Failed to connect to ${host.hostname}`);
     }
 
     setTimeout(() => {
@@ -183,12 +185,12 @@ export const HostsList: React.FC<HostsListProps> = ({ hosts, isDiscovering, disc
     
     if (activeDisplayIds.length === 0) {
       addNotification('warning', 'No Active Displays', 
-        `No active displays found on ${host.name || host.hostname}`);
+        `No active displays found on ${host.hostname}`);
       return;
     }
     
     addNotification('info', 'Refreshing Active Displays', 
-      `Refreshing ${activeDisplayIds.length} displays on ${host.name || host.hostname}`);
+      `Refreshing ${activeDisplayIds.length} displays on ${host.hostname}`);
 
     const refreshPromises = activeDisplayIds.map(displayId => refreshDisplay(host, displayId));
     await Promise.all(refreshPromises);
@@ -291,12 +293,12 @@ export const HostsList: React.FC<HostsListProps> = ({ hosts, isDiscovering, disc
         if (result.success) {
           await refreshDebugStatus(hostId);
           addNotification('success', 'Debug Mode', 
-            `Debug ${action}d on ${host.name || host.hostname}`);
+            `Debug ${action}d on ${host.hostname}`);
         }
       }
     } catch (error) {
       addNotification('error', 'Debug Error', 
-        `Failed to ${action} debug on ${host.name || host.hostname}`);
+        `Failed to ${action} debug on ${host.hostname}`);
     }
   };
 
@@ -313,11 +315,11 @@ export const HostsList: React.FC<HostsListProps> = ({ hosts, isDiscovering, disc
       if (response.ok) {
         await refreshDebugStatus(hostId);
         addNotification('success', 'Debug Events', 
-          `Cleared debug events on ${host.name || host.hostname}`);
+          `Cleared debug events on ${host.hostname}`);
       }
     } catch (error) {
       addNotification('error', 'Debug Error', 
-        `Failed to clear debug events on ${host.name || host.hostname}`);
+        `Failed to clear debug events on ${host.hostname}`);
     }
   };
 
@@ -342,12 +344,12 @@ export const HostsList: React.FC<HostsListProps> = ({ hosts, isDiscovering, disc
           
           URL.revokeObjectURL(url);
           addNotification('success', 'Debug Export', 
-            `Downloaded debug events from ${host.name || host.hostname}`);
+            `Downloaded debug events from ${host.hostname}`);
         }
       }
     } catch (error) {
       addNotification('error', 'Debug Error', 
-        `Failed to download debug events from ${host.name || host.hostname}`);
+        `Failed to download debug events from ${host.hostname}`);
     }
   };
 
@@ -370,6 +372,7 @@ export const HostsList: React.FC<HostsListProps> = ({ hosts, isDiscovering, disc
     setIdentifyingDisplays(prev => ({ ...prev, [hostId]: true }));
 
     try {
+      // ✅ Identify displays via web-controller API (which uses gRPC)
       const response = await fetch(`/api/host/${hostId}/command`, {
         method: 'POST',
         headers: {
@@ -392,8 +395,13 @@ export const HostsList: React.FC<HostsListProps> = ({ hosts, isDiscovering, disc
         throw new Error(errorData.error || 'Failed to identify displays');
       }
 
+      const result = await response.json();
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to identify displays');
+      }
+
       addNotification('success', 'Display Identification', 
-        `Showing numbers on displays for ${host.name || host.hostname}`);
+        `Showing numbers on displays for ${host.hostname}`);
 
       // Auto clear the identifying state after the duration
       setTimeout(() => {
@@ -403,7 +411,7 @@ export const HostsList: React.FC<HostsListProps> = ({ hosts, isDiscovering, disc
     } catch (error) {
       console.error('Error identifying displays:', error);
       addNotification('error', 'Display Identification Failed', 
-        `Failed to identify displays on ${host.name || host.hostname}`);
+        `Failed to identify displays on ${host.hostname}`);
       setIdentifyingDisplays(prev => ({ ...prev, [hostId]: false }));
     }
   };
@@ -474,16 +482,10 @@ export const HostsList: React.FC<HostsListProps> = ({ hosts, isDiscovering, disc
             <p className="text-gray-500 mb-4">
               Make sure host agents are running and mDNS is enabled on your network
             </p>
-            {isDiscovering && (
-              <div className="flex items-center text-yellow-600">
-                <RefreshCw className="w-4 h-4 animate-spin mr-2" />
-                <span className="text-sm">Still searching...</span>
-              </div>
-            )}
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-1 lg:grid-cols-2 gap-4">
           {hosts.map((host) => (
             <div
               key={host.id}
@@ -496,9 +498,9 @@ export const HostsList: React.FC<HostsListProps> = ({ hosts, isDiscovering, disc
                   <Monitor className="w-6 h-6 text-primary-600 mr-3" />
                   <div>
                     <h3 className="text-lg font-semibold text-gray-900">
-                      {host.name}
+                      {host.hostname}
                     </h3>
-                    <p className="text-sm text-gray-500">{host.hostname}</p>
+                    <p className="text-sm text-gray-500">{host.ipAddress} • v{host.version}</p>
                   </div>
                 </div>
                 
@@ -573,13 +575,6 @@ export const HostsList: React.FC<HostsListProps> = ({ hosts, isDiscovering, disc
                   >
                     <RefreshCw className="w-4 h-4" />
                   </button>
-                </div>
-              </div>
-
-              {/* Connection Info */}
-              <div className="mb-4">
-                <div className="flex items-center text-sm text-gray-600">
-                  <span>{host.ipAddress}:{host.port} • v{host.version}</span>
                 </div>
               </div>
 

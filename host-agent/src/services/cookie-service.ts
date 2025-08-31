@@ -244,11 +244,34 @@ export class CookieService {
         throw new Error('No default Electron session available');
       }
 
-      console.log(`Injecting ${cookies.length} cookies into Electron session`);
+      console.log(`🍪 [COOKIE-INJECT] Starting injection of ${cookies.length} cookies for domain: ${domain}`);
+
+      // First, let's check existing cookies for comparison
+      const existingCookies = await defaultSession.cookies.get({});
+      const existingForDomain = existingCookies.filter(c => 
+        c.domain === domain || 
+        c.domain === `.${domain}` || 
+        domain.includes(c.domain?.replace('.', '') || '')
+      );
+      console.log(`🍪 [COOKIE-INJECT] Found ${existingForDomain.length} existing cookies for domain ${domain}:`, 
+        existingForDomain.map(c => `${c.name}=${c.value.substring(0, 20)}... (domain: ${c.domain})`));
 
       // Inject each cookie
-      for (const cookie of cookies) {
+      for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i];
         try {
+          console.log(`🍪 [COOKIE-INJECT] Processing cookie ${i + 1}/${cookies.length}: ${cookie.name}`);
+          console.log(`🍪 [COOKIE-INJECT] Original cookie data:`, {
+            name: cookie.name,
+            value: cookie.value.substring(0, 50) + (cookie.value.length > 50 ? '...' : ''),
+            domain: cookie.domain,
+            path: cookie.path,
+            secure: cookie.secure,
+            httpOnly: cookie.httpOnly,
+            expirationDate: cookie.expirationDate,
+            sameSite: cookie.sameSite
+          });
+
           // Convert our cookie format to Electron's format
           const electronCookie = {
             url: domain,
@@ -262,25 +285,76 @@ export class CookieService {
             sameSite: this.convertSameSite(cookie.sameSite)
           };
 
-          // Remove undefined fields
+          // Remove undefined fields but log what we're removing
+          const fieldsRemoved: string[] = [];
           Object.keys(electronCookie).forEach(key => {
             if ((electronCookie as any)[key] === undefined) {
+              fieldsRemoved.push(key);
               delete (electronCookie as any)[key];
             }
           });
+          
+          if (fieldsRemoved.length > 0) {
+            console.log(`🍪 [COOKIE-INJECT] Removed undefined fields: ${fieldsRemoved.join(', ')}`);
+          }
 
+          console.log(`🍪 [COOKIE-INJECT] Final Electron cookie object:`, electronCookie);
+
+          // Attempt injection
           await defaultSession.cookies.set(electronCookie);
           injectedCount++;
           
-          console.log(`✅ Injected cookie: ${cookie.name}`);
+          console.log(`✅ [COOKIE-INJECT] Successfully injected cookie: ${cookie.name}`);
+          
+          // Verify injection by reading it back
+          const verificationCookies = await defaultSession.cookies.get({ name: cookie.name });
+          const matchingCookie = verificationCookies.find(c => 
+            c.name === cookie.name && 
+            (c.domain === cookie.domain || c.domain === domain)
+          );
+          
+          if (matchingCookie) {
+            console.log(`✅ [COOKIE-INJECT] Verification successful - cookie found in session:`, {
+              name: matchingCookie.name,
+              domain: matchingCookie.domain,
+              path: matchingCookie.path,
+              secure: matchingCookie.secure,
+              httpOnly: matchingCookie.httpOnly
+            });
+          } else {
+            console.warn(`⚠️ [COOKIE-INJECT] Verification failed - cookie ${cookie.name} not found in session after injection`);
+          }
 
         } catch (error) {
           skippedCount++;
           const errorMsg = `Failed to inject cookie ${cookie.name}: ${error instanceof Error ? error.message : 'Unknown error'}`;
           errors.push(errorMsg);
-          console.warn(`⚠️ ${errorMsg}`);
+          console.error(`❌ [COOKIE-INJECT] ${errorMsg}`);
+          console.error(`❌ [COOKIE-INJECT] Cookie data that failed:`, {
+            name: cookie.name,
+            domain: cookie.domain,
+            originalDomain: domain,
+            secure: cookie.secure,
+            httpOnly: cookie.httpOnly,
+            path: cookie.path
+          });
         }
       }
+
+      // Final verification - count all cookies for this domain after injection
+      const finalCookies = await defaultSession.cookies.get({});
+      const finalForDomain = finalCookies.filter(c => 
+        c.domain === domain || 
+        c.domain === `.${domain}` || 
+        domain.includes(c.domain?.replace('.', '') || '')
+      );
+      
+      console.log(`🍪 [COOKIE-INJECT] Final summary for ${domain}:`);
+      console.log(`🍪 [COOKIE-INJECT] - Attempted: ${cookies.length}`);
+      console.log(`🍪 [COOKIE-INJECT] - Injected: ${injectedCount}`);
+      console.log(`🍪 [COOKIE-INJECT] - Skipped: ${skippedCount}`);
+      console.log(`🍪 [COOKIE-INJECT] - Final cookies in session: ${finalForDomain.length}`);
+      console.log(`🍪 [COOKIE-INJECT] - Final cookie names:`, finalForDomain.map(c => `${c.name} (${c.domain})`));
 
       return { injectedCount, skippedCount, errors };
 
