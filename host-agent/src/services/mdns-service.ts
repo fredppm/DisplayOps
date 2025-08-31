@@ -1,67 +1,73 @@
-import BonjourService, { Service } from 'bonjour-service';
+import * as bonjour from 'bonjour';
 import { ConfigManager } from '../managers/config-manager';
 import os from 'os';
 
 export class MDNSService {
-  private bonjour: BonjourService;
-  private service: Service | null = null;
+  private bonjourInstance: bonjour.Bonjour;
+  private publishedService: bonjour.Service | null = null;
+  private isAdvertising: boolean = false;
   private configManager: ConfigManager;
   private updateInterval: NodeJS.Timeout | null = null;
 
   constructor(configManager: ConfigManager) {
     this.configManager = configManager;
-    this.bonjour = new BonjourService();
+    this.bonjourInstance = bonjour();
   }
 
   public startAdvertising(): void {
     const config = this.configManager.getConfig();
     const serviceName = `${config.hostname}-${config.agentId}`;
     
-    console.log(`Starting mDNS advertising as: ${serviceName}`);
+    console.log(`🚀 Starting mDNS advertising as: ${serviceName}`);
 
     try {
       // Stop existing service if any
       this.stopAdvertising();
 
-      // Use gRPC port (8082) directly for mDNS
-      const grpcPort = 8082;
-      this.service = this.bonjour.publish({
+      this.isAdvertising = true;
+      
+      // Publish the service using bonjour
+      this.publishedService = this.bonjourInstance.publish({
         name: serviceName,
-        type: '_officedisplay._tcp',
-        port: grpcPort,
+        type: 'officedisplay', // Will become _officedisplay._tcp.local
+        port: 8082, // gRPC port
         txt: this.getTxtRecord()
       });
 
-      console.log(`mDNS service published:`, {
-        name: serviceName,
-        type: '_officedisplay._tcp.local',
-        port: grpcPort
+      // Set up event listeners
+      this.publishedService.on('up', () => {
+        console.log('✅ mDNS service published successfully');
+        console.log(`   Name: ${this.publishedService?.name}`);
+        console.log(`   Type: _${this.publishedService?.type}._tcp.local`);
+        console.log(`   Port: ${this.publishedService?.port}`);
+        console.log(`   Host: ${this.publishedService?.host}`);
       });
 
-      // Set up periodic updates
+      this.publishedService.on('error', (error) => {
+        console.error('❌ mDNS service error:', error);
+      });
+
+      // Set up periodic TXT record updates
       this.startPeriodicUpdates();
 
     } catch (error) {
-      console.error('Error starting mDNS advertising:', error);
+      console.error('❌ Error starting mDNS advertising:', error);
     }
   }
 
   public stopAdvertising(): void {
+    console.log('🛑 Stopping mDNS advertising...');
+    
+    this.isAdvertising = false;
+    
     if (this.updateInterval) {
       clearInterval(this.updateInterval);
       this.updateInterval = null;
     }
-
-    if (this.service) {
-      console.log('Stopping mDNS advertising...');
-      try {
-        if (this.service && typeof this.service.stop === 'function') {
-          this.service.stop();
-        }
-      } catch (error) {
-        console.error('Error stopping mDNS service:', error);
-      }
-      this.service = null;
+    
+    if (this.publishedService) {
+      this.publishedService.stop();
+      this.publishedService = null;
     }
   }
 
@@ -90,7 +96,7 @@ export class MDNSService {
     
     // Only start periodic updates if interval is reasonable (> 5 minutes)
     if (interval < 300000) { // 5 minutes
-      console.log(`mDNS periodic updates disabled (interval too frequent: ${interval}ms)`);
+      console.log(`⚠️ mDNS periodic updates disabled (interval too frequent: ${interval}ms)`);
       return;
     }
     
@@ -98,68 +104,46 @@ export class MDNSService {
       this.updateTxtRecord();
     }, interval);
 
-    console.log(`mDNS periodic updates started (interval: ${interval}ms)`);
+    console.log(`⏰ mDNS periodic updates started (interval: ${interval}ms)`);
   }
 
   private updateTxtRecord(): void {
-    if (!this.service) {
+    if (!this.isAdvertising || !this.publishedService) {
       return;
     }
 
     try {
-      // Check if TXT record actually changed before restarting
-      const newTxtRecord = this.getTxtRecord();
-      const currentTxtRecord = this.service.txt || {};
+      console.log('🔄 Updating mDNS TXT record...');
       
-      // Compare TXT records to see if update is needed
-      if (this.isTxtRecordChanged(currentTxtRecord, newTxtRecord)) {
-        console.log('mDNS TXT record changed, updating service...');
-        
-        // Note: bonjour-service doesn't have a direct update method
-        // We need to stop and restart the service with new TXT record
-        this.stopAdvertising();
-        this.startAdvertising();
-      } else {
-        // No changes needed, just log that we checked
-        console.log('mDNS TXT record unchanged, skipping update');
-      }
+      // Stop and republish with new TXT record
+      const config = this.configManager.getConfig();
+      const serviceName = `${config.hostname}-${config.agentId}`;
+      
+      this.publishedService.stop();
+      
+      this.publishedService = this.bonjourInstance.publish({
+        name: serviceName,
+        type: 'officedisplay',
+        port: 8082,
+        txt: this.getTxtRecord()
+      });
       
     } catch (error) {
-      console.error('Error updating mDNS TXT record:', error);
+      console.error('❌ Error updating mDNS TXT record:', error);
     }
   }
 
-  private isTxtRecordChanged(current: Record<string, string>, updated: Record<string, string>): boolean {
-    // Get keys from both objects
-    const currentKeys = Object.keys(current);
-    const updatedKeys = Object.keys(updated);
-    
-    // Check if number of keys is different
-    if (currentKeys.length !== updatedKeys.length) {
-      return true;
-    }
-    
-    // Check if any key-value pair is different
-    for (const key of updatedKeys) {
-      if (current[key] !== updated[key]) {
-        return true;
-      }
-    }
-    
-    return false;
-  }
-
-  public isAdvertising(): boolean {
-    return this.service !== null;
+  public isAdvertisingActive(): boolean {
+    return this.isAdvertising;
   }
 
   public forceUpdateTxtRecord(): void {
-    console.log('Force updating mDNS TXT record...');
+    console.log('🔄 Force updating mDNS TXT record...');
     this.updateTxtRecord();
   }
 
   public getServiceInfo() {
-    if (!this.service) {
+    if (!this.isAdvertising || !this.publishedService) {
       return null;
     }
 
@@ -170,7 +154,9 @@ export class MDNSService {
       type: '_officedisplay._tcp.local',
       port: 8082, // gRPC port
       txt: this.getTxtRecord(),
-      addresses: this.getLocalAddresses()
+      addresses: this.getLocalAddresses(),
+      host: this.publishedService.host,
+      fqdn: this.publishedService.fqdn
     };
   }
 
@@ -195,8 +181,8 @@ export class MDNSService {
 
   public destroy(): void {
     this.stopAdvertising();
-    if (this.bonjour) {
-      this.bonjour.destroy();
+    if (this.bonjourInstance) {
+      this.bonjourInstance.destroy();
     }
   }
 }

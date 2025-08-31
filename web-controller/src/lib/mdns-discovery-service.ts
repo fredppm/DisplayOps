@@ -1,4 +1,4 @@
-import BonjourService from 'bonjour-service';
+import * as bonjour from 'bonjour';
 import { MiniPC } from '@/types/shared-types';
 
 export interface MDNSDiscoveredHost {
@@ -11,14 +11,15 @@ export interface MDNSDiscoveredHost {
 }
 
 export class MDNSDiscoveryService {
-  private bonjour: BonjourService;
-  private browser: any = null;
+  private bonjourInstance: bonjour.Bonjour;
+  private browser: bonjour.Browser | null = null;
+  private isDiscovering: boolean = false;
   private discoveredServices: Map<string, MDNSDiscoveredHost> = new Map();
   private onHostDiscoveredCallback?: (host: MDNSDiscoveredHost) => void;
   private onHostRemovedCallback?: (hostId: string) => void;
 
   constructor() {
-    this.bonjour = new BonjourService();
+    this.bonjourInstance = bonjour();
   }
 
   public startDiscovery(): void {
@@ -26,19 +27,23 @@ export class MDNSDiscoveryService {
     console.log('📡 Looking for service type: _officedisplay._tcp.local');
     
     try {
-      // Stop existing browser if any
       this.stopDiscovery();
 
-      // Browse for Office Display services
-      this.browser = this.bonjour.find({ type: '_officedisplay._tcp' }, (service: any) => {
+      this.isDiscovering = true;
+      
+      // Create browser for office display services
+      this.browser = this.bonjourInstance.find({ type: 'officedisplay' });
+
+      // Set up event listeners
+      this.browser.on('up', (service: bonjour.Service) => {
         this.handleServiceUp(service);
       });
 
-      this.browser.on('down', (service: any) => {
+      this.browser.on('down', (service: bonjour.Service) => {
         this.handleServiceDown(service);
       });
 
-      console.log('✅ mDNS browser started for _officedisplay._tcp.local services');
+      console.log('✅ mDNS discovery started for _officedisplay._tcp.local services');
 
     } catch (error) {
       console.error('❌ Failed to start mDNS discovery:', error);
@@ -47,42 +52,45 @@ export class MDNSDiscoveryService {
   }
 
   public stopDiscovery(): void {
+    console.log('🛑 Stopping mDNS discovery...');
+    
+    this.isDiscovering = false;
+    
     if (this.browser) {
-      console.log('🛑 Stopping mDNS discovery...');
-      try {
-        this.browser.stop();
-      } catch (error) {
-        console.error('Error stopping mDNS browser:', error);
-      }
+      this.browser.stop();
       this.browser = null;
     }
+    
     this.discoveredServices.clear();
   }
 
-  private handleServiceUp(service: any): void {
-    // Use agentId as unique identifier, fallback to service name
+  private handleServiceUp(service: bonjour.Service): void {
+    if (!this.isDiscovering) return;
+
     const agentId = service.txt?.agentId || service.name;
     const serviceKey = agentId;
+    
+    // Skip if already discovered
+    if (this.discoveredServices.has(serviceKey)) {
+      return;
+    }
     
     console.log('✅ mDNS Office Display service discovered:', {
       name: service.name,
       host: service.host,
       port: service.port,
-      type: service.type,
-      addresses: service.addresses,
-      txt: service.txt,
-      fqdn: service.fqdn
+      txt: service.txt
     });
     
     console.log(`📡 Total services discovered: ${this.discoveredServices.size + 1}`);
 
     const discoveredHost: MDNSDiscoveredHost = {
       name: service.name,
-      host: service.host,
-      port: service.port,
+      host: service.host || 'unknown',
+      port: service.port || 8082,
       addresses: service.addresses || [],
       txt: service.txt || {},
-      fqdn: service.fqdn
+      fqdn: service.fqdn || `${service.name}._officedisplay._tcp.local`
     };
 
     this.discoveredServices.set(serviceKey, discoveredHost);
@@ -93,25 +101,21 @@ export class MDNSDiscoveryService {
     }
   }
 
-  private handleServiceDown(service: any): void {
-    // Use agentId as unique identifier, fallback to service name
+  private handleServiceDown(service: bonjour.Service): void {
+    if (!this.isDiscovering) return;
+
     const agentId = service.txt?.agentId || service.name;
     const serviceKey = agentId;
     
-    console.log('❌ mDNS Office Display service removed:', {
-      name: service.name,
-      host: service.host,
-      port: service.port,
-      type: service.type
-    });
-    
-    console.log(`📡 Total services remaining: ${this.discoveredServices.size - 1}`);
-
-    this.discoveredServices.delete(serviceKey);
-
-    // Notify callback
-    if (this.onHostRemovedCallback) {
-      this.onHostRemovedCallback(serviceKey);
+    if (this.discoveredServices.has(serviceKey)) {
+      console.log('👋 mDNS Office Display service removed:', service.name);
+      
+      this.discoveredServices.delete(serviceKey);
+      
+      // Notify callback
+      if (this.onHostRemovedCallback) {
+        this.onHostRemovedCallback(serviceKey);
+      }
     }
   }
 
@@ -127,7 +131,7 @@ export class MDNSDiscoveryService {
 
       if (ipv4Addresses.length > 0) {
         ips.push(...ipv4Addresses);
-      } else if (service.host && service.host !== 'localhost') {
+      } else if (service.host && service.host !== 'localhost' && service.host !== 'unknown') {
         // Fallback to host if no IPv4 addresses
         ips.push(service.host);
       }
@@ -151,8 +155,8 @@ export class MDNSDiscoveryService {
 
   public destroy(): void {
     this.stopDiscovery();
-    if (this.bonjour) {
-      this.bonjour.destroy();
+    if (this.bonjourInstance) {
+      this.bonjourInstance.destroy();
     }
   }
 }

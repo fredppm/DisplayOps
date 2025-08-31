@@ -1,4 +1,4 @@
-import fetch from 'node-fetch';
+// Using Node.js built-in fetch (available in Node.js 18+)
 
 export interface URLValidationResult {
   isValid: boolean;

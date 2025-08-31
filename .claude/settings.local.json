@@ -14,7 +14,11 @@
       "Bash(timeout 5 curl -X GET http://localhost:8080/api/status)",
       "Bash(npm start)",
       "WebFetch(domain:brand.vtex.com)",
-      "WebFetch(domain:chromewebstore.google.com)"
+      "WebFetch(domain:chromewebstore.google.com)",
+      "Bash(npm init:*)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:www.npmjs.com)",
+      "Bash(node:*)"
     ],
     "deny": [],
     "ask": []
