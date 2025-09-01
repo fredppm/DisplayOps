@@ -41,7 +41,7 @@ export class HostService {
       const currentState = this.stateManager.getDisplayState(display.id);
       
       this.displayStatuses.set(display.id, {
-        isActive: currentState?.isActive || false, // Use real state from StateManager
+        active: currentState?.isActive || false, // Use real state from StateManager
         currentUrl: undefined,
         lastRefresh: new Date(),
         isResponsive: true,
@@ -61,7 +61,7 @@ export class HostService {
     console.log(`🔍 HOSTSERVICE: Inicializados ${displays.length} displays:`);
     displays.forEach(display => {
       const status = this.displayStatuses.get(display.id);
-      console.log(`  - Display ${display.id}: isActive = ${status?.isActive}, dashboard = ${status?.assignedDashboard?.dashboardId || 'Nenhum'}`);
+      console.log(`  - Display ${display.id}: active = ${status?.active}, dashboard = ${status?.assignedDashboard?.dashboardId || 'Nenhum'}`);
     });
   }
 
@@ -172,8 +172,7 @@ export class HostService {
     
     return {
       hostStatus: this.hostStatus,
-      tvStatuses: [], // Empty array for now, can be populated later
-      displayStatuses: Array.from(this.displayStatuses.values()),
+      displayStatuses: Array.from(this.displayStatuses.values()), // Return all display statuses
       systemInfo: {
         uptime: systemInfo.uptime,
         platform: systemInfo.platform,
@@ -227,7 +226,7 @@ export class HostService {
       const currentState = this.stateManager.getDisplayState(display.id);
       
       this.displayStatuses.set(display.id, {
-        isActive: currentState?.isActive || false, // Use real state from StateManager
+        active: currentState?.isActive || false, // Use real state from StateManager
         currentUrl: undefined,
         lastRefresh: currentState?.lastRefresh || new Date(),
         isResponsive: currentState?.isResponsive || true,

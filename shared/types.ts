@@ -10,13 +10,13 @@ export interface Dashboard {
   category?: string;
 }
 
-export interface TVConfiguration {
+export interface DisplayConfiguration {
   id: string;
   name: string;
   miniPcId: string;
   monitorIndex: number; // 0 or 1 for dual monitor setup
   assignedDashboard?: string; // Dashboard ID
-  status: TVStatus;
+  status: DisplayStatus;
   lastUpdate: Date;
 }
 
@@ -30,7 +30,7 @@ export interface MiniPC {
   lastHeartbeat: Date;
   lastDiscovered: Date;
   version: string;
-  tvs: string[]; // TV IDs (legacy)
+  tvs: string[]; // Display IDs (legacy - deprecated, use displays instead)
   displays: string[]; // Display IDs (e.g., ['display-1', 'display-2', 'display-3'])
   displayStates?: DisplayState[]; // Detailed display states from gRPC heartbeats
   mdnsService?: MDNSServiceInfo;
@@ -50,20 +50,12 @@ export interface HostStatus {
   memoryUsage: number;
   browserProcesses: number;
   lastError?: string;
-}
-
-export interface TVStatus {
-  active: boolean;
-  currentUrl?: string;
-  lastRefresh: Date;
-  isResponsive: boolean;
-  errorCount: number;
-  lastError?: string;
+  debugEnabled?: boolean;
 }
 
 // Display Status type for individual displays
 export interface DisplayStatus {
-  isActive: boolean;
+  active: boolean;
   currentUrl?: string;
   lastRefresh: Date;
   isResponsive: boolean;
@@ -107,8 +99,7 @@ export interface DiscoveryService {
 // API Command Types
 export interface ApiCommand {
   type: CommandType;
-  targetTv: string;
-  targetDisplay?: string; // Add targetDisplay property
+  targetDisplay: string;
   payload: any;
   timestamp: Date;
 }
@@ -167,8 +158,7 @@ export interface ApiResponse<T = any> {
 
 export interface HealthCheckResponse {
   hostStatus: HostStatus;
-  tvStatuses: TVStatus[];
-  displayStatuses: DisplayStatus[]; // Add displayStatuses property
+  displayStatuses: DisplayStatus[];
   systemInfo: {
     uptime: number;
     platform: string;
@@ -181,7 +171,7 @@ export interface HealthCheckResponse {
 export interface SystemConfiguration {
   dashboards: Dashboard[];
   miniPCs: MiniPC[];
-  tvs: TVConfiguration[];
+  displays: DisplayConfiguration[];
   settings: SystemSettings;
 }
 

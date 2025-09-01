@@ -19,24 +19,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const client = grpcManager.getClient(hostId as string);
-    if (!client) {
-      return res.status(404).json({ 
-        success: false, 
-        error: 'Host not found or not connected' 
-      });
-    }
-
-    // Remove dashboard by restarting browser for specific display
-    const result = await client.restartBrowser(hostId as string, [displayId as string], false);
+    // Remove dashboard using dedicated REMOVE_DASHBOARD command
+    const result = await grpcManager.removeDashboard(hostId as string, displayId as string);
 
     if (result.success) {
       res.status(200).json({ 
         success: true, 
         message: `Dashboard removed from ${displayId}`,
         data: {
-          restartedDisplays: result.restarted_displays || [],
-          failedDisplays: result.failed_displays || []
+          displayId: result.remove_dashboard_result?.display_id,
+          dashboardRemoved: result.remove_dashboard_result?.dashboard_removed,
+          statusMessage: result.remove_dashboard_result?.status_message
         }
       });
     } else {

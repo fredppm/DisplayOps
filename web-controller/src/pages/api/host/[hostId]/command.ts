@@ -33,7 +33,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       case 'refresh_page':
       case 'REFRESH_PAGE':
-        result = await grpcManager.refreshDisplay(hostId as string, command.targetDisplay);
+        result = await grpcManager.refreshDashboard(hostId as string, command.targetDisplay);
         break;
 
       case 'sync_cookies':
@@ -55,7 +55,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         break;
 
       case 'RESTART_BROWSER':
-        result = await grpcManager.restartBrowser(hostId as string, command.payload?.displayIds, command.payload?.forceKill);
+        result = await grpcManager.restartDashboard(hostId as string, command.payload?.displayIds, command.payload?.forceKill);
         break;
 
       default:

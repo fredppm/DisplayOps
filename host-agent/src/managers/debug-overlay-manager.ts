@@ -29,7 +29,7 @@ export class DebugOverlayManager {
     this.config = {
       enabled: false,
       position: 'right',
-      opacity: 0.8,  // Aumentado para 80% - menos transparente
+      opacity: 1,
       hotkey: 'CommandOrControl+Shift+D'
     };
 
@@ -79,8 +79,8 @@ export class DebugOverlayManager {
         minimizable: false,
         maximizable: false,
         closable: true,
-        alwaysOnTop: false,  // Permite que outras janelas fiquem na frente
-        focusable: true,     // Permite focar e desfocar
+        alwaysOnTop: true,
+        focusable: true,
         opacity: this.config.opacity,
         webPreferences: {
           nodeIntegration: false,
@@ -143,14 +143,7 @@ export class DebugOverlayManager {
 
       this.overlayWindow.on('blur', () => {
         if (!this.state.pinned) {
-          // Auto-hide when losing focus (unless pinned)
-          this.overlayWindow?.setOpacity(0.3);
-          // Fechar automaticamente após 2 segundos sem foco
-          setTimeout(() => {
-            if (this.overlayWindow && !this.overlayWindow.isFocused() && !this.state.pinned && !this.overlayWindow.isDestroyed()) {
-              this.overlayWindow.close();
-            }
-          }, 2000);
+          this.overlayWindow?.setOpacity(0.9);
         }
       });
 

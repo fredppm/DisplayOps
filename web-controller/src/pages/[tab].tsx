@@ -33,7 +33,8 @@ export default function TabPage({ tab }: TabPageProps) {
     lastUpdate,
     connectionError,
     reconnectAttempts,
-    requestHostsUpdate
+    requestHostsUpdate,
+    updateHostOptimistic
   } = useSSEHostDiscovery();
   
   // WebSocket manager removed - using SSE for real-time updates
@@ -49,6 +50,32 @@ export default function TabPage({ tab }: TabPageProps) {
       console.error('Host discovery error:', connectionError);
     }
   }, [connectionError]);
+
+  // Handle page unload to notify backend when dashboard is closed
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      // Use sendBeacon for reliable delivery during page unload
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon('/api/dashboard-closed', JSON.stringify({}));
+      } else {
+        // Fallback for older browsers - use synchronous request
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', '/api/dashboard-closed', false); // synchronous
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        try {
+          xhr.send(JSON.stringify({}));
+        } catch (error) {
+          console.warn('Failed to send dashboard closure notification:', error);
+        }
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, []);
 
   const getPageTitle = (tab: TabType) => {
     switch (tab) {
@@ -240,6 +267,7 @@ export default function TabPage({ tab }: TabPageProps) {
                   connectionError,
                   reconnectAttempts
                 }}
+                onUpdateHostOptimistic={updateHostOptimistic}
               />
             )}
             

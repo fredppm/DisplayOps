@@ -685,7 +685,7 @@ export class WindowManager extends EventEmitter {
   }
 
   // gRPC compatibility methods
-  public async deployDashboard(config: { url: string; displayId: string; fullscreen?: boolean; refreshInterval?: number }): Promise<{ success: boolean; url?: string; error?: string }> {
+  public async deployDashboard(config: { url: string; displayId: string; fullscreen?: boolean; refreshInterval?: number; dashboardId?: string }): Promise<{ success: boolean; url?: string; error?: string }> {
     try {
       const windowConfig: WindowConfig = {
         id: `dashboard_${config.displayId}_${Date.now()}`,
@@ -696,6 +696,18 @@ export class WindowManager extends EventEmitter {
       };
 
       const windowId = await this.createWindow(windowConfig);
+      
+      // Save dashboard deployment in StateManager
+      if (this.stateManager) {
+        this.stateManager.saveDashboardDeployment(
+          config.displayId,
+          config.dashboardId || 'dashboard', // Use provided dashboardId or default
+          config.url,
+          Math.floor((config.refreshInterval || 300000) / 1000) // Convert ms to seconds
+        );
+        console.log(`✅ Saved dashboard deployment for ${config.displayId}: ${config.url}`);
+      }
+      
       return { success: true, url: config.url };
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };

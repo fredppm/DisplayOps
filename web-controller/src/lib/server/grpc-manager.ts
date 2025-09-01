@@ -102,8 +102,8 @@ class GrpcManagerSingleton {
     return this.grpcService.openDashboard(hostId, displayId, dashboardConfig);
   }
 
-  public async refreshDisplay(hostId: string, displayId: string): Promise<any> {
-    return this.grpcService.refreshDisplay(hostId, displayId);
+  public async refreshDashboard(hostId: string, displayId: string): Promise<any> {
+    return this.grpcService.refreshDashboard(hostId, displayId);
   }
 
 
@@ -119,8 +119,12 @@ class GrpcManagerSingleton {
     return this.grpcService.takeScreenshot(hostId, displayId, format);
   }
 
-  public async restartBrowser(hostId: string, displayIds?: string[], forceKill?: boolean): Promise<any> {
-    return this.grpcService.restartBrowser(hostId, displayIds, forceKill);
+  public async removeDashboard(hostId: string, displayId: string): Promise<any> {
+    return this.grpcService.removeDashboard(hostId, displayId);
+  }
+
+  public async restartDashboard(hostId: string, displayIds?: string[], forceKill?: boolean): Promise<any> {
+    return this.grpcService.restartDashboard(hostId, displayIds, forceKill);
   }
 
   public async identifyDisplays(hostId: string, durationSeconds: number = 5): Promise<any> {

@@ -106,12 +106,19 @@ export class StateManager {
     };
 
     // Merge the new state with existing state
-    this.state.displays[displayId] = {
+    const newState = {
       ...currentState,
       ...state,
       displayId, // Ensure displayId is always set
       lastRefresh: new Date()
     };
+
+    // Handle explicit removal of assignedDashboard when set to undefined
+    if ('assignedDashboard' in state && state.assignedDashboard === undefined) {
+      delete newState.assignedDashboard;
+    }
+
+    this.state.displays[displayId] = newState;
 
     logger.info(`💾 Updated state for ${displayId}:`, {
       isActive: this.state.displays[displayId].isActive,
@@ -181,6 +188,27 @@ export class StateManager {
     return Object.keys(this.state.displays).filter(displayId => 
       this.hasAssignedDashboard(displayId)
     );
+  }
+
+  public clearAssignedDashboard(displayId: string): void {
+    logger.info(`🔍 clearAssignedDashboard called for ${displayId}`);
+    const currentState = this.getDisplayState(displayId);
+    logger.info(`📊 Current state for ${displayId}:`, {
+      hasState: !!currentState,
+      hasAssignedDashboard: !!currentState?.assignedDashboard,
+      dashboardId: currentState?.assignedDashboard?.dashboardId
+    });
+    
+    if (currentState?.assignedDashboard) {
+      logger.info(`💾 Saving new state without dashboard for ${displayId}`);
+      this.saveDisplayState(displayId, {
+        assignedDashboard: undefined,
+        isActive: false
+      });
+      logger.info(`✅ Successfully cleared assigned dashboard for ${displayId}`);
+    } else {
+      logger.info(`ℹ️ No assigned dashboard to clear for ${displayId}`);
+    }
   }
 
   public cleanup(): void {

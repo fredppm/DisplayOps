@@ -480,12 +480,13 @@ export class GrpcHostClient extends EventEmitter {
   private mapCommandType(type: string): string {
     const typeMap: { [key: string]: string } = {
       'deploy_dashboard': 'OPEN_DASHBOARD',
-      'refresh_display': 'REFRESH_DISPLAY',
+      'refresh_dashboard': 'REFRESH_DASHBOARD',
       'set_cookies': 'SET_COOKIES',
-      'validate_url': 'VALIDATE_URL',
       'health_check': 'HEALTH_CHECK',
       'identify_displays': 'IDENTIFY_DISPLAYS',
-      'take_screenshot': 'TAKE_SCREENSHOT'
+      'take_screenshot': 'TAKE_SCREENSHOT',
+      'restart_dashboard': 'RESTART_DASHBOARD',
+      'remove_dashboard': 'REMOVE_DASHBOARD'
     };
     
     return typeMap[type] || 'HEALTH_CHECK';

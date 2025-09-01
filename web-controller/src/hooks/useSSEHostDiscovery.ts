@@ -9,6 +9,7 @@ export interface UseSSEHostDiscoveryReturn {
   connectionError: string | null;
   reconnectAttempts: number;
   requestHostsUpdate: () => void;
+  updateHostOptimistic: (hostId: string, updates: Partial<MiniPC>) => void;
 }
 
 // Circuit breaker configuration
@@ -32,6 +33,17 @@ export const useSSEHostDiscovery = (): UseSSEHostDiscoveryReturn => {
   // Update discovered hosts
   const setDiscoveredHostsWithLog = useCallback((hosts: MiniPC[]) => {
     setDiscoveredHosts(hosts);
+  }, []);
+
+  // Optimistic update function for individual hosts
+  const updateHostOptimistic = useCallback((hostId: string, updates: Partial<MiniPC>) => {
+    setDiscoveredHosts(prevHosts => 
+      prevHosts.map(host => 
+        host.id === hostId 
+          ? { ...host, ...updates }
+          : host
+      )
+    );
   }, []);
 
   // Refs
@@ -235,6 +247,7 @@ export const useSSEHostDiscovery = (): UseSSEHostDiscoveryReturn => {
     lastUpdate,
     connectionError,
     reconnectAttempts,
-    requestHostsUpdate
+    requestHostsUpdate,
+    updateHostOptimistic
   };
 };

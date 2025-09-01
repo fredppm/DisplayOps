@@ -34,15 +34,14 @@ message CommandRequest {
   
   oneof payload {
     OpenDashboardCommand open_dashboard = 10;
-    RefreshDisplayCommand refresh_display = 11;
+    RefreshDashboardCommand refresh_dashboard = 11;
     SetCookiesCommand set_cookies = 12;
-    ValidateUrlCommand validate_url = 13;
-    IdentifyDisplaysCommand identify_displays = 14;
-    TakeScreenshotCommand take_screenshot = 15;
-    UpdateAgentCommand update_agent = 16;
-    RestartBrowserCommand restart_browser = 17;
-    DebugEnableCommand debug_enable = 18;
-    DebugDisableCommand debug_disable = 19;
+    IdentifyDisplaysCommand identify_displays = 13;
+    TakeScreenshotCommand take_screenshot = 14;
+    RestartDashboardCommand restart_dashboard = 15;
+    DebugEnableCommand debug_enable = 16;
+    DebugDisableCommand debug_disable = 17;
+    RemoveDashboardCommand remove_dashboard = 18;
   }
 }
 
@@ -55,31 +54,29 @@ message CommandResponse {
   
   oneof result {
     OpenDashboardResult open_dashboard_result = 10;
-    RefreshDisplayResult refresh_display_result = 11;
+    RefreshDashboardResult refresh_dashboard_result = 11;
     SetCookiesResult set_cookies_result = 12;
-    ValidateUrlResult validate_url_result = 13;
-    IdentifyDisplaysResult identify_displays_result = 14;
-    ScreenshotResult screenshot_result = 15;
-    HealthCheckResult health_check_result = 16;
-    UpdateAgentResult update_agent_result = 17;
-    RestartBrowserResult restart_browser_result = 18;
-    DebugEnableResult debug_enable_result = 19;
-    DebugDisableResult debug_disable_result = 20;
+    IdentifyDisplaysResult identify_displays_result = 13;
+    ScreenshotResult screenshot_result = 14;
+    HealthCheckResult health_check_result = 15;
+    RestartDashboardResult restart_dashboard_result = 16;
+    DebugEnableResult debug_enable_result = 17;
+    DebugDisableResult debug_disable_result = 18;
+    RemoveDashboardResult remove_dashboard_result = 19;
   }
 }
 
 enum CommandType {
   OPEN_DASHBOARD = 0;
-  REFRESH_DISPLAY = 1;
+  REFRESH_DASHBOARD = 1;
   SET_COOKIES = 2;
-  VALIDATE_URL = 3;
-  HEALTH_CHECK = 4;
-  IDENTIFY_DISPLAYS = 5;
-  TAKE_SCREENSHOT = 6;
-  RESTART_BROWSER = 7;
-  UPDATE_AGENT = 8;
-  DEBUG_ENABLE = 9;
-  DEBUG_DISABLE = 10;
+  HEALTH_CHECK = 3;
+  IDENTIFY_DISPLAYS = 4;
+  TAKE_SCREENSHOT = 5;
+  RESTART_DASHBOARD = 6;
+  DEBUG_ENABLE = 7;
+  DEBUG_DISABLE = 8;
+  REMOVE_DASHBOARD = 9;
 }
 
 // ================================
@@ -94,18 +91,13 @@ message OpenDashboardCommand {
   int32 refresh_interval_ms = 5;
 }
 
-message RefreshDisplayCommand {
+message RefreshDashboardCommand {
   string display_id = 1;
 }
 
 message SetCookiesCommand {
   repeated CookieData cookies = 1;
   string domain = 2;
-}
-
-message ValidateUrlCommand {
-  string url = 1;
-  int32 timeout_ms = 2;
 }
 
 message IdentifyDisplaysCommand {
@@ -121,14 +113,7 @@ message TakeScreenshotCommand {
   int32 quality = 3; // 0-100 for jpeg
 }
 
-message UpdateAgentCommand {
-  string version = 1; // Target version to update to
-  string update_url = 2; // URL to download update from
-  bool force_update = 3; // Force update even if same version
-  bool restart_after_update = 4; // Restart agent after update
-}
-
-message RestartBrowserCommand {
+message RestartDashboardCommand {
   repeated string display_ids = 1; // Specific displays to restart, empty = all
   bool force_kill = 2; // Force kill browser processes
   int32 delay_seconds = 3; // Delay before restart
@@ -142,6 +127,10 @@ message DebugDisableCommand {
   // No specific parameters needed for debug disable
 }
 
+message RemoveDashboardCommand {
+  string display_id = 1; // Display to remove dashboard from
+}
+
 // ================================
 // Command Results
 // ================================
@@ -152,7 +141,7 @@ message OpenDashboardResult {
   bool is_responsive = 3;
 }
 
-message RefreshDisplayResult {
+message RefreshDashboardResult {
   string display_id = 1;
   string current_url = 2;
   google.protobuf.Timestamp refresh_time = 3;
@@ -161,13 +150,6 @@ message RefreshDisplayResult {
 message SetCookiesResult {
   int32 cookies_set = 1;
   repeated string failed_cookies = 2;
-}
-
-message ValidateUrlResult {
-  bool is_valid = 1;
-  int32 response_time_ms = 2;
-  int32 status_code = 3;
-  string error = 4;
 }
 
 message IdentifyDisplaysResult {
@@ -188,16 +170,7 @@ message HealthCheckResult {
   SystemInfo system_info = 3;
 }
 
-message UpdateAgentResult {
-  string current_version = 1;
-  string target_version = 2;
-  bool update_available = 3;
-  bool update_started = 4;
-  string update_progress = 5; // Progress description
-  string error_message = 6; // If update failed
-}
-
-message RestartBrowserResult {
+message RestartDashboardResult {
   repeated string restarted_displays = 1;
   repeated string failed_displays = 2;
   int32 processes_killed = 3;
@@ -212,6 +185,12 @@ message DebugEnableResult {
 message DebugDisableResult {
   bool debug_disabled = 1;
   string status_message = 2;
+}
+
+message RemoveDashboardResult {
+  string display_id = 1;
+  bool dashboard_removed = 2;
+  string status_message = 3;
 }
 
 // Also define as separate response for the HealthCheck RPC
@@ -318,6 +297,7 @@ message HostStatus {
   string last_error = 7;
   google.protobuf.Timestamp last_update = 8;
   SystemMetrics system_metrics = 9; // Additional system metrics
+  bool debug_enabled = 10; // Debug mode status
 }
 
 message SystemMetrics {

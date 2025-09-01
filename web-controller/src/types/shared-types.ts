@@ -42,6 +42,7 @@ export interface HostMetrics {
   memoryUsage: number;
   browserProcesses: number;
   lastError?: string;
+  debugEnabled?: boolean;
 }
 
 
@@ -96,10 +97,10 @@ export enum CommandType {
   REFRESH_PAGE = 'refresh_page',
   SYNC_COOKIES = 'sync_cookies',
   HEALTH_CHECK = 'health_check',
-  UPDATE_AGENT = 'update_agent',
-  RESTART_BROWSER = 'restart_browser',
+  RESTART_DASHBOARD = 'restart_dashboard',
   TAKE_SCREENSHOT = 'take_screenshot',
-  IDENTIFY_DISPLAYS = 'identify_displays'
+  IDENTIFY_DISPLAYS = 'identify_displays',
+  REMOVE_DASHBOARD = 'remove_dashboard'
 }
 
 export interface OpenDashboardCommand {

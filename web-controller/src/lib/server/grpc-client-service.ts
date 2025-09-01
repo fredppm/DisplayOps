@@ -39,16 +39,15 @@ export interface GrpcHostEvent {
 // Protobuf CommandType enum mapping (as strings)
 const CommandType = {
   OPEN_DASHBOARD: 'OPEN_DASHBOARD',
-  REFRESH_DISPLAY: 'REFRESH_DISPLAY',
+  REFRESH_DASHBOARD: 'REFRESH_DASHBOARD',
   SET_COOKIES: 'SET_COOKIES',
-  VALIDATE_URL: 'VALIDATE_URL',
   HEALTH_CHECK: 'HEALTH_CHECK',
   IDENTIFY_DISPLAYS: 'IDENTIFY_DISPLAYS',
   TAKE_SCREENSHOT: 'TAKE_SCREENSHOT',
-  RESTART_BROWSER: 'RESTART_BROWSER',
-  UPDATE_AGENT: 'UPDATE_AGENT',
+  RESTART_DASHBOARD: 'RESTART_DASHBOARD',
   DEBUG_ENABLE: 'DEBUG_ENABLE',
-  DEBUG_DISABLE: 'DEBUG_DISABLE'
+  DEBUG_DISABLE: 'DEBUG_DISABLE',
+  REMOVE_DASHBOARD: 'REMOVE_DASHBOARD'
 } as const;
 
 /**
@@ -938,8 +937,8 @@ export class GrpcClientService extends EventEmitter {
   /**
    * Refresh display page
    */
-  public async refreshDisplay(hostId: string, displayId: string): Promise<any> {
-    return this.executeCommand(hostId, 'REFRESH_DISPLAY', {
+  public async refreshDashboard(hostId: string, displayId: string): Promise<any> {
+    return this.executeCommand(hostId, 'REFRESH_DASHBOARD', {
       display_id: displayId
     });
   }
@@ -975,10 +974,19 @@ export class GrpcClientService extends EventEmitter {
   }
 
   /**
-   * Restart browser on displays
+   * Remove dashboard from display
    */
-  public async restartBrowser(hostId: string, displayIds?: string[], forceKill?: boolean): Promise<any> {
-    return this.executeCommand(hostId, 'RESTART_BROWSER', {
+  public async removeDashboard(hostId: string, displayId: string): Promise<any> {
+    return this.executeCommand(hostId, 'REMOVE_DASHBOARD', {
+      display_id: displayId
+    });
+  }
+
+  /**
+   * Restart dashboard on displays
+   */
+  public async restartDashboard(hostId: string, displayIds?: string[], forceKill?: boolean): Promise<any> {
+    return this.executeCommand(hostId, 'RESTART_DASHBOARD', {
       display_ids: displayIds || [],
       force_kill: forceKill || false,
       delay_seconds: 2
@@ -1123,15 +1131,14 @@ export class GrpcClientService extends EventEmitter {
   private getPayloadFieldName(commandType: string): string {
     const fieldMap: Record<string, string> = {
       'OPEN_DASHBOARD': 'open_dashboard',
-      'REFRESH_DISPLAY': 'refresh_display', 
+      'REFRESH_DASHBOARD': 'refresh_dashboard', 
       'SET_COOKIES': 'set_cookies',
-      'VALIDATE_URL': 'validate_url',
       'IDENTIFY_DISPLAYS': 'identify_displays',
       'TAKE_SCREENSHOT': 'take_screenshot',
-      'UPDATE_AGENT': 'update_agent',
-      'RESTART_BROWSER': 'restart_browser',
+      'RESTART_DASHBOARD': 'restart_dashboard',
       'DEBUG_ENABLE': 'debug_enable',
-      'DEBUG_DISABLE': 'debug_disable'
+      'DEBUG_DISABLE': 'debug_disable',
+      'REMOVE_DASHBOARD': 'remove_dashboard'
       // Note: HEALTH_CHECK doesn't need payload field (uses empty message)
     };
     

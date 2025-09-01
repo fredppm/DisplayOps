@@ -15,10 +15,11 @@ interface HostsListProps {
     connectionError: string | null;
     reconnectAttempts: number;
   };
+  onUpdateHostOptimistic?: (hostId: string, updates: Partial<MiniPC>) => void;
 }
 
 
-export const HostsList: React.FC<HostsListProps> = ({ hosts, isDiscovering, discoveryStatus }) => {
+export const HostsList: React.FC<HostsListProps> = ({ hosts, isDiscovering, discoveryStatus, onUpdateHostOptimistic }) => {
   const { addNotification } = useNotifications();
   
   // Modal state for dashboard selection
@@ -121,6 +122,14 @@ export const HostsList: React.FC<HostsListProps> = ({ hosts, isDiscovering, disc
     if (!host || !host.metrics.online) return;
 
     const action = host.debugEnabled ? 'disable' : 'enable';
+    const newDebugState = !host.debugEnabled;
+    
+    // 🚀 OTIMISTIC UPDATE: Update UI immediately
+    if (onUpdateHostOptimistic) {
+      onUpdateHostOptimistic(hostId, { 
+        debugEnabled: newDebugState 
+      });
+    }
     
     try {
       const response = await fetch(`/api/host/${hostId}/debug/toggle`, {
@@ -135,12 +144,26 @@ export const HostsList: React.FC<HostsListProps> = ({ hosts, isDiscovering, disc
         addNotification('success', 'Debug Mode', 
           `Debug ${action}d on ${host.hostname}`);
       } else {
+        // 🔄 REVERT: On error, revert the optimistic update
+        if (onUpdateHostOptimistic) {
+          onUpdateHostOptimistic(hostId, { 
+            debugEnabled: host.debugEnabled 
+          });
+        }
+        
         // Handle API error response
         const errorMessage = result.error || `HTTP ${response.status}: ${response.statusText}`;
         addNotification('error', 'Debug Error', 
           `Failed to ${action} debug on ${host.hostname}: ${errorMessage}`);
       }
     } catch (error) {
+      // 🔄 REVERT: On error, revert the optimistic update
+      if (onUpdateHostOptimistic) {
+        onUpdateHostOptimistic(hostId, { 
+          debugEnabled: host.debugEnabled 
+        });
+      }
+      
       addNotification('error', 'Debug Error', 
         `Failed to ${action} debug on ${host.hostname}: ${error instanceof Error ? error.message : 'Network error'}`);
     }
@@ -237,7 +260,31 @@ export const HostsList: React.FC<HostsListProps> = ({ hosts, isDiscovering, disc
       throw new Error(result.error || 'Unknown error occurred during deployment');
     }
     
-    // Success - no notification needed, button feedback is enough
+    // Success - update the host optimistically to show the dashboard on the display
+    if (onUpdateHostOptimistic && host.displayStates) {
+      const updatedDisplayStates = host.displayStates.map(display => {
+        if (display.id === displayId) {
+          return {
+            ...display,
+            assignedDashboard: {
+              dashboardId: dashboard.id,
+              url: dashboard.url,
+              refreshIntervalMs: dashboard.refreshInterval ? dashboard.refreshInterval * 1000 : 300000
+            },
+            isActive: true
+          };
+        }
+        return display;
+      });
+      
+      onUpdateHostOptimistic(hostId, {
+        displayStates: updatedDisplayStates
+      });
+    }
+    
+    // Show success notification
+    addNotification('success', 'Dashboard Deployed', 
+      `${dashboard.name} deployed to ${displayId.replace('display-', 'Display ')} on ${host.hostname}`);
   };
 
   const handleRemoveDashboard = async (hostId: string, displayId: string): Promise<void> => {
@@ -264,7 +311,23 @@ export const HostsList: React.FC<HostsListProps> = ({ hosts, isDiscovering, disc
       throw new Error(result.error || 'Unknown error occurred during removal');
     }
     
-    // Success - no notification needed, button feedback is enough
+    // Success - update the host optimistically to remove the dashboard from the display
+    if (onUpdateHostOptimistic && host.displayStates) {
+      const updatedDisplayStates = host.displayStates.map(display => {
+        if (display.id === displayId) {
+          return {
+            ...display,
+            assignedDashboard: null,
+            isActive: false
+          };
+        }
+        return display;
+      });
+      
+      onUpdateHostOptimistic(hostId, {
+        displayStates: updatedDisplayStates
+      });
+    }
   };
 
   const handleOpenDashboardModal = (hostId: string, displayId: string) => {

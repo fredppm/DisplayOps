@@ -11,88 +11,34 @@
           "secure": true,
           "httpOnly": true,
           "sameSite": "lax",
-          "importedAt": "2025-09-01T11:26:08.880Z"
-        },
-        {
-          "name": "cf_clearance",
-          "value": "vn_WQQs2R220Kholr8PM8UIxZPELBHIFBLEF9RbPiZE-1752178588-1.2.1.1-BvVfTpML8fhsAp1eWQrrEP1UJBPPMLepwnbfvvSTdadWkwG2za_1DmlJNhhW38lxAbDvAA5gqmSKiCaDCJLuszqHWA04HE3ZX9.XgKuvgVp8K2kDDUWUQxZPnvL6D0mP1pSc0S7nFayWposTcUU49QxxOOuUYXwaquOLGzUiagmHqMvVmmqVRwouJ2dOIse5Ce2zwLSvZoTJuq69c3ZV65C.gVwAXpYDVsrWDL85RdA",
-          "domain": ".vtex.com",
-          "path": "/",
-          "secure": true,
-          "httpOnly": true,
-          "sameSite": "none",
-          "importedAt": "2025-09-01T11:26:08.880Z"
+          "expirationDate": 1757009036.732116,
+          "importedAt": "2025-09-01T17:35:45.233Z"
         },
         {
           "name": "grafana_session",
-          "value": "91d618c6d40909eb45653386ddc76a19",
+          "value": "89491a5af45e28edd0ae0487baa66f43",
           "domain": "grafana.vtex.com",
           "path": "/",
           "secure": true,
           "httpOnly": true,
           "sameSite": "lax",
-          "importedAt": "2025-09-01T11:26:08.880Z"
+          "expirationDate": 1759340118.322288,
+          "importedAt": "2025-09-01T17:35:45.234Z"
         },
         {
           "name": "grafana_session_expiry",
-          "value": "1756610934",
+          "value": "1756748712",
           "domain": "grafana.vtex.com",
           "path": "/",
           "secure": true,
           "httpOnly": false,
           "sameSite": "lax",
-          "importedAt": "2025-09-01T11:26:08.880Z"
+          "expirationDate": 1759340118.322559,
+          "importedAt": "2025-09-01T17:35:45.234Z"
         }
       ],
-      "lastImport": "2025-09-01T11:26:08.880Z",
+      "lastImport": "2025-09-01T17:35:45.234Z",
       "description": "Cookies for https://grafana.vtex.com"
-    },
-    "https://healthmonitor.vtex.com/": {
-      "domain": "https://healthmonitor.vtex.com/",
-      "cookies": [
-        {
-          "name": "__Host-next-auth.csrf-token",
-          "value": "b0b5b5897df7e273e6b6ab4a38884000bdd5c1bb6367d7755273b51b5623d802%7C0a1c51d7499d6e75fa950e63a5d2d4579f272580d16be7a2b795a93fbd1f8cc5",
-          "domain": "https://healthmonitor.vtex.com/",
-          "path": "/",
-          "secure": true,
-          "httpOnly": false,
-          "sameSite": "lax",
-          "importedAt": "2025-08-29T20:42:46.849Z"
-        },
-        {
-          "name": "__Secure-next-auth.callback-url",
-          "value": "https%3A%2F%2Fhealthmonitor.vtex.com",
-          "domain": "https://healthmonitor.vtex.com/",
-          "path": "/",
-          "secure": true,
-          "httpOnly": false,
-          "sameSite": "lax",
-          "importedAt": "2025-08-29T20:42:46.849Z"
-        },
-        {
-          "name": "__Secure-next-auth.session-token",
-          "value": "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0..xv2VUPdEOLizEePq.UQelwPMeVZhW776lrN5MlF8wZqutdAG8BbNWvw22UBW5CrowUH2cwtev_ONLf5SE_VTJo7WiLdZ7QeWGEX-QlzmYLuhwec2lunvbfFGTveoicdql1-Md_iygNHPS-N1wktiFQO-2N8MMMB-Xxw-yHSFxWscLLzYSNI8KdwDh2DWhijfWRSmByfSHL6ChpbUScs8Ynvs-Fg6Aibw9W3RPnXaRxkd9v09Pdluh-ujsvOKawW-WUAhhbh0F85anBE1xBkEtK-dHIvvcEqtRtHrMrkozPDtZuGuJlbU_sQ1msnK70ZfBb1PPu9Vf8o8oBcOzh_wSqlzk68fU6dg8jmDmrFWQqSrxCeldmHo8Y-mNWluxR_FANo699led_l8Pp0epX5mC6nF8N928L68VXPLXUxyXLKYVBT4aEU55cNrIOJHUv35k4wjYRwc9m18uIoPwJXs5-YHDGwTP7sEyspv1mVgfKwQfZcUmD8Am2168SsNrxD8ZztHfQBI-JU9VTFZCq7R0v2s17SWJ1BEtM76HxSQyGfJhIPbAj1DZJtgp3nE65EJ-E2m1L4MPnIYc9A5dk4MGEyE558MuV5dZ7arbrBTh76fMBjnNXdgZ85ewcA_R_C8Ayp-4Z5hSiZPnB5uq7rgVt4UlqTaDR6Y2W_ZQ72s3dzF7Z9LMOGIMjavYz0-TB9oYtFdAi4bY44cJz4dT0F_jlK6zc_MHQ0FFV_XGmaXbdKVw_p9VLW7pQCg0mUjP5PHAt3gbBfyryWR2L_cJhVmY5FCGVggfUCUpgcyFEXZTzNF4dWw3ufqAL4Sy8pMgghUUg9EBABAW3f_u4cW2rnWBGEy_oWtgUz7hzqP3Cr1C727q0lPmYLYIdJfyzpCVt_kDh0sC8JALFT9ENvbiejUdull1sPflOFI7Q7lK3wm9InkcQXhb4PQz4NsBaTs_6bCrbRo4v1DOyGYkZuxJ_w.twc71U_b4B0A0re6skcr0A",
-          "domain": "https://healthmonitor.vtex.com/",
-          "path": "/",
-          "secure": true,
-          "httpOnly": false,
-          "sameSite": "lax",
-          "importedAt": "2025-08-29T20:42:46.849Z"
-        },
-        {
-          "name": "cf_clearance",
-          "value": "vn_WQQs2R220Kholr8PM8UIxZPELBHIFBLEF9RbPiZE-1752178588-1.2.1.1-BvVfTpML8fhsAp1eWQrrEP1UJBPPMLepwnbfvvSTdadWkwG2za_1DmlJNhhW38lxAbDvAA5gqmSKiCaDCJLuszqHWA04HE3ZX9.XgKuvgVp8K2kDDUWUQxZPnvL6D0mP1pSc0S7nFayWposTcUU49QxxOOuUYXwaquOLGzUiagmHqMvVmmqVRwouJ2dOIse5Ce2zwLSvZoTJuq69c3ZV65C.gVwAXpYDVsrWDL85RdA",
-          "domain": "https://healthmonitor.vtex.com/",
-          "path": "/",
-          "secure": true,
-          "httpOnly": false,
-          "sameSite": "lax",
-          "importedAt": "2025-08-29T20:42:46.849Z"
-        }
-      ],
-      "lastImport": "2025-08-29T20:42:46.849Z",
-      "description": "Cookies for https://healthmonitor.vtex.com/"
     },
     "https://healthmonitor.vtex.com": {
       "domain": "https://healthmonitor.vtex.com",
@@ -133,5 +79,5 @@
       "description": "Cookies for https://healthmonitor.vtex.com"
     }
   },
-  "lastUpdated": "2025-09-01T13:51:31.431Z"
+  "lastUpdated": "2025-09-01T17:35:45.234Z"
 }

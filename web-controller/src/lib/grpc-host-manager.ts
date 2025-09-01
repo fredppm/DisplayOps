@@ -285,10 +285,10 @@ export class GrpcHostManager extends EventEmitter {
     return this.executeCommand(hostId, command);
   }
 
-  public async refreshDisplay(hostId: string, displayId: string): Promise<CommandResponse> {
+  public async refreshDashboard(hostId: string, displayId: string): Promise<CommandResponse> {
     const command: CommandRequest = {
       command_id: `refresh_${hostId}_${displayId}_${Date.now()}`,
-      type: 'refresh_display',
+      type: 'refresh_dashboard',
       payload: { displayId }
     };
 
@@ -354,14 +354,14 @@ export class GrpcHostManager extends EventEmitter {
     return this.executeCommand(hostId, command);
   }
 
-  public async restartBrowser(hostId: string, options?: {
+  public async restartDashboard(hostId: string, options?: {
     displayIds?: string[];
     forceKill?: boolean;
     delaySeconds?: number;
   }): Promise<CommandResponse> {
     const command: CommandRequest = {
       command_id: `restart_${hostId}_${Date.now()}`,
-      type: 'restart_browser',
+      type: 'restart_dashboard',
       payload: {
         displayIds: options?.displayIds || [],
         forceKill: options?.forceKill || false,

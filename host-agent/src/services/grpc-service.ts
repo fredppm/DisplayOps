@@ -207,14 +207,11 @@ export class GrpcService extends EventEmitter {
         case 'OPEN_DASHBOARD':
           result = await this.handleOpenDashboard(request.open_dashboard);
           break;
-        case 'REFRESH_DISPLAY':
-          result = await this.handleRefreshDisplay(request.refresh_display);
+        case 'REFRESH_DASHBOARD':
+          result = await this.handleRefreshDashboard(request.refresh_dashboard);
           break;
         case 'SET_COOKIES':
           result = await this.handleSetCookies(request.set_cookies);
-          break;
-        case 'VALIDATE_URL':
-          result = await this.handleValidateUrl(request.validate_url);
           break;
         case 'HEALTH_CHECK':
           result = { health_check_result: await this.getHealthCheckResult() };
@@ -225,17 +222,17 @@ export class GrpcService extends EventEmitter {
         case 'TAKE_SCREENSHOT':
           result = await this.handleTakeScreenshot(request.take_screenshot);
           break;
-        case 'RESTART_BROWSER':
-          result = await this.handleRestartBrowser(request.restart_browser);
-          break;
-        case 'UPDATE_AGENT':
-          result = await this.handleUpdateAgent(request.update_agent);
+        case 'RESTART_DASHBOARD':
+          result = await this.handleRestartDashboard(request.restart_dashboard);
           break;
         case 'DEBUG_ENABLE':
           result = await this.handleDebugEnable(request.debug_enable);
           break;
         case 'DEBUG_DISABLE':
           result = await this.handleDebugDisable(request.debug_disable);
+          break;
+        case 'REMOVE_DASHBOARD':
+          result = await this.handleRemoveDashboard(request.remove_dashboard);
           break;
         default:
           throw new Error(`Unknown command type: ${request.type}`);
@@ -270,10 +267,14 @@ export class GrpcService extends EventEmitter {
       url: cmd.url,
       displayId: cmd.display_id,
       fullscreen: cmd.fullscreen || true,
-      refreshInterval: cmd.refresh_interval_ms || 0
+      refreshInterval: cmd.refresh_interval_ms || 0,
+      dashboardId: cmd.dashboard_id || 'dashboard'
     };
 
     const result = await this.windowManager.deployDashboard(config);
+    
+    // Force refresh HostService display states to reflect StateManager changes
+    this.hostService.forceRefreshFromSystem();
     
     // Broadcast display state change event
     this.broadcastEvent({
@@ -295,12 +296,12 @@ export class GrpcService extends EventEmitter {
     };
   }
 
-  private async handleRefreshDisplay(cmd: any): Promise<any> {
+  private async handleRefreshDashboard(cmd: any): Promise<any> {
     const result = await this.windowManager.refreshDisplay(cmd.display_id);
     
     // Broadcast display state change event
     this.broadcastEvent({
-      event_id: `display_refresh_${Date.now()}`,
+      event_id: `dashboard_refresh_${Date.now()}`,
       type: 'DISPLAY_STATE_CHANGED',
       timestamp: { seconds: Math.floor(Date.now() / 1000), nanos: 0 },
       display_state_changed: {
@@ -310,7 +311,7 @@ export class GrpcService extends EventEmitter {
     });
 
     return {
-      refresh_display_result: {
+      refresh_dashboard_result: {
         display_id: cmd.display_id,
         current_url: result.url || '',
         refresh_time: { seconds: Math.floor(Date.now() / 1000), nanos: 0 }
@@ -425,61 +426,13 @@ export class GrpcService extends EventEmitter {
     };
   }
 
-  private async handleUpdateAgent(cmd: any): Promise<any> {
-    const currentVersion = this.configManager.getVersion();
-    const targetVersion = cmd.version || 'latest';
+  private async handleRestartDashboard(cmd: any): Promise<any> {
+    logger.info(`🔄 handleRestartDashboard called with:`, {
+      display_ids: cmd.display_ids,
+      force_kill: cmd.force_kill,
+      delay_seconds: cmd.delay_seconds
+    });
     
-    // Check if update is available
-    const updateAvailable = targetVersion !== currentVersion || cmd.force_update;
-    
-    if (!updateAvailable && !cmd.force_update) {
-      return {
-        update_agent_result: {
-          current_version: currentVersion,
-          target_version: targetVersion,
-          update_available: false,
-          update_started: false,
-          update_progress: 'No update needed',
-          error_message: ''
-        }
-      };
-    }
-
-    try {
-      // In a real implementation, this would:
-      // 1. Download the update from cmd.update_url
-      // 2. Verify the update package
-      // 3. Apply the update
-      // 4. Restart if cmd.restart_after_update is true
-      
-      logger.info(`Update agent requested: ${currentVersion} → ${targetVersion}`);
-      
-      // Simulate update process
-      return {
-        update_agent_result: {
-          current_version: currentVersion,
-          target_version: targetVersion,
-          update_available: true,
-          update_started: true,
-          update_progress: 'Update simulation started - would download and install in production',
-          error_message: ''
-        }
-      };
-    } catch (error) {
-      return {
-        update_agent_result: {
-          current_version: currentVersion,
-          target_version: targetVersion,
-          update_available: true,
-          update_started: false,
-          update_progress: 'Failed',
-          error_message: error instanceof Error ? error.message : 'Unknown error'
-        }
-      };
-    }
-  }
-
-  private async handleRestartBrowser(cmd: any): Promise<any> {
     const targetDisplays = cmd.display_ids?.length > 0 ? cmd.display_ids : this.configManager.getDisplays().map(d => d.id);
     const restartedDisplays: string[] = [];
     const failedDisplays: string[] = [];
@@ -494,6 +447,8 @@ export class GrpcService extends EventEmitter {
 
       for (const displayId of targetDisplays) {
         try {
+          logger.info(`♻️ Restarting dashboard for display ${displayId}`);
+
           // Find windows for this display
           const windows = this.windowManager.getAllWindows().filter(w => 
             w.config.displayId === displayId
@@ -508,15 +463,25 @@ export class GrpcService extends EventEmitter {
               // Wait a bit before recreating
               await new Promise(resolve => setTimeout(resolve, 1000));
               
-              // Recreate the window
+              // Recreate the window with same dashboard
               const newWindowId = await this.windowManager.createWindow(window.config);
               processesStarted++;
-              
-              logger.info(`Restarted browser for display ${displayId}: ${window.id} → ${newWindowId}`);
+              logger.info(`Restarted dashboard for display ${displayId}: ${window.id} → ${newWindowId}`);
             } catch (error) {
               logger.error(`Failed to restart window ${window.id}:`, error);
             }
           }
+
+          // Broadcast display state change event
+          this.broadcastEvent({
+            event_id: `display_state_${Date.now()}`,
+            type: 'DISPLAY_STATE_CHANGED',
+            timestamp: { seconds: Math.floor(Date.now() / 1000), nanos: 0 },
+            display_state_changed: {
+              display_id: displayId,
+              status: this.getDisplayStatus(displayId)
+            }
+          });
           
           restartedDisplays.push(displayId);
         } catch (error) {
@@ -526,7 +491,7 @@ export class GrpcService extends EventEmitter {
       }
 
       return {
-        restart_browser_result: {
+        restart_dashboard_result: {
           restarted_displays: restartedDisplays,
           failed_displays: failedDisplays,
           processes_killed: processesKilled,
@@ -535,7 +500,7 @@ export class GrpcService extends EventEmitter {
       };
     } catch (error) {
       return {
-        restart_browser_result: {
+        restart_dashboard_result: {
           restarted_displays: [],
           failed_displays: targetDisplays,
           processes_killed: processesKilled,
@@ -574,6 +539,7 @@ export class GrpcService extends EventEmitter {
       browser_processes: legacyStatus.browserProcesses || 0, // Default to 0 if undefined
       last_error: legacyStatus.lastError || '',
       last_update: { seconds: Math.floor(Date.now() / 1000), nanos: 0 },
+      debug_enabled: this.debugService.isDebugEnabled(), // Include debug status
       system_metrics: {
         load_average_1m: systemMetrics.loadAverage[0] || 0,
         load_average_5m: systemMetrics.loadAverage[1] || 0,
@@ -662,6 +628,65 @@ export class GrpcService extends EventEmitter {
     }
   }
 
+  private async handleRemoveDashboard(cmd: any): Promise<any> {
+    const displayId = cmd.display_id;
+    
+    logger.info(`🗑️ handleRemoveDashboard called for display: ${displayId}`);
+    
+    try {
+      // Clear the assigned dashboard from state
+      this.stateManager.clearAssignedDashboard(displayId);
+      
+      // Force refresh HostService display states to reflect StateManager changes
+      this.hostService.forceRefreshFromSystem();
+      
+      // Close any existing windows for this display
+      const windows = this.windowManager.getAllWindows().filter(w => 
+        w.config.displayId === displayId
+      );
+      
+      for (const window of windows) {
+        try {
+          await this.windowManager.closeWindow(window.id);
+          logger.info(`🔪 Closed window ${window.id} for display ${displayId}`);
+        } catch (error) {
+          logger.error(`Failed to close window ${window.id}:`, error);
+        }
+      }
+      
+      // Broadcast display state change event
+      this.broadcastEvent({
+        event_id: `dashboard_removed_${Date.now()}`,
+        type: 'DISPLAY_STATE_CHANGED',
+        timestamp: { seconds: Math.floor(Date.now() / 1000), nanos: 0 },
+        display_state_changed: {
+          display_id: displayId,
+          status: this.getDisplayStatus(displayId)
+        }
+      });
+      
+      logger.info(`✅ Dashboard successfully removed from display ${displayId}`);
+      
+      return {
+        remove_dashboard_result: {
+          display_id: displayId,
+          dashboard_removed: true,
+          status_message: `Dashboard removed from ${displayId}`
+        }
+      };
+    } catch (error) {
+      logger.error(`❌ Failed to remove dashboard from display ${displayId}:`, error);
+      
+      return {
+        remove_dashboard_result: {
+          display_id: displayId,
+          dashboard_removed: false,
+          status_message: `Failed to remove dashboard: ${error instanceof Error ? error.message : 'Unknown error'}`
+        }
+      };
+    }
+  }
+
   private getDisplayStatuses(): any[] {
     const displays = this.hostService.getDisplayStatuses();
     
@@ -690,7 +715,7 @@ export class GrpcService extends EventEmitter {
   private convertDisplayStatus(display: any): any {
     return {
       display_id: display.id,
-      active: display.isActive,
+      active: display.active,
       current_url: display.currentUrl || '',
       last_refresh: { seconds: Math.floor((display.lastRefresh?.getTime() || Date.now()) / 1000), nanos: 0 },
       is_responsive: display.isResponsive,
