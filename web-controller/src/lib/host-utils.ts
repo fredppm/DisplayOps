@@ -2,68 +2,75 @@
 let hostCache: Map<string, { ipAddress: string; port: number }> = new Map();
 
 export function parseHostId(hostId: string): { ipAddress: string; port: number } | null {
-  // Check if this is the new agentId format (no IP in the ID)
-  const isNewFormat = !hostId.match(/agent-\d+-\d+-\d+-\d+-\d+/);
+  console.log(`🔍 parseHostId: Parsing hostId: ${hostId}`);
   
-  if (isNewFormat) {
-    // New agentId format - must use discovery service
+  // First try the gRPC-compatible format: agent-*-*-*-*-PORT format
+  const parts = hostId.split('-');
+  console.log(`🔍 parseHostId: Split parts:`, parts);
+  
+  // Look for agent at the beginning, then IP parts at the end
+  const agentIndex = parts.indexOf('agent');
+  if (agentIndex !== -1 && parts.length >= agentIndex + 6) {
+    // Format could be: VTEX-B9LH6Z3-agent-192-168-1-100-8080
+    // We need the last 5 parts after 'agent': IP (4 parts) + PORT (1 part)
+    const relevantParts = parts.slice(agentIndex + 1);
+    console.log(`🔍 parseHostId: Relevant parts after 'agent':`, relevantParts);
     
-    // Try cache first
-    if (hostCache.has(hostId)) {
-      const cached = hostCache.get(hostId)!;
-      return cached;
-    }
-    
-    // Try discovery service
-    try {
-      if (typeof window === 'undefined') {
-        const { getDiscoveryService } = require('./discovery-singleton');
-        const discoveryService = getDiscoveryService();
-        const hosts = discoveryService.getDiscoveredHosts();
+    if (relevantParts.length >= 5) {
+      const port = parseInt(relevantParts[relevantParts.length - 1]);
+      const ipParts = relevantParts.slice(-5, -1); // Last 5 parts minus the port = 4 IP parts
+      
+      console.log(`🔍 parseHostId: Port:`, port, `IP parts:`, ipParts);
+      
+      if (ipParts.length === 4 && !isNaN(port)) {
+        const ipAddress = ipParts.join('.');
+        console.log(`🔍 parseHostId: Constructed IP:`, ipAddress);
         
-        const host = hosts.find((h: any) => h.id === hostId);
-        
-        if (host) {
-          const hostInfo = {
-            ipAddress: host.ipAddress,
-            port: host.port
-          };
-          // Cache for future use
-          hostCache.set(hostId, hostInfo);
-          return hostInfo;
+        // Basic IP validation
+        if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(ipAddress)) {
+          console.log(`✅ parseHostId: Successfully parsed: ${ipAddress}:${port}`);
+          return { ipAddress, port };
         }
       }
-    } catch (error: any) {
-      console.debug('Could not get host from discovery service:', error?.message || 'unknown error');
     }
-    
-    // For new format, if not found in discovery service, return null
-    return null;
   }
   
-  // Legacy IP-based format: agent-127-0-0-1-8080
-  const parts = hostId.split('-');
+  // If not gRPC format, try discovery service for new format hostIds
+  console.log(`🔍 parseHostId: Not gRPC format, trying discovery service...`);
   
-  if (parts.length < 6 || parts[0] !== 'agent') {
-    return null;
+  // Try cache first
+  if (hostCache.has(hostId)) {
+    const cached = hostCache.get(hostId)!;
+    console.log(`✅ parseHostId: Found in cache:`, cached);
+    return cached;
   }
   
-  // Extract IP and port from the end
-  const port = parseInt(parts[parts.length - 1]);
-  const ipParts = parts.slice(-5, -1); // Get the 4 IP parts before the port
-  
-  if (ipParts.length !== 4 || isNaN(port)) {
-    return null;
+  // Try discovery service
+  try {
+    if (typeof window === 'undefined') {
+      const { getDiscoveryService } = require('./discovery-singleton');
+      const discoveryService = getDiscoveryService();
+      const hosts = discoveryService.getDiscoveredHosts();
+      
+      const host = hosts.find((h: any) => h.id === hostId);
+      
+      if (host) {
+        const hostInfo = {
+          ipAddress: host.ipAddress,
+          port: host.port
+        };
+        console.log(`✅ parseHostId: Found in discovery service:`, hostInfo);
+        // Cache for future use
+        hostCache.set(hostId, hostInfo);
+        return hostInfo;
+      }
+    }
+  } catch (error: any) {
+    console.debug('Could not get host from discovery service:', error?.message || 'unknown error');
   }
   
-  const ipAddress = ipParts.join('.');
-  
-  // Basic IP validation
-  if (!/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(ipAddress)) {
-    return null;
-  }
-  
-  return { ipAddress, port };
+  console.error(`❌ parseHostId: Could not parse hostId: ${hostId}`);
+  return null;
 }
 
 export async function proxyToHost(

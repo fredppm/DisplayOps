@@ -1,6 +1,11 @@
 import { WindowsDiscoveryService } from './windows-discovery-service';
 import { MiniPC } from '@/types/shared-types';
 
+// Global instance para sobreviver ao hot-reload do Next.js
+declare global {
+  var __discoverySingletonInstance: DiscoverySingleton | undefined;
+}
+
 // Singleton instance for discovery service
 class DiscoverySingleton {
   private static instance: DiscoverySingleton | null = null;
@@ -10,11 +15,22 @@ class DiscoverySingleton {
   private initializationPromise: Promise<void> | null = null;
   private eventHandlers: Set<(hosts: MiniPC[], changeType?: string, changedHost?: MiniPC) => void> = new Set();
 
-  private constructor() {}
+  private constructor() {
+    const instanceId = Math.random().toString(36).substr(2, 8);
+    console.log(`🔧 DiscoverySingleton: Nova instância criada (ID: ${instanceId})`);
+    (this as any).__instanceId = instanceId;
+  }
 
   public static getInstance(): DiscoverySingleton {
-    if (!DiscoverySingleton.instance) {
-      DiscoverySingleton.instance = new DiscoverySingleton();
+    // Usar global instance para sobreviver ao hot-reload
+    if (!global.__discoverySingletonInstance) {
+      console.log('🔧 DiscoverySingleton: Criando instância GLOBAL singleton (sobrevive hot-reload)');
+      global.__discoverySingletonInstance = new DiscoverySingleton();
+      DiscoverySingleton.instance = global.__discoverySingletonInstance;
+    } else {
+      const existingId = (global.__discoverySingletonInstance as any).__instanceId;
+      console.log(`🔧 DiscoverySingleton: Reutilizando instância GLOBAL singleton existente (ID: ${existingId})`);
+      DiscoverySingleton.instance = global.__discoverySingletonInstance;
     }
     return DiscoverySingleton.instance;
   }
@@ -80,6 +96,17 @@ class DiscoverySingleton {
         console.log('🚀 Starting discovery singleton service...');
         
         await this.discoveryService.startDiscovery();
+        
+        // 🔄 SINCRONIZAÇÃO: Recuperar hosts já conectados do gRPC service
+        console.log('🔄 Iniciando sincronização de hosts existentes...');
+        this.syncExistingHostsFromGrpc();
+        
+        // 🔄 SINCRONIZAÇÃO ATRASADA: Verificar novamente após mDNS discovery
+        setTimeout(() => {
+          console.log('🔄 Verificação atrasada de hosts conectados via gRPC...');
+          this.syncExistingHostsFromGrpc();
+        }, 2000); // 2 segundos após inicialização
+        
         this.isInitialized = true;
         
         console.log('✅ Discovery singleton service started');
@@ -90,6 +117,46 @@ class DiscoverySingleton {
         this.initializationPromise = null; // Reset so it can be retried
         throw error;
       }
+    }
+  }
+
+  // 🔄 NEW: Sync existing hosts from gRPC service (for hot reload recovery)
+  private syncExistingHostsFromGrpc(): void {
+    try {
+      const grpcService = this.discoveryService?.getGrpcService();
+      if (!grpcService) {
+        console.log('🔄 No gRPC service available for host sync');
+        return;
+      }
+
+      const connectedHosts = grpcService.getConnectedHosts();
+      console.log(`🔄 Syncing ${connectedHosts.length} existing hosts from gRPC service`);
+
+      connectedHosts.forEach(host => {
+        const existingIndex = this.discoveredHosts.findIndex(h => h.id === host.id);
+        if (existingIndex >= 0) {
+          this.discoveredHosts[existingIndex] = host;
+          console.log(`🔄 Updated existing host: ${host.id}`);
+        } else {
+          this.discoveredHosts.push(host);
+          console.log(`🔄 Added previously connected host: ${host.id}`);
+        }
+
+        // Update host cache for host-utils
+        try {
+          const { updateHostCache } = require('./host-utils');
+          updateHostCache(host.id, host.ipAddress, host.port);
+        } catch (error) {
+          console.debug('Could not update host cache during sync:', error);
+        }
+
+        // Notify all event handlers
+        this.notifyHandlers('host_synced', host);
+      });
+
+      console.log(`✅ Host sync completed: ${this.discoveredHosts.length} total hosts available`);
+    } catch (error) {
+      console.error('❌ Failed to sync hosts from gRPC service:', error);
     }
   }
 

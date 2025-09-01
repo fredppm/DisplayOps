@@ -6,11 +6,10 @@
   
   // Configuration
   const LOGIN_DETECTION_DELAY = 2000; // Wait 2s after navigation
-  const CREDENTIAL_CHECK_INTERVAL = 5000; // Check every 5s
   
   let lastURL = window.location.href;
   let loginCheckTimeout = null;
-  let credentialCheckInterval = null;
+  let extensionContextValid = true;
   
   // Dashboard detection patterns
   const DASHBOARD_PATTERNS = [
@@ -70,8 +69,30 @@
     ]
   };
   
+  // Check if extension context is valid and handle transitions
+  function checkExtensionContext() {
+    const isValid = !!(chrome.runtime && chrome.runtime.id);
+    if (!isValid && extensionContextValid) {
+      console.warn('Extension context invalidated, cleaning up...');
+      extensionContextValid = false;
+      cleanup();
+    } else if (isValid && !extensionContextValid) {
+      console.log('Extension context restored, reinitializing...');
+      extensionContextValid = true;
+      // Reinitialize with a small delay to ensure context is stable
+      setTimeout(() => {
+        if (checkExtensionContext()) {
+          initialize();
+        }
+      }, 1000);
+    }
+    return isValid;
+  }
+
   // Initialize content script
   function initialize() {
+    if (!checkExtensionContext()) return;
+    
     console.log('Office Display content script initialized for:', window.location.hostname);
     
     // Check if this is a dashboard domain
@@ -91,13 +112,12 @@
   
   // Start monitoring for login events
   function startMonitoring() {
+    if (!checkExtensionContext()) return;
+    
     console.log('Starting login monitoring for dashboard domain');
     
     // Initial login check after page load
     scheduleLoginCheck();
-    
-    // Periodic credential validation
-    startCredentialChecking();
     
     // Monitor DOM changes for dynamic content
     observeDOMChanges();
@@ -116,6 +136,8 @@
   
   // Check if user has logged in successfully
   function checkForLogin() {
+    if (!checkExtensionContext()) return;
+    
     console.log('Checking for login success indicators...');
     
     const loginDetected = detectLoginSuccess();
@@ -161,17 +183,6 @@
     return (hasLoginURL && hasLoginDOM) || (hasLoginDOM && hasLoginText);
   }
   
-  // Start periodic credential checking
-  function startCredentialChecking() {
-    if (credentialCheckInterval) {
-      clearInterval(credentialCheckInterval);
-    }
-    
-    credentialCheckInterval = setInterval(() => {
-      // This will trigger background script to check cookies
-      notifyBackground('CHECK_CREDENTIALS');
-    }, CREDENTIAL_CHECK_INTERVAL);
-  }
   
   // Observe URL changes for SPA navigation
   function observeURLChanges() {
@@ -251,19 +262,13 @@
     });
   }
   
-  // Notify background script
+  // Notify background script with improved error handling
   function notifyBackground(event, data = {}) {
-    try {
-      // Check if extension context is still valid
-      if (!chrome.runtime?.id) {
-        console.warn('Extension context invalidated, stopping notifications');
-        if (credentialCheckInterval) {
-          clearInterval(credentialCheckInterval);
-          credentialCheckInterval = null;
-        }
-        return;
-      }
+    if (!checkExtensionContext()) {
+      return;
+    }
 
+    try {
       chrome.runtime.sendMessage({
         type: 'CONTENT_SCRIPT_EVENT',
         event: event,
@@ -275,13 +280,10 @@
         }
       });
     } catch (error) {
-      // If extension context is invalidated, stop the interval
-      if (error.message.includes('Extension context invalidated')) {
-        console.warn('Extension context invalidated, stopping credential checking');
-        if (credentialCheckInterval) {
-          clearInterval(credentialCheckInterval);
-          credentialCheckInterval = null;
-        }
+      if (error.message.includes('Extension context invalidated') ||
+          error.message.includes('receiving end does not exist')) {
+        console.warn('Extension context invalidated during notification');
+        extensionContextValid = false;
       } else {
         console.error('Failed to notify background:', error);
       }
@@ -290,13 +292,12 @@
   
   // Listen for messages from background script
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    try {
-      // Check if extension context is still valid
-      if (!chrome.runtime?.id) {
-        console.warn('Extension context invalidated, ignoring message');
-        return false;
-      }
+    if (!checkExtensionContext()) {
+      sendResponse({ success: false, error: 'Extension context invalid' });
+      return false;
+    }
 
+    try {
       switch (message.type) {
         case 'CHECK_LOGIN_STATUS':
           const loginStatus = detectLoginSuccess();
@@ -319,21 +320,20 @@
     return true; // Keep message channel open for async responses
   });
   
-  // Cleanup on page unload
-  window.addEventListener('beforeunload', () => {
+  // Cleanup function
+  function cleanup() {
     if (loginCheckTimeout) {
       clearTimeout(loginCheckTimeout);
+      loginCheckTimeout = null;
     }
-    
-    if (credentialCheckInterval) {
-      clearInterval(credentialCheckInterval);
-    }
-  });
+  }
+
+  // Cleanup on page unload
+  window.addEventListener('beforeunload', cleanup);
   
   // Start the content script
   function startScript() {
-    // Check if extension context is valid before starting
-    if (!chrome.runtime?.id) {
+    if (!checkExtensionContext()) {
       console.warn('Extension context is invalid, not starting content script');
       return;
     }
@@ -344,6 +344,11 @@
       initialize();
     }
   }
+
+  // Periodic context validation
+  setInterval(() => {
+    checkExtensionContext();
+  }, 30000); // Check every 30 seconds
 
   startScript();
   

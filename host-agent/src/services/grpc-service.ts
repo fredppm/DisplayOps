@@ -208,20 +208,26 @@ export class GrpcService extends EventEmitter {
         case 'VALIDATE_URL':
           result = await this.handleValidateUrl(request.validate_url);
           break;
+        case 'HEALTH_CHECK':
+          result = { health_check_result: await this.getHealthCheckResult() };
+          break;
         case 'IDENTIFY_DISPLAYS':
           result = await this.handleIdentifyDisplays(request.identify_displays);
           break;
         case 'TAKE_SCREENSHOT':
           result = await this.handleTakeScreenshot(request.take_screenshot);
           break;
-        case 'HEALTH_CHECK':
-          result = { health_check_result: await this.getHealthCheckResult() };
+        case 'RESTART_BROWSER':
+          result = await this.handleRestartBrowser(request.restart_browser);
           break;
         case 'UPDATE_AGENT':
           result = await this.handleUpdateAgent(request.update_agent);
           break;
-        case 'RESTART_BROWSER':
-          result = await this.handleRestartBrowser(request.restart_browser);
+        case 'DEBUG_ENABLE':
+          result = await this.handleDebugEnable(request.debug_enable);
+          break;
+        case 'DEBUG_DISABLE':
+          result = await this.handleDebugDisable(request.debug_disable);
           break;
         default:
           throw new Error(`Unknown command type: ${request.type}`);
@@ -370,15 +376,26 @@ export class GrpcService extends EventEmitter {
     const duration = cmd.duration_seconds || 5;
     const pattern = cmd.pattern || 'highlight';
     
-    const identifiedDisplays = await this.displayIdentifier.identifyDisplays({
+    const result = await this.displayIdentifier.identifyDisplays({
       duration,
       fontSize: cmd.font_size || 48,
       backgroundColor: cmd.background_color || '#000000'
     });
 
+    // identifyDisplays retorna string, mas protobuf espera array
+    // Vamos retornar array de displays com status
+    const displays = this.configManager.getDisplays();
+    const identifiedDisplays = displays.map((display, index) => ({
+      display_id: display.id,
+      display_number: index + 1,
+      identified: true,
+      message: `Display ${index + 1} identified`
+    }));
+
     return {
       identify_displays_result: {
-        identified_displays: identifiedDisplays
+        identified_displays: identifiedDisplays,
+        success_message: result
       }
     };
   }
@@ -639,6 +656,21 @@ export class GrpcService extends EventEmitter {
 
   private getDisplayStatuses(): any[] {
     const displays = this.hostService.getDisplayStatuses();
+    
+    // 🔍 LOG: Verificar dados de display antes da conversão
+    console.log(`🔍 GRPC getDisplayStatuses: ${displays.length} displays encontrados`);
+    displays.forEach((display: any, index: number) => {
+      console.log(`🔍 Display ${index + 1}:`);
+      console.log(`  - ID: ${display.id}`);
+      console.log(`  - Active: ${display.active}`);
+      console.log(`  - assignedDashboard:`, display.assignedDashboard);
+      if (display.assignedDashboard) {
+        console.log(`    - Dashboard ID: ${display.assignedDashboard.dashboardId}`);
+        console.log(`    - URL: ${display.assignedDashboard.url}`);
+        console.log(`    - Refresh: ${display.assignedDashboard.refreshInterval}`);
+      }
+    });
+    
     return displays.map(display => this.convertDisplayStatus(display));
   }
 
@@ -650,7 +682,7 @@ export class GrpcService extends EventEmitter {
   private convertDisplayStatus(display: any): any {
     return {
       display_id: display.id,
-      active: display.active,
+      active: display.isActive,
       current_url: display.currentUrl || '',
       last_refresh: { seconds: Math.floor((display.lastRefresh?.getTime() || Date.now()) / 1000), nanos: 0 },
       is_responsive: display.isResponsive,
@@ -799,5 +831,44 @@ export class GrpcService extends EventEmitter {
 
   public getConnectedClientsCount(): number {
     return this.eventStreams.size;
+  }
+
+  // Debug command handlers
+  private async handleDebugEnable(cmd: any): Promise<any> {
+    try {
+      logger.info('gRPC: Enabling debug mode');
+      
+      // Enable debug service
+      this.debugService.enable();
+      
+      return {
+        debug_enable_result: {
+          debug_enabled: true,
+          status_message: 'Debug mode enabled successfully'
+        }
+      };
+    } catch (error) {
+      logger.error('Failed to enable debug mode:', error);
+      throw new Error(`Failed to enable debug mode: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  private async handleDebugDisable(cmd: any): Promise<any> {
+    try {
+      logger.info('gRPC: Disabling debug mode');
+      
+      // Disable debug service
+      this.debugService.disable();
+      
+      return {
+        debug_disable_result: {
+          debug_disabled: true,
+          status_message: 'Debug mode disabled successfully'
+        }
+      };
+    } catch (error) {
+      logger.error('Failed to disable debug mode:', error);
+      throw new Error(`Failed to disable debug mode: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 }

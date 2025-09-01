@@ -9,10 +9,14 @@ export class SystemTrayManager {
   private isConnected: boolean = true;
   private totalDisplays: number = 0;
   private activeWindows: number = 0;
-  private currentState: 'idle' | 'ready' | 'error' = 'idle';
+  private currentState: 'idle' | 'ready' | 'error' | 'synced' = 'idle';
   private onRefreshDisplaysCallback?: () => void;
   private onShowDebugOverlayCallback?: () => void;
   private onOpenCookieEditorCallback?: () => void;
+  
+  // Preloaded icons cache to prevent missing images when system goes offline
+  private preloadedIcons: Map<string, Electron.NativeImage> = new Map();
+  private iconStates: ('idle' | 'ready' | 'error' | 'synced')[] = ['idle', 'ready', 'error', 'synced'];
 
   constructor(configManager: ConfigManager) {
     this.configManager = configManager;
@@ -28,8 +32,107 @@ export class SystemTrayManager {
     this.onOpenCookieEditorCallback = callbacks.onOpenCookieEditor;
   }
 
+  /**
+   * Preload all possible icon states to ensure they're available even when filesystem access is limited
+   * This prevents icons from disappearing when the system goes offline or has I/O issues
+   */
+  private preloadAllIconStates(): void {
+    logger.info('🎯 Preloading all tray icon states for offline resilience...');
+    
+    // Preload all state-specific icons
+    this.iconStates.forEach(state => {
+      try {
+        const iconPath = this.getIconPath(state);
+        let icon: Electron.NativeImage;
+        
+        if (iconPath && iconPath !== '') {
+          const fs = require('fs');
+          if (fs.existsSync(iconPath)) {
+            icon = nativeImage.createFromPath(iconPath);
+            logger.info(`✅ Preloaded icon for state '${state}' from: ${iconPath}`);
+          } else {
+            logger.warn(`⚠️  Icon file not found for state '${state}': ${iconPath}`);
+            icon = this.createFallbackIcon(state);
+            logger.info(`🔧 Created fallback icon for state '${state}'`);
+          }
+        } else {
+          logger.warn(`⚠️  No icon path found for state '${state}', creating fallback`);
+          icon = this.createFallbackIcon(state);
+        }
+        
+        // Store the preloaded icon with 16x16 size ready for tray use
+        const resizedIcon = icon.resize({ width: 16, height: 16 });
+        this.preloadedIcons.set(state, resizedIcon);
+        
+        logger.debug(`📦 Cached icon for state '${state}', isEmpty: ${resizedIcon.isEmpty()}, size: ${JSON.stringify(resizedIcon.getSize())}`);
+        
+      } catch (error) {
+        logger.error(`❌ Failed to preload icon for state '${state}':`, error);
+        // Create emergency fallback
+        const emergencyIcon = this.createBitmapFallback(state as 'idle' | 'ready' | 'error' | 'synced').resize({ width: 16, height: 16 });
+        this.preloadedIcons.set(state, emergencyIcon);
+        logger.warn(`🚨 Using emergency bitmap fallback for state '${state}'`);
+      }
+    });
+    
+    // Also preload a default/generic icon
+    try {
+      const defaultIconPath = this.getIconPath();  // No state = default
+      if (defaultIconPath && defaultIconPath !== '') {
+        const fs = require('fs');
+        if (fs.existsSync(defaultIconPath)) {
+          const defaultIcon = nativeImage.createFromPath(defaultIconPath).resize({ width: 16, height: 16 });
+          this.preloadedIcons.set('default', defaultIcon);
+          logger.info(`✅ Preloaded default icon from: ${defaultIconPath}`);
+        }
+      }
+    } catch (error) {
+      logger.warn('Could not preload default icon, fallbacks will be used');
+    }
+    
+    logger.success(`🎉 Icon preloading completed! ${this.preloadedIcons.size} icons cached in memory`);
+    
+    // Log the cached icons for debugging
+    const cachedStates = Array.from(this.preloadedIcons.keys());
+    logger.info(`📋 Available cached icon states: ${cachedStates.join(', ')}`);
+    
+    // Force preload all possible fallback variants as well
+    this.preloadFallbackIcons();
+  }
+
+  /**
+   * Preload all fallback icon variants to ensure complete offline resilience
+   * This guarantees that even if file system access fails completely, we still have icons
+   */
+  private preloadFallbackIcons(): void {
+    logger.info('🔧 Preloading fallback icons for maximum resilience...');
+    
+    this.iconStates.forEach(state => {
+      const stateKey = state as 'idle' | 'ready' | 'error' | 'synced';
+      
+      try {
+        // Create and cache SVG fallback
+        const svgFallback = this.createFallbackIcon(stateKey).resize({ width: 16, height: 16 });
+        this.preloadedIcons.set(`${state}-svg-fallback`, svgFallback);
+        
+        // Create and cache bitmap fallback
+        const bitmapFallback = this.createBitmapFallback(stateKey).resize({ width: 16, height: 16 });
+        this.preloadedIcons.set(`${state}-bitmap-fallback`, bitmapFallback);
+        
+        logger.debug(`📦 Cached fallback icons for state '${state}'`);
+      } catch (error) {
+        logger.error(`❌ Failed to create fallback icons for state '${state}':`, error);
+      }
+    });
+    
+    logger.info(`🛡️  Fallback icon preloading completed! Total icons cached: ${this.preloadedIcons.size}`);
+  }
+
   public initialize(): void {
     try {
+      // Preload all possible icon states to prevent missing images
+      this.preloadAllIconStates();
+      
       // Create tray icon with initial state
       this.createTrayWithIcon(this.currentState);
       
@@ -39,25 +142,57 @@ export class SystemTrayManager {
     }
   }
 
-  private createTrayWithIcon(state: 'idle' | 'ready' | 'error'): void {
-    const iconPath = this.getIconPath(state);
-    logger.info(`Attempting to load tray icon from: ${iconPath}`);
+  private createTrayWithIcon(state: 'idle' | 'ready' | 'error' | 'synced'): void {
+    logger.info(`🖼️  Setting tray icon to state: ${state}`);
     
-    let icon: Electron.NativeImage | undefined;
+    // Try to use preloaded icon first (for offline resilience)
+    let resizedIcon: Electron.NativeImage | undefined = this.preloadedIcons.get(state);
     
-    if (iconPath && iconPath !== '') {
-      icon = nativeImage.createFromPath(iconPath);
-      logger.info(`Icon loaded, isEmpty: ${icon.isEmpty()}, size: ${JSON.stringify(icon.getSize())}`);
+    if (resizedIcon && !resizedIcon.isEmpty()) {
+      logger.info(`✅ Using preloaded icon for state '${state}' (size: ${JSON.stringify(resizedIcon.getSize())})`);
+    } else {
+      // Try preloaded fallbacks before creating new ones
+      logger.warn(`⚠️  Preloaded icon for state '${state}' not available, trying fallbacks...`);
+      
+      // Try SVG fallback first
+      resizedIcon = this.preloadedIcons.get(`${state}-svg-fallback`);
+      if (resizedIcon && !resizedIcon.isEmpty()) {
+        logger.info(`🔧 Using preloaded SVG fallback for state '${state}'`);
+      } else {
+        // Try bitmap fallback
+        resizedIcon = this.preloadedIcons.get(`${state}-bitmap-fallback`);
+        if (resizedIcon && !resizedIcon.isEmpty()) {
+          logger.info(`🎨 Using preloaded bitmap fallback for state '${state}'`);
+        } else {
+          // Last resort: real-time loading and generation
+          logger.warn(`🚨 No preloaded icons available for state '${state}', creating in real-time...`);
+          
+          const iconPath = this.getIconPath(state);
+          logger.info(`Attempting to load tray icon from: ${iconPath}`);
+          
+          let icon: Electron.NativeImage | undefined;
+          
+          if (iconPath && iconPath !== '') {
+            try {
+              icon = nativeImage.createFromPath(iconPath);
+              logger.info(`Icon loaded, isEmpty: ${icon.isEmpty()}, size: ${JSON.stringify(icon.getSize())}`);
+            } catch (error) {
+              logger.error(`Failed to load icon from ${iconPath}:`, error);
+              icon = undefined;
+            }
+          }
+          
+          // If icon is empty or path not found, create a simple fallback icon
+          if (!iconPath || iconPath === '' || !icon || icon.isEmpty()) {
+            logger.warn('No valid icon found, creating emergency fallback icon');
+            icon = this.createFallbackIcon(state);
+          }
+          
+          // Resize icon for system tray (16x16 on Windows)
+          resizedIcon = icon.resize({ width: 16, height: 16 });
+        }
+      }
     }
-    
-    // If icon is empty or path not found, create a simple fallback icon
-    if (!iconPath || iconPath === '' || !icon || icon.isEmpty()) {
-      logger.warn('No valid icon found, creating fallback icon');
-      icon = this.createFallbackIcon(state);
-    }
-    
-    // Resize icon for system tray (16x16 on Windows)
-    const resizedIcon = icon.resize({ width: 16, height: 16 });
     
     if (!this.tray) {
       this.tray = new Tray(resizedIcon);
@@ -107,7 +242,7 @@ export class SystemTrayManager {
     }
   }
 
-  private getIconPath(state: 'idle' | 'ready' | 'error' = 'idle'): string {
+  private getIconPath(state: 'idle' | 'ready' | 'error' | 'synced' = 'idle'): string {
     // Try multiple path strategies for different build contexts
     const iconPaths = [
       // For compiled/built version
@@ -145,14 +280,15 @@ export class SystemTrayManager {
     return '';
   }
 
-  private createFallbackIcon(state: 'idle' | 'ready' | 'error' = 'idle'): Electron.NativeImage {
+  private createFallbackIcon(state: 'idle' | 'ready' | 'error' | 'synced' = 'idle'): Electron.NativeImage {
     logger.warn(`Creating fallback icon for state: ${state}`);
     
     // Create state-specific fallback icon colors
     const stateColors = {
-      idle: '#666666',    // Gray for idle
-      ready: '#00C851',   // Green for ready
-      error: '#FF4444'    // Red for error
+      idle: '#666666',     // Gray for idle
+      ready: '#00C851',    // Green for ready
+      error: '#FF4444',    // Red for error
+      synced: '#007BFF'    // Blue for synced
     };
     
     const color = stateColors[state];
@@ -184,7 +320,7 @@ export class SystemTrayManager {
     }
   }
 
-  private createBitmapFallback(state: 'idle' | 'ready' | 'error' = 'idle'): Electron.NativeImage {
+  private createBitmapFallback(state: 'idle' | 'ready' | 'error' | 'synced' = 'idle'): Electron.NativeImage {
     // Create a simple 16x16 bitmap as absolute fallback
     const size = 16;
     const buffer = Buffer.alloc(size * size * 4); // RGBA
@@ -201,7 +337,8 @@ export class SystemTrayManager {
     const stateColors = {
       idle: [102, 102, 102],    // Gray
       ready: [0, 200, 81],      // Green  
-      error: [255, 68, 68]      // Red
+      error: [255, 68, 68],     // Red
+      synced: [0, 123, 255]     // Blue
     };
     
     const [r, g, b] = stateColors[state];
@@ -233,7 +370,7 @@ export class SystemTrayManager {
     this.activeWindows = status.activeWindows;
 
     // Determine new state based on status
-    let newState: 'idle' | 'ready' | 'error' = 'idle';
+    let newState: 'idle' | 'ready' | 'error' | 'synced' = 'idle';
     
     if (!status.connected) {
       newState = 'error';
@@ -404,11 +541,56 @@ export class SystemTrayManager {
     }
   }
 
+  /**
+   * Force reload all icon states - useful for testing or recovery
+   */
+  public forceReloadIcons(): void {
+    logger.info('🔄 Forcing reload of all icon states...');
+    this.preloadedIcons.clear();
+    this.preloadAllIconStates();
+    
+    // Update current tray icon with fresh data
+    if (this.tray) {
+      this.createTrayWithIcon(this.currentState);
+      logger.info('🔄 Current tray icon refreshed after reload');
+    }
+  }
+
+  /**
+   * Get diagnostic information about preloaded icons
+   */
+  public getIconDiagnostics(): { 
+    totalCached: number;
+    states: string[];
+    missingStates: string[];
+    cacheHealth: 'healthy' | 'degraded' | 'critical';
+  } {
+    const cachedStates = Array.from(this.preloadedIcons.keys());
+    const expectedStates = [...this.iconStates, 'default'];
+    const missingStates = expectedStates.filter(state => !this.preloadedIcons.has(state));
+    
+    let cacheHealth: 'healthy' | 'degraded' | 'critical' = 'healthy';
+    if (missingStates.length > 0) {
+      cacheHealth = missingStates.length >= expectedStates.length * 0.5 ? 'critical' : 'degraded';
+    }
+    
+    return {
+      totalCached: this.preloadedIcons.size,
+      states: cachedStates,
+      missingStates,
+      cacheHealth
+    };
+  }
+
   public cleanup(): void {
     if (this.tray) {
       this.tray.destroy();
       this.tray = null;
       logger.debug('System tray cleaned up');
     }
+    
+    // Clear preloaded icons cache
+    this.preloadedIcons.clear();
+    logger.debug('Icon cache cleared');
   }
 }

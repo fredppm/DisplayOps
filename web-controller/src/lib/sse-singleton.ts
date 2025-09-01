@@ -139,9 +139,9 @@ class SSESingleton {
       
       // Clear timeout on successful connection
       this.eventSource.onopen = (originalOnOpen => {
-        return () => {
+        return (event) => {
           clearTimeout(timeoutId);
-          if (originalOnOpen) originalOnOpen();
+          if (originalOnOpen) originalOnOpen(event);
         };
       })(this.eventSource.onopen);
     });

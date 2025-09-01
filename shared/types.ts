@@ -32,6 +32,7 @@ export interface MiniPC {
   version: string;
   tvs: string[]; // TV IDs (legacy)
   displays: string[]; // Display IDs (e.g., ['display-1', 'display-2', 'display-3'])
+  displayStates?: DisplayState[]; // Detailed display states from gRPC heartbeats
   mdnsService?: MDNSServiceInfo;
 }
 
@@ -62,12 +63,29 @@ export interface TVStatus {
 
 // Display Status type for individual displays
 export interface DisplayStatus {
-  active: boolean;
+  isActive: boolean;
   currentUrl?: string;
   lastRefresh: Date;
   isResponsive: boolean;
   errorCount: number;
   lastError?: string;
+  windowId?: string; // ID of the Electron window managing this display
+  assignedDashboard?: {
+    dashboardId: string;
+    url: string;
+    refreshInterval?: number;
+    deployedAt?: string;
+  };
+}
+
+// Display State from gRPC heartbeats
+export interface DisplayState {
+  id: string;
+  isActive: boolean;
+  assignedDashboard?: {
+    dashboardId: string;
+    url: string;
+  } | null;
 }
 
 // mDNS Discovery Types
@@ -103,7 +121,9 @@ export enum CommandType {
   UPDATE_AGENT = 'update_agent',
   RESTART_BROWSER = 'restart_browser',
   TAKE_SCREENSHOT = 'take_screenshot',
-  IDENTIFY_DISPLAYS = 'identify_displays'
+  IDENTIFY_DISPLAYS = 'identify_displays',
+  DEBUG_ENABLE = 'debug_enable',
+  DEBUG_DISABLE = 'debug_disable'
 }
 
 export interface OpenDashboardCommand {

@@ -3,6 +3,7 @@ import { join } from 'path';
 import { EventEmitter } from 'events';
 import { URLValidator, URLValidationResult } from '../services/url-validator';
 import { RefreshManager, RefreshEvent } from '../services/refresh-manager';
+import { StateManager } from '../services/state-manager';
 
 export interface WindowConfig {
   id: string;
@@ -32,9 +33,11 @@ export class WindowManager extends EventEmitter {
   private windows: Map<string, ManagedWindow> = new Map();
   private displays: Display[] = [];
   private refreshManager!: RefreshManager;
+  private stateManager?: StateManager;
 
-  constructor() {
+  constructor(stateManager?: StateManager) {
     super();
+    this.stateManager = stateManager;
   }
 
   public initialize(): void {
@@ -142,6 +145,16 @@ export class WindowManager extends EventEmitter {
       // Store the window
       this.windows.set(config.id, managedWindow);
 
+      // Update StateManager to mark display as active
+      if (this.stateManager) {
+        this.stateManager.saveDisplayState(config.displayId, {
+          windowId: config.id,
+          isActive: true,
+          isResponsive: true
+        });
+        console.log(`✅ Marked display ${config.displayId} as active in StateManager (window: ${config.id})`);
+      }
+
       // Emit window created event
       this.emit('window-created', { windowId: config.id, totalWindows: this.windows.size });
 
@@ -168,6 +181,15 @@ export class WindowManager extends EventEmitter {
       }
 
       console.log(`Closing window: ${windowId}`);
+      
+      // Update StateManager to mark display as inactive
+      if (this.stateManager) {
+        this.stateManager.saveDisplayState(managedWindow.config.displayId, {
+          isActive: false,
+          windowId: undefined // Clear windowId since window is being closed
+        });
+        console.log(`❌ Marked display ${managedWindow.config.displayId} as inactive in StateManager (closed window: ${windowId})`);
+      }
       
       // Remove from refresh manager
       this.refreshManager.removeWindow(windowId);
@@ -467,6 +489,16 @@ export class WindowManager extends EventEmitter {
     // Handle window closed
     window.on('closed', () => {
       console.log(`Window ${id} was closed`);
+      
+      // Update StateManager to mark display as inactive
+      if (this.stateManager) {
+        this.stateManager.saveDisplayState(managedWindow.config.displayId, {
+          isActive: false,
+          windowId: undefined // Clear windowId since window is being closed
+        });
+        console.log(`❌ Marked display ${managedWindow.config.displayId} as inactive in StateManager (window closed: ${id})`);
+      }
+      
       this.windows.delete(id);
       this.emit('window-closed', { windowId: id, totalWindows: this.windows.size });
     });

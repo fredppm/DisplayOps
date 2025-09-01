@@ -18,6 +18,38 @@ export const ExtensionDropdown: React.FC = () => {
     detectBrowser();
   }, []);
 
+  // Close dropdown when clicking outside, pressing ESC, or when modals open
+  useEffect(() => {
+    const handleGlobalClick = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      
+      // Check if click is outside the dropdown component
+      const isInsideDropdown = target.closest('.extension-dropdown-container');
+      
+      // Check if any modal is opening by looking for modal elements
+      const modalExists = document.querySelector('.fixed.inset-0.bg-black.bg-opacity-50');
+      
+      if ((!isInsideDropdown || modalExists) && isOpen) {
+        setIsOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && isOpen) {
+        setIsOpen(false);
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('mousedown', handleGlobalClick);
+      document.addEventListener('keydown', handleKeyDown);
+      return () => {
+        document.removeEventListener('mousedown', handleGlobalClick);
+        document.removeEventListener('keydown', handleKeyDown);
+      };
+    }
+  }, [isOpen]);
+
   const detectBrowser = () => {
     const userAgent = navigator.userAgent;
     let browser: BrowserInfo;
@@ -158,7 +190,7 @@ export const ExtensionDropdown: React.FC = () => {
   return (
     <>
       {/* Dropdown Button */}
-      <div className="relative">
+      <div className="relative extension-dropdown-container">
         <button
           onClick={() => setIsOpen(!isOpen)}
           className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
@@ -173,12 +205,12 @@ export const ExtensionDropdown: React.FC = () => {
           <>
             {/* Backdrop */}
             <div 
-              className="fixed inset-0 z-10"
+              className="fixed inset-0 z-dropdown-backdrop"
               onClick={() => setIsOpen(false)}
             />
             
             {/* Menu Content */}
-            <div className="absolute right-0 mt-1 w-72 bg-white border border-gray-200 rounded-lg shadow-lg z-20">
+            <div className="absolute right-0 mt-1 w-72 bg-white border border-gray-200 rounded-lg shadow-lg z-dropdown">
               <div className="p-4">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="font-semibold text-gray-900">Browser Extension</h3>
@@ -223,7 +255,7 @@ export const ExtensionDropdown: React.FC = () => {
 
       {/* Installation Modal - same as after download */}
       {showFullModal && (
-        <div className="fixed top-0 left-0 right-0 bottom-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" style={{ margin: 0 }}>
+        <div className="fixed top-0 left-0 right-0 bottom-0 bg-black bg-opacity-50 flex items-center justify-center z-modal p-4" style={{ margin: 0 }}>
           <div className="bg-white rounded-xl max-w-md w-full p-6 shadow-2xl">
             {/* Modal Header */}
             <div className="flex items-center justify-between mb-6">

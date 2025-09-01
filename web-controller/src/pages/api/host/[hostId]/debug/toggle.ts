@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { proxyToHost } from '@/lib/host-utils';
+import { grpcClientService } from '@/lib/server/grpc-client-service';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { hostId } = req.query;
@@ -21,26 +21,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    // Proxy request directly to host (avoid internal fetch to discovery)
-    const hostResponse = await proxyToHost(hostId as string, `/api/debug/${action}`, {
-      method: 'POST'
-    });
-
-    const responseData = await hostResponse.json();
-
-    if (!hostResponse.ok) {
-      return res.status(hostResponse.status).json({
-        success: false,
-        error: responseData.error || `Host returned ${hostResponse.status}`
-      });
+    // Use gRPC client service instead of HTTP proxy
+    let result;
+    if (action === 'enable') {
+      result = await grpcClientService.enableDebugMode(hostId as string);
+    } else {
+      result = await grpcClientService.disableDebugMode(hostId as string);
     }
 
-    res.status(200).json(responseData);
+    res.status(200).json({
+      success: true,
+      data: result
+    });
 
   } catch (error) {
-    console.error('Debug toggle proxy error:', error);
+    console.error('Debug toggle gRPC error:', error);
     
-    if (error instanceof Error && error.message === 'Invalid host ID format') {
+    if (error instanceof Error && error.message.includes('Host') && error.message.includes('not connected')) {
+      return res.status(503).json({
+        success: false,
+        error: 'Host is not connected via gRPC'
+      });
+    }
+    
+    if (error instanceof Error && error.message.includes('Invalid host ID')) {
       return res.status(400).json({
         success: false,
         error: 'Invalid host ID format'
@@ -49,7 +53,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     
     res.status(500).json({
       success: false,
-      error: 'Internal server error'
+      error: error instanceof Error ? error.message : 'Internal server error'
     });
   }
 }

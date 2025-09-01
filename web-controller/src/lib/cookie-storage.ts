@@ -489,6 +489,43 @@ export class CookieStorageManager {
   }
 
   /**
+   * Remove entire domain and all its cookies
+   */
+  public static removeDomain(domain: string): {
+    success: boolean;
+    message: string;
+  } {
+    try {
+      const storage = this.loadStorage();
+      
+      if (!storage.domains[domain]) {
+        return {
+          success: false,
+          message: 'Domain not found'
+        };
+      }
+
+      const cookieCount = storage.domains[domain].cookies.length;
+      delete storage.domains[domain];
+      this.saveStorage(storage);
+      
+      console.log(`🗑️ Removed domain ${domain} with ${cookieCount} cookies`);
+
+      return {
+        success: true,
+        message: `Removed domain ${domain} and all ${cookieCount} cookies`
+      };
+
+    } catch (error) {
+      console.error('Error removing domain:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  }
+
+  /**
    * Validate if domain has cookies
    */
   public static validateDomain(domain: string): {

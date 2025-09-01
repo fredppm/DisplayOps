@@ -1,11 +1,11 @@
 {
   "version": "1.0.0",
-  "lastUpdated": "2025-09-01T02:02:09.333Z",
+  "lastUpdated": "2025-09-01T15:14:15.016Z",
   "displays": {
     "display-2": {
       "displayId": "display-2",
       "isActive": true,
-      "lastRefresh": "2025-09-01T02:02:08.317Z",
+      "lastRefresh": "2025-09-01T15:14:14.016Z",
       "isResponsive": true,
       "assignedDashboard": {
         "dashboardId": "common-dashboard",
@@ -13,7 +13,13 @@
         "refreshInterval": 300000,
         "deployedAt": "2025-08-31T10:16:15.535Z"
       },
-      "windowId": "dashboard-common-dashboard-display-2-restored-1756692124609"
+      "windowId": "dashboard-common-dashboard-display-2-restored-1756739650593"
+    },
+    "display-1": {
+      "displayId": "display-1",
+      "isActive": false,
+      "lastRefresh": "2025-09-01T13:54:08.233Z",
+      "isResponsive": true
     }
   }
 }

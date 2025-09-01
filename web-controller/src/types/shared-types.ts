@@ -24,6 +24,7 @@ export interface MiniPC {
   lastDiscovered: Date;
   version: string;
   displays: string[]; // Display IDs (e.g., ['display-1', 'display-2', 'display-3'])
+  displayStates?: DisplayState[]; // Detailed display states from gRPC heartbeats
   mdnsService?: MDNSServiceInfo;
 }
 
@@ -52,6 +53,7 @@ export interface DisplayStatus {
   isResponsive: boolean;
   errorCount: number;
   lastError?: string;
+  windowId?: string; // ID of the Electron window managing this display
 }
 
 // mDNS Discovery Types
@@ -77,6 +79,16 @@ export interface ApiCommand {
   targetDisplay?: string; // Add targetDisplay property
   payload: any;
   timestamp: Date;
+}
+
+// Display State from gRPC heartbeats
+export interface DisplayState {
+  id: string;
+  isActive: boolean;
+  assignedDashboard?: {
+    dashboardId: string;
+    url: string;
+  } | null;
 }
 
 export enum CommandType {

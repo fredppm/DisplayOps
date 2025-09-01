@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { MiniPC, Dashboard } from '@/types/shared-types';
+import { MiniPC, Dashboard, DisplayState } from '@/types/shared-types';
 import { 
   Monitor, 
   RefreshCw, 
@@ -13,14 +13,15 @@ import {
   AlertCircle,
   CheckCircle,
   X,
-  ChevronDown,
   Loader,
-  BarChart3,
+  LayoutDashboard,
   Settings,
-  Clock
+  Clock,
+  ArrowRightLeft,
+  Edit3
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-import { useDashboards } from '@/hooks/useDashboards';
+import { useNotifications } from '@/contexts/NotificationContext';
 
 interface DisplayCardProps {
   host: MiniPC;
@@ -30,15 +31,11 @@ interface DisplayCardProps {
   onToggleDebug?: (hostId: string) => Promise<void>;
   onDownloadDebugEvents?: (hostId: string) => Promise<void>;
   onClearDebugEvents?: (hostId: string) => Promise<void>;
+  onDeployDashboard?: (dashboardId: string, hostId: string, displayId: string) => Promise<void>;
+  onRemoveDashboard?: (hostId: string, displayId: string) => Promise<void>;
+  onOpenDashboardModal?: (hostId: string, displayId: string) => void;
 }
 
-interface Notification {
-  id: string;
-  type: 'success' | 'error' | 'warning' | 'info';
-  title: string;
-  message: string;
-  timestamp: Date;
-}
 
 interface ActiveDisplay {
   displayId: string;
@@ -57,36 +54,21 @@ export const DisplayCard: React.FC<DisplayCardProps> = ({
   onIdentifyDisplays,
   onToggleDebug,
   onDownloadDebugEvents,
-  onClearDebugEvents
+  onClearDebugEvents,
+  onDeployDashboard,
+  onRemoveDashboard,
+  onOpenDashboardModal
 }) => {
   const [showDebugControls, setShowDebugControls] = useState(false);
   const [identifyingDisplays, setIdentifyingDisplays] = useState(false);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [activeDisplays, setActiveDisplays] = useState<ActiveDisplay[]>([]);
+  const { addNotification } = useNotifications();
   const [refreshStatus, setRefreshStatus] = useState<RefreshStatus>({});
-  const [deployDropdownOpen, setDeployDropdownOpen] = useState<string | null>(null);
 
-  // Use real dashboards from API
-  const { dashboards, loading: dashboardsLoading, error: dashboardsError } = useDashboards();
+  const [debugToggling, setDebugToggling] = useState(false);
+  const [removingDashboard, setRemovingDashboard] = useState<string | null>(null);
 
-  const addNotification = (type: Notification['type'], title: string, message: string) => {
-    const notification: Notification = {
-      id: Math.random().toString(36).substr(2, 9),
-      type,
-      title,
-      message,
-      timestamp: new Date()
-    };
-    setNotifications(prev => [notification, ...prev.slice(0, 4)]);
-    
-    setTimeout(() => {
-      setNotifications(prev => prev.filter(n => n.id !== notification.id));
-    }, 4000);
-  };
 
-  const removeNotification = (id: string) => {
-    setNotifications(prev => prev.filter(n => n.id !== id));
-  };
 
   const getStatusColor = (): string => {
     if (!host.metrics.online) return 'status-offline';
@@ -151,12 +133,11 @@ export const DisplayCard: React.FC<DisplayCardProps> = ({
       if (onRefreshDisplay) {
         await onRefreshDisplay(host, displayId);
         setRefreshStatus(prev => ({ ...prev, [statusKey]: 'success' }));
-        addNotification('success', 'Display Refreshed', 
-          `${displayId.replace('display-', 'Display ')} refreshed successfully`);
+        // HostsList já trata as notificações, não duplicar aqui
       }
     } catch (error) {
       setRefreshStatus(prev => ({ ...prev, [statusKey]: 'error' }));
-      addNotification('error', 'Refresh Failed', 'Failed to refresh display');
+      // HostsList já trata os erros, não duplicar aqui
     }
 
     setTimeout(() => {
@@ -169,49 +150,114 @@ export const DisplayCard: React.FC<DisplayCardProps> = ({
       setIdentifyingDisplays(true);
       try {
         await onIdentifyDisplays(host.id);
-        addNotification('success', 'Display Identification', 'Showing numbers on displays');
+        // HostsList já trata as notificações, não duplicar aqui
         setTimeout(() => setIdentifyingDisplays(false), 5000);
       } catch (error) {
-        addNotification('error', 'Identification Failed', 'Failed to identify displays');
+        // HostsList já trata os erros, apenas resetar estado local
         setIdentifyingDisplays(false);
       }
     }
   };
 
-  const handleDeployDashboard = async (dashboardId: string, displayId: string) => {
-    const dashboard = dashboards.find(d => d.id === dashboardId);
-    if (!dashboard) return;
+  const handleToggleDebug = async () => {
+    if (onToggleDebug) {
+      setDebugToggling(true);
+      try {
+        await onToggleDebug(host.id);
+        // HostsList já trata as notificações, não duplicar aqui
+      } catch (error) {
+        // HostsList já trata os erros, apenas resetar estado local
+      } finally {
+        setDebugToggling(false);
+      }
+    }
+  };
+
+
+  const handleRemoveDashboard = async (displayId: string) => {
+    if (!onRemoveDashboard) return;
+
+    setRemovingDashboard(displayId);
 
     try {
-      // This would make the actual API call to deploy
-      addNotification('info', 'Deploying Dashboard', `Opening ${dashboard.name} on ${displayId.replace('display-', 'Display ')}...`);
+      await onRemoveDashboard(host.id, displayId);
       
-      // Mock deployment - in real app this would call the actual API
+      // Keep loading state for a bit to show success
       setTimeout(() => {
-        addNotification('success', 'Dashboard Deployed', 
-          `${dashboard.name} is now displaying on ${displayId.replace('display-', 'Display ')}`);
+        setRemovingDashboard(null);
       }, 2000);
       
     } catch (error) {
-      addNotification('error', 'Deployment Failed', 'Failed to deploy dashboard');
+      console.error('Dashboard removal failed:', error);
+      // Immediately reset loading state on error
+      setRemovingDashboard(null);
+      addNotification('error', 'Removal Failed', 
+        error instanceof Error ? error.message : 'Failed to remove dashboard');
     }
-    
-    setDeployDropdownOpen(null);
   };
+
 
   const getDisplayStatus = (displayId: string) => {
     const display = activeDisplays.find(d => d.displayId === displayId);
+    
+    // 🔍 NEW: Check display states from gRPC heartbeat first
+    const displayState = host.displayStates?.find(ds => ds.id === displayId);
+    
+    if (displayState) {
+      if (displayState.assignedDashboard) {
+        // Use dashboard ID as display text since we don't have dashboard names in this component
+        const displayText = displayState.assignedDashboard.dashboardId;
+        
+        return {
+          status: 'active',
+          text: displayText,
+          color: displayState.isActive ? 'text-green-600' : 'text-yellow-600',
+          dashboard: displayState.assignedDashboard.dashboardId,
+          url: displayState.assignedDashboard.url
+        };
+      } else if (displayState.isActive) {
+        return {
+          status: 'active',
+          text: 'Active (No Dashboard)',
+          color: 'text-yellow-600'
+        };
+      } else {
+        return {
+          status: 'empty',
+          text: 'Inactive',
+          color: 'text-gray-500'
+        };
+      }
+    }
+    
+    // Fallback to legacy mDNS TXT record method
     if (!display) return { status: 'unknown', text: 'Unknown', color: 'text-gray-500' };
     
-    if (display.hasWindow) {
-      // Mock getting dashboard name - in real app this would come from API
-      const mockActiveDashboard = displayId === 'display-1' ? 'Grafana VTEX' : 
-                                  displayId === 'display-2' ? 'Health Monitor' : null;
+    const displayDashboards = host.mdnsService?.txtRecord?.displayDashboards;
+    
+    let activeDashboardId: string | null = null;
+    if (displayDashboards) {
+      // Parse displayDashboards format: "display-1:dashboard-1,display-2:dashboard-2"
+      const dashboardMap = displayDashboards.split(',').reduce((acc, entry) => {
+        const [dId, dashId] = entry.split(':');
+        if (dId && dashId) {
+          acc[dId] = dashId;
+        }
+        return acc;
+      }, {} as Record<string, string>);
+      
+      activeDashboardId = dashboardMap[displayId] || null;
+    }
+    
+    if (display.hasWindow || activeDashboardId) {
+      // Use dashboard ID as display text for fallback method too
+      const displayText = activeDashboardId || 'Active';
+      
       return {
         status: 'active',
-        text: mockActiveDashboard || 'Active',
+        text: displayText,
         color: 'text-green-600',
-        dashboard: mockActiveDashboard
+        dashboard: activeDashboardId
       };
     }
     
@@ -224,43 +270,9 @@ export const DisplayCard: React.FC<DisplayCardProps> = ({
     }
   }, [host.metrics.online]);
 
-  const getNotificationColor = (type: string) => {
-    switch (type) {
-      case 'success': return 'bg-green-100 border-green-400 text-green-700';
-      case 'error': return 'bg-red-100 border-red-400 text-red-700';
-      case 'warning': return 'bg-yellow-100 border-yellow-400 text-yellow-700';
-      case 'info': return 'bg-blue-100 border-blue-400 text-blue-700';
-      default: return 'bg-gray-100 border-gray-400 text-gray-700';
-    }
-  };
 
   return (
     <>
-      {/* Notifications */}
-      {notifications.length > 0 && (
-        <div className="fixed top-4 right-4 z-50 space-y-2 max-w-md">
-          {notifications.map((notification) => (
-            <div
-              key={notification.id}
-              className={`border-l-4 p-4 rounded shadow-lg ${getNotificationColor(notification.type)}`}
-            >
-              <div className="flex justify-between items-start">
-                <div>
-                  <p className="font-semibold">{notification.title}</p>
-                  <p className="text-sm">{notification.message}</p>
-                </div>
-                <button
-                  onClick={() => removeNotification(notification.id)}
-                  className="ml-2 text-lg leading-none hover:opacity-70"
-                >
-                  ×
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
       <div className="card hover:shadow-md transition-all duration-200">
         {/* Desktop Layout */}
         <div className="hidden lg:block">
@@ -302,60 +314,91 @@ export const DisplayCard: React.FC<DisplayCardProps> = ({
                 <div className="flex gap-2">
                   <button
                     onClick={handleIdentifyDisplays}
-                    disabled={identifyingDisplays}
+                    disabled={identifyingDisplays || !host.metrics.online}
                     className={`flex-1 text-xs px-3 py-2 rounded transition-colors flex items-center justify-center ${
                       identifyingDisplays 
-                        ? 'bg-blue-200 text-blue-800 animate-pulse' 
-                        : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                        ? 'bg-blue-200 text-blue-800 animate-pulse cursor-not-allowed' 
+                        : !host.metrics.online
+                          ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                          : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
                     }`}
-                    title="Identify Displays"
+                    title={identifyingDisplays ? 'Identifying...' : !host.metrics.online ? 'Host offline' : 'Identify Displays'}
                   >
-                    <Search className="w-3 h-3 mr-1" />
-                    Identify
+                    {identifyingDisplays ? (
+                      <>
+                        <Loader className="w-3 h-3 mr-1 animate-spin" />
+                        Identifying...
+                      </>
+                    ) : (
+                      <>
+                        <Search className="w-3 h-3 mr-1" />
+                        Identify
+                      </>
+                    )}
                   </button>
                   
                   <button
-                    onClick={() => setShowDebugControls(!showDebugControls)}
+                    onClick={handleToggleDebug}
+                    disabled={debugToggling || !host.metrics.online}
                     className={`flex-1 text-xs px-3 py-2 rounded transition-colors flex items-center justify-center ${
-                      host.debugEnabled 
-                        ? 'bg-green-100 text-green-700 hover:bg-green-200' 
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      debugToggling 
+                        ? 'bg-blue-200 text-blue-800 animate-pulse cursor-not-allowed' 
+                        : !host.metrics.online
+                          ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                          : host.debugEnabled 
+                            ? 'bg-green-100 text-green-700 hover:bg-green-200' 
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                     }`}
-                    title={`Debug ${host.debugEnabled ? 'Enabled' : 'Disabled'}`}
+                    title={debugToggling ? 'Toggling...' : !host.metrics.online ? 'Host offline' : host.debugEnabled ? 'Disable Debug' : 'Enable Debug'}
                   >
-                    <Bug className="w-3 h-3 mr-1" />
-                    Debug
+                    {debugToggling ? (
+                      <>
+                        <Loader className="w-3 h-3 mr-1 animate-spin" />
+                        Toggling...
+                      </>
+                    ) : (
+                      <>
+                        <Bug className="w-3 h-3 mr-1" />
+                        Debug
+                      </>
+                    )}
                   </button>
                 </div>
 
-                {showDebugControls && (
-                  <div className="space-y-1 pt-2 border-t">
-                    <button
-                      onClick={() => onToggleDebug?.(host.id)}
-                      className={`text-xs px-2 py-1 rounded transition-colors w-full ${
-                        host.debugEnabled 
-                          ? 'bg-red-100 text-red-700 hover:bg-red-200' 
-                          : 'bg-green-100 text-green-700 hover:bg-green-200'
-                      }`}
-                    >
-                      {host.debugEnabled ? 'Disable' : 'Enable'}
-                    </button>
-                    
-                    <button
-                      onClick={() => onDownloadDebugEvents?.(host.id)}
-                      disabled={!host.debugEnabled}
-                      className="text-xs bg-blue-100 text-blue-700 hover:bg-blue-200 disabled:bg-gray-200 disabled:text-gray-500 px-2 py-1 rounded w-full"
-                    >
-                      📥 Export
-                    </button>
-                    
-                    <button
-                      onClick={() => onClearDebugEvents?.(host.id)}
-                      disabled={!host.debugEnabled}
-                      className="text-xs bg-orange-100 text-orange-700 hover:bg-orange-200 disabled:bg-gray-200 disabled:text-gray-500 px-2 py-1 rounded w-full"
-                    >
-                      🗑️ Clear
-                    </button>
+                {host.debugEnabled && (
+                  <div className="space-y-2 pt-2 border-t">
+                    <h5 className="text-xs font-medium text-gray-700 uppercase tracking-wide">
+                      Debug Logs
+                    </h5>
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => onDownloadDebugEvents?.(host.id)}
+                        disabled={!host.metrics.online}
+                        className={`flex-1 text-xs px-2 py-1 rounded flex items-center justify-center ${
+                          !host.metrics.online
+                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                            : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                        }`}
+                        title={!host.metrics.online ? 'Host offline' : 'Export debug logs'}
+                      >
+                        <Download className="w-3 h-3 mr-1" />
+                        Export
+                      </button>
+                      
+                      <button
+                        onClick={() => onClearDebugEvents?.(host.id)}
+                        disabled={!host.metrics.online}
+                        className={`flex-1 text-xs px-2 py-1 rounded flex items-center justify-center ${
+                          !host.metrics.online
+                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                            : 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+                        }`}
+                        title={!host.metrics.online ? 'Host offline' : 'Clear debug logs'}
+                      >
+                        <Trash2 className="w-3 h-3 mr-1" />
+                        Clear
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -367,73 +410,79 @@ export const DisplayCard: React.FC<DisplayCardProps> = ({
               return (
                 <div key={displayId}>
                   <div className="h-full flex flex-col border border-gray-200 rounded-lg p-3 bg-white">
-                    <div className="text-sm font-medium text-gray-900 mb-1">
+                    <div className="text-sm font-medium text-gray-900 mb-1 text-center">
                       {displayId.replace('display-', 'Display ')}
                     </div>
-                    <div className={`text-xs mb-2 flex items-center ${displayStatus.color}`}>
-                      <BarChart3 className="w-3 h-3 mr-1" />
+                    <div className={`text-xs mb-2 ${displayStatus.color} text-center`}>
                       {displayStatus.text}
                     </div>
-                    {displayStatus.dashboard && (
-                      <div className="text-xs text-gray-600 mb-2">
-                        Active 2min ago
-                      </div>
-                    )}
                     <div className="mt-auto">
                       {displayStatus.status === 'active' ? (
                         <div className="space-y-1">
                           <button
                             onClick={() => handleRefreshDisplay(displayId)}
-                            className="w-full text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 py-2 rounded flex items-center justify-center"
-                            disabled={refreshStatus[`${host.id}-${displayId}`] === 'refreshing'}
+                            className={`w-full text-xs py-2 rounded flex items-center justify-center ${
+                              !host.metrics.online
+                                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                            }`}
+                            disabled={refreshStatus[`${host.id}-${displayId}`] === 'refreshing' || !host.metrics.online}
+                            title={!host.metrics.online ? 'Host offline' : 'Refresh display'}
                           >
                             <RefreshCw className="w-3 h-3 mr-1" />
                             {refreshStatus[`${host.id}-${displayId}`] === 'refreshing' ? 'Refreshing...' : 'Refresh'}
                           </button>
-                          <button className="w-full text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 py-2 rounded flex items-center justify-center">
-                            <Settings className="w-3 h-3 mr-1" />
-                            Config
-                          </button>
+                          <div className="flex gap-1">
+                            <button
+                              onClick={() => onOpenDashboardModal?.(host.id, displayId)}
+                              disabled={!host.metrics.online}
+                              className={`flex-1 text-xs py-2 rounded flex items-center justify-center transition-colors ${
+                                !host.metrics.online
+                                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                  : 'bg-blue-100 hover:bg-blue-200 text-blue-700'
+                              }`}
+                              title={!host.metrics.online ? 'Host offline' : 'Change dashboard'}
+                            >
+                              <ArrowRightLeft className="w-3 h-3 mr-1" />
+                              Change
+                            </button>
+                            <button
+                              onClick={() => handleRemoveDashboard(displayId)}
+                              disabled={removingDashboard === displayId || !host.metrics.online}
+                              className={`flex-1 text-xs py-2 rounded flex items-center justify-center transition-colors ${
+                                removingDashboard === displayId 
+                                  ? 'bg-red-100 text-red-700 cursor-not-allowed'
+                                  : !host.metrics.online
+                                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                    : 'bg-red-100 hover:bg-red-200 text-red-700'
+                              }`}
+                              title={!host.metrics.online ? 'Host offline' : 'Remove dashboard'}
+                            >
+                              {removingDashboard === displayId ? (
+                                <Loader className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <>
+                                  <Trash2 className="w-3 h-3 mr-1" />
+                                  Remove
+                                </>
+                              )}
+                            </button>
+                          </div>
                         </div>
                       ) : (
-                        <div className="relative">
-                          <button
-                            onClick={() => setDeployDropdownOpen(deployDropdownOpen === displayId ? null : displayId)}
-                            className="w-full text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 py-2 rounded flex items-center justify-center"
-                          >
-                            <BarChart3 className="w-3 h-3 mr-1" />
-                            Deploy Dashboard
-                            <ChevronDown className="w-3 h-3 ml-1" />
-                          </button>
-                          {deployDropdownOpen === displayId && (
-                            <div className="absolute top-full left-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-50 w-full max-h-48 overflow-y-auto">
-                              {dashboardsLoading ? (
-                                <div className="px-3 py-2 text-sm text-gray-700 flex items-center">
-                                  <Loader className="w-3 h-3 mr-2 animate-spin" />
-                                  Loading dashboards...
-                                </div>
-                              ) : dashboardsError ? (
-                                <div className="px-3 py-2 text-sm text-red-700 bg-red-50">
-                                  Error loading dashboards
-                                </div>
-                              ) : dashboards.length === 0 ? (
-                                <div className="px-3 py-2 text-sm text-gray-700">
-                                  No dashboards available
-                                </div>
-                              ) : (
-                                dashboards.map((dashboard) => (
-                                  <button
-                                    key={dashboard.id}
-                                    onClick={() => handleDeployDashboard(dashboard.id, displayId)}
-                                    className="block w-full text-left px-3 py-2 text-sm text-gray-900 hover:bg-blue-50 hover:text-blue-900 transition-colors border-b border-gray-100 last:border-b-0"
-                                  >
-                                    <span className="truncate">{dashboard.name}</span>
-                                  </button>
-                                ))
-                              )}
-                            </div>
-                          )}
-                        </div>
+                        <button
+                          onClick={() => onOpenDashboardModal?.(host.id, displayId)}
+                          disabled={!host.metrics.online}
+                          className={`w-full text-xs py-2 rounded flex items-center justify-center transition-colors ${
+                            !host.metrics.online
+                              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                              : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                          }`}
+                          title={!host.metrics.online ? 'Host offline' : 'Deploy dashboard'}
+                        >
+                          <LayoutDashboard className="w-3 h-3 mr-1" />
+                          Deploy Dashboard
+                        </button>
                       )}
                     </div>
                   </div>
@@ -479,7 +528,7 @@ export const DisplayCard: React.FC<DisplayCardProps> = ({
                       {displayId.replace('display-', 'Display ')}
                     </div>
                     <div className={`ml-2 text-sm flex items-center ${getDisplayStatus(displayId).color}`}>
-                      <BarChart3 className="w-3 h-3 mr-1" />
+                      <LayoutDashboard className="w-3 h-3 mr-1" />
                       {getDisplayStatus(displayId).text}
                     </div>
                   </div>
@@ -496,56 +545,65 @@ export const DisplayCard: React.FC<DisplayCardProps> = ({
                     <>
                       <button
                         onClick={() => handleRefreshDisplay(displayId)}
-                        className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded text-sm flex items-center justify-center"
-                        disabled={refreshStatus[`${host.id}-${displayId}`] === 'refreshing'}
+                        className={`w-full px-3 py-2 rounded text-sm flex items-center justify-center ${
+                          !host.metrics.online
+                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                            : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                        }`}
+                        disabled={refreshStatus[`${host.id}-${displayId}`] === 'refreshing' || !host.metrics.online}
+                        title={!host.metrics.online ? 'Host offline' : 'Refresh display'}
                       >
                         <RefreshCw className="w-4 h-4 mr-2" />
                         {refreshStatus[`${host.id}-${displayId}`] === 'refreshing' ? 'Refreshing...' : 'Refresh'}
                       </button>
-                      <button className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded text-sm flex items-center justify-center">
-                        <Settings className="w-4 h-4 mr-2" />
-                        Config
-                      </button>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => onOpenDashboardModal?.(host.id, displayId)}
+                          disabled={!host.metrics.online}
+                          className={`flex-1 px-3 py-2 rounded text-sm flex items-center justify-center transition-colors ${
+                            !host.metrics.online
+                              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                              : 'bg-blue-100 hover:bg-blue-200 text-blue-700'
+                          }`}
+                          title={!host.metrics.online ? 'Host offline' : 'Change dashboard'}
+                        >
+                          <ArrowRightLeft className="w-4 h-4 mr-2" />
+                          Change Dashboard
+                        </button>
+                        <button
+                          onClick={() => handleRemoveDashboard(displayId)}
+                          disabled={removingDashboard === displayId || !host.metrics.online}
+                          className={`px-3 py-2 rounded text-sm flex items-center justify-center transition-colors ${
+                            removingDashboard === displayId 
+                              ? 'bg-red-100 text-red-700 cursor-not-allowed'
+                              : !host.metrics.online
+                                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                : 'bg-red-100 hover:bg-red-200 text-red-700'
+                          }`}
+                          title={!host.metrics.online ? 'Host offline' : 'Remove dashboard'}
+                        >
+                          {removingDashboard === displayId ? (
+                            <Loader className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="w-4 h-4" />
+                          )}
+                        </button>
+                      </div>
                     </>
                   ) : (
-                    <div className="relative">
-                      <button
-                        onClick={() => setDeployDropdownOpen(deployDropdownOpen === displayId ? null : displayId)}
-                        className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded text-sm flex items-center justify-center"
-                      >
-                        <BarChart3 className="w-4 h-4 mr-2" />
-                        Deploy Dashboard 
-                        <ChevronDown className="w-4 h-4 ml-2" />
-                      </button>
-                      {deployDropdownOpen === displayId && (
-                        <div className="absolute top-full left-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-50 w-full max-h-48 overflow-y-auto">
-                          {dashboardsLoading ? (
-                            <div className="px-3 py-2 text-sm text-gray-700 flex items-center">
-                              <Loader className="w-4 h-4 mr-2 animate-spin" />
-                              Loading dashboards...
-                            </div>
-                          ) : dashboardsError ? (
-                            <div className="px-3 py-2 text-sm text-red-700 bg-red-50">
-                              Error loading dashboards
-                            </div>
-                          ) : dashboards.length === 0 ? (
-                            <div className="px-3 py-2 text-sm text-gray-700">
-                              No dashboards available
-                            </div>
-                          ) : (
-                            dashboards.map((dashboard) => (
-                              <button
-                                key={dashboard.id}
-                                onClick={() => handleDeployDashboard(dashboard.id, displayId)}
-                                className="block w-full text-left px-3 py-2 text-sm text-gray-900 hover:bg-blue-50 hover:text-blue-900 transition-colors border-b border-gray-100 last:border-b-0"
-                              >
-                                <span className="truncate">{dashboard.name}</span>
-                              </button>
-                            ))
-                          )}
-                        </div>
-                      )}
-                    </div>
+                    <button
+                      onClick={() => onOpenDashboardModal?.(host.id, displayId)}
+                      disabled={!host.metrics.online}
+                      className={`w-full px-3 py-2 rounded text-sm flex items-center justify-center transition-colors ${
+                        !host.metrics.online
+                          ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                          : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                      }`}
+                      title={!host.metrics.online ? 'Host offline' : 'Deploy dashboard'}
+                    >
+                      <LayoutDashboard className="w-4 h-4 mr-2" />
+                      Deploy Dashboard
+                    </button>
                   )}
                 </div>
               </div>
@@ -567,46 +625,92 @@ export const DisplayCard: React.FC<DisplayCardProps> = ({
             <div className="flex gap-2">
               <button
                 onClick={handleIdentifyDisplays}
-                disabled={identifyingDisplays}
+                disabled={identifyingDisplays || !host.metrics.online}
                 className={`flex-1 px-3 py-2 rounded text-sm transition-colors flex items-center justify-center ${
                   identifyingDisplays 
-                    ? 'bg-blue-200 text-blue-800 animate-pulse' 
-                    : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                    ? 'bg-blue-200 text-blue-800 animate-pulse cursor-not-allowed' 
+                    : !host.metrics.online
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
                 }`}
+                title={identifyingDisplays ? 'Identifying...' : !host.metrics.online ? 'Host offline' : 'Identify displays'}
               >
-                <Search className="w-4 h-4 mr-2" />
-                Identify Displays
+                {identifyingDisplays ? (
+                  <>
+                    <Loader className="w-4 h-4 mr-2 animate-spin" />
+                    Identifying...
+                  </>
+                ) : (
+                  <>
+                    <Search className="w-4 h-4 mr-2" />
+                    Identify Displays
+                  </>
+                )}
               </button>
               
               <button
-                onClick={() => onToggleDebug?.(host.id)}
+                onClick={handleToggleDebug}
+                disabled={debugToggling || !host.metrics.online}
                 className={`flex-1 px-3 py-2 rounded text-sm transition-colors flex items-center justify-center ${
-                  host.debugEnabled 
-                    ? 'bg-green-100 text-green-700 hover:bg-green-200' 
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  debugToggling 
+                    ? 'bg-blue-200 text-blue-800 animate-pulse cursor-not-allowed' 
+                    : !host.metrics.online
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      : host.debugEnabled 
+                        ? 'bg-green-100 text-green-700 hover:bg-green-200' 
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
-                title={`Debug ${host.debugEnabled ? 'Enabled' : 'Disabled'}`}
+                title={debugToggling ? 'Toggling...' : !host.metrics.online ? 'Host offline' : host.debugEnabled ? 'Disable Debug' : 'Enable Debug'}
               >
-                <Bug className="w-4 h-4 mr-2" />
-                Debug
+                {debugToggling ? (
+                  <>
+                    <Loader className="w-4 h-4 mr-2 animate-spin" />
+                    Toggling...
+                  </>
+                ) : (
+                  <>
+                    <Bug className="w-4 h-4 mr-2" />
+                    Debug
+                  </>
+                )}
               </button>
               
-              <button
-                onClick={() => onDownloadDebugEvents?.(host.id)}
-                disabled={!host.debugEnabled}
-                className="bg-blue-100 text-blue-700 hover:bg-blue-200 disabled:bg-gray-200 disabled:text-gray-500 px-3 py-1 rounded text-sm"
-              >
-                📥 Export Logs
-              </button>
-              
-              <button
-                onClick={() => onClearDebugEvents?.(host.id)}
-                disabled={!host.debugEnabled}
-                className="bg-orange-100 text-orange-700 hover:bg-orange-200 disabled:bg-gray-200 disabled:text-gray-500 px-3 py-1 rounded text-sm"
-              >
-                🗑️ Clear Logs
-              </button>
             </div>
+            
+            {host.debugEnabled && (
+              <div className="pt-3 border-t">
+                <h4 className="text-sm font-medium text-gray-700 mb-3">Debug Logs</h4>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => onDownloadDebugEvents?.(host.id)}
+                    disabled={!host.metrics.online}
+                    className={`flex-1 px-3 py-2 rounded text-sm flex items-center justify-center ${
+                      !host.metrics.online
+                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                        : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                    }`}
+                    title={!host.metrics.online ? 'Host offline' : 'Export debug logs'}
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Export
+                  </button>
+                  
+                  <button
+                    onClick={() => onClearDebugEvents?.(host.id)}
+                    disabled={!host.metrics.online}
+                    className={`flex-1 px-3 py-2 rounded text-sm flex items-center justify-center ${
+                      !host.metrics.online
+                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                        : 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+                    }`}
+                    title={!host.metrics.online ? 'Host offline' : 'Clear debug logs'}
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Clear
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

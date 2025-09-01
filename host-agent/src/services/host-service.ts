@@ -1,5 +1,6 @@
 import { ConfigManager } from '../managers/config-manager';
 import { HealthCheckResponse, HostStatus, DisplayStatus, ApiResponse } from '../../../shared/types';
+import { StateManager } from './state-manager';
 import os from 'os';
 
 export class HostService {
@@ -9,9 +10,11 @@ export class HostService {
   private healthCheckInterval: NodeJS.Timeout | null = null;
   private lastCpuInfo: any = null;
   private lastCpuTime: number = Date.now();
+  private stateManager: StateManager;
 
-  constructor(configManager: ConfigManager) {
+  constructor(configManager: ConfigManager, stateManager?: StateManager) {
     this.configManager = configManager;
+    this.stateManager = stateManager || new StateManager();
     this.hostStatus = this.initializeHostStatus();
     this.displayStatuses = new Map();
     
@@ -33,14 +36,32 @@ export class HostService {
     const displays = this.configManager.getDisplays();
     
     displays.forEach(display => {
+      // Get dashboard data and current state from StateManager
+      const assignedDashboard = this.stateManager.getAssignedDashboard(display.id);
+      const currentState = this.stateManager.getDisplayState(display.id);
+      
       this.displayStatuses.set(display.id, {
-        active: false,
+        isActive: currentState?.isActive || false, // Use real state from StateManager
         currentUrl: undefined,
         lastRefresh: new Date(),
         isResponsive: true,
         errorCount: 0,
-        lastError: undefined
+        lastError: undefined,
+        windowId: currentState?.windowId, // Include windowId from state
+        assignedDashboard: assignedDashboard ? {
+          dashboardId: assignedDashboard.dashboardId,
+          url: assignedDashboard.url,
+          refreshInterval: assignedDashboard.refreshInterval,
+          deployedAt: assignedDashboard.deployedAt.toISOString()
+        } : undefined
       });
+    });
+    
+    // 🔍 LOG: Display status initialization with dashboard data
+    console.log(`🔍 HOSTSERVICE: Inicializados ${displays.length} displays:`);
+    displays.forEach(display => {
+      const status = this.displayStatuses.get(display.id);
+      console.log(`  - Display ${display.id}: isActive = ${status?.isActive}, dashboard = ${status?.assignedDashboard?.dashboardId || 'Nenhum'}`);
     });
   }
 
@@ -184,7 +205,7 @@ export class HostService {
     // Clear existing display statuses
     this.displayStatuses.clear();
     
-    // Reinitialize with current configuration
+    // Reinitialize with current configuration and dashboard data
     this.initializeDisplayStatuses();
     
     console.log(`🔄 Refreshed display statuses: ${this.displayStatuses.size} displays`);
@@ -199,15 +220,26 @@ export class HostService {
     // Get fresh display configuration from system
     const displays = this.configManager.getDisplays();
     
-    // Create new display statuses
+    // Create new display statuses with dashboard data
     displays.forEach(display => {
+      // Get dashboard data and current state from StateManager
+      const assignedDashboard = this.stateManager.getAssignedDashboard(display.id);
+      const currentState = this.stateManager.getDisplayState(display.id);
+      
       this.displayStatuses.set(display.id, {
-        active: false,
+        isActive: currentState?.isActive || false, // Use real state from StateManager
         currentUrl: undefined,
-        lastRefresh: new Date(),
-        isResponsive: true,
+        lastRefresh: currentState?.lastRefresh || new Date(),
+        isResponsive: currentState?.isResponsive || true,
         errorCount: 0,
-        lastError: undefined
+        lastError: undefined,
+        windowId: currentState?.windowId, // Include windowId from state
+        assignedDashboard: assignedDashboard ? {
+          dashboardId: assignedDashboard.dashboardId,
+          url: assignedDashboard.url,
+          refreshInterval: assignedDashboard.refreshInterval,
+          deployedAt: assignedDashboard.deployedAt.toISOString()
+        } : undefined
       });
     });
     
@@ -292,7 +324,10 @@ export class HostService {
     return this.hostStatus;
   }
 
-  public getDisplayStatuses(): DisplayStatus[] {
-    return Array.from(this.displayStatuses.values());
+  public getDisplayStatuses(): (DisplayStatus & { id: string })[] {
+    return Array.from(this.displayStatuses.entries()).map(([displayId, status]) => ({
+      ...status,
+      id: displayId
+    }));
   }
 }

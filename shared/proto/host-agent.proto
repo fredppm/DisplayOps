@@ -41,6 +41,8 @@ message CommandRequest {
     TakeScreenshotCommand take_screenshot = 15;
     UpdateAgentCommand update_agent = 16;
     RestartBrowserCommand restart_browser = 17;
+    DebugEnableCommand debug_enable = 18;
+    DebugDisableCommand debug_disable = 19;
   }
 }
 
@@ -61,6 +63,8 @@ message CommandResponse {
     HealthCheckResult health_check_result = 16;
     UpdateAgentResult update_agent_result = 17;
     RestartBrowserResult restart_browser_result = 18;
+    DebugEnableResult debug_enable_result = 19;
+    DebugDisableResult debug_disable_result = 20;
   }
 }
 
@@ -74,6 +78,8 @@ enum CommandType {
   TAKE_SCREENSHOT = 6;
   RESTART_BROWSER = 7;
   UPDATE_AGENT = 8;
+  DEBUG_ENABLE = 9;
+  DEBUG_DISABLE = 10;
 }
 
 // ================================
@@ -126,6 +132,14 @@ message RestartBrowserCommand {
   repeated string display_ids = 1; // Specific displays to restart, empty = all
   bool force_kill = 2; // Force kill browser processes
   int32 delay_seconds = 3; // Delay before restart
+}
+
+message DebugEnableCommand {
+  // No specific parameters needed for debug enable
+}
+
+message DebugDisableCommand {
+  // No specific parameters needed for debug disable
 }
 
 // ================================
@@ -188,6 +202,16 @@ message RestartBrowserResult {
   repeated string failed_displays = 2;
   int32 processes_killed = 3;
   int32 processes_started = 4;
+}
+
+message DebugEnableResult {
+  bool debug_enabled = 1;
+  string status_message = 2;
+}
+
+message DebugDisableResult {
+  bool debug_disabled = 1;
+  string status_message = 2;
 }
 
 // Also define as separate response for the HealthCheck RPC

@@ -68,3 +68,46 @@ a {
     @apply bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-sm font-medium;
   }
 }
+
+/* Z-index hierarchy to prevent layer conflicts */
+@layer utilities {
+  /* Tooltips and small overlays */
+  .z-tooltip { z-index: 40; }
+  
+  /* Modal backdrops */
+  .z-modal-backdrop { z-index: 50; }
+  
+  /* Modal content */
+  .z-modal { z-index: 60; }
+  
+  /* Dropdown backdrops */
+  .z-dropdown-backdrop { z-index: 60; }
+  
+  /* Dropdown menus */
+  .z-dropdown { z-index: 70; }
+  
+  /* Notifications and alerts */
+  .z-notification { z-index: 9999; }
+}
+
+/* Dropdown behavior improvements */
+.dropdown-container {
+  /* Ensure dropdowns work properly with click detection */
+  position: relative;
+}
+
+/* Smooth animations for dropdown appearance */
+.z-dropdown {
+  animation: fadeInScale 0.15s ease-out;
+}
+
+@keyframes fadeInScale {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}

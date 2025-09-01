@@ -64,118 +64,6 @@ async function ensurePortAvailable(port: number): Promise<boolean> {
   return true;
 }
 
-// Single instance lock mechanism
-const LOCK_FILE_NAME = 'office-tv-host-agent.lock';
-const lockFilePath = path.join(os.tmpdir(), LOCK_FILE_NAME);
-
-function ensureSingleInstance(): boolean {
-  try {
-    // Check if lock file exists
-    if (fs.existsSync(lockFilePath)) {
-      // Read the PID from the lock file
-      const lockContent = fs.readFileSync(lockFilePath, 'utf8');
-      const pid = parseInt(lockContent.trim());
-      
-      // Check if the process is still running
-      try {
-        process.kill(pid, 0); // Signal 0 doesn't kill the process, just checks if it exists
-        console.log(`🚫 Another instance is already running (PID: ${pid})`);
-        
-        // Try to force kill the existing instance
-        try {
-          console.log(`🔪 Attempting to force kill existing instance (PID: ${pid})...`);
-          process.kill(pid, 'SIGKILL');
-          
-          // Wait a bit for the process to be killed
-          setTimeout(() => {
-            try {
-              // Check if process is still running
-              process.kill(pid, 0);
-              console.log(`⚠️ Process ${pid} is still running after SIGKILL`);
-            } catch (error) {
-              console.log(`✅ Process ${pid} successfully terminated`);
-              // Remove the lock file since the process is dead
-              if (fs.existsSync(lockFilePath)) {
-                fs.unlinkSync(lockFilePath);
-                console.log('Lock file removed after killing existing instance');
-              }
-            }
-          }, 1000);
-          
-          // Continue with this instance
-          console.log('Proceeding with current instance...');
-          return true;
-        } catch (killError) {
-          console.log(`❌ Failed to kill process ${pid}:`, killError);
-          console.log('Attempting to continue anyway...');
-          
-          // Try to remove the lock file and continue
-          try {
-            if (fs.existsSync(lockFilePath)) {
-              fs.unlinkSync(lockFilePath);
-              console.log('Lock file removed, continuing with current instance');
-            }
-            return true;
-          } catch (removeError) {
-            console.log('Failed to remove lock file:', removeError);
-            return false;
-          }
-        }
-      } catch (error) {
-        // Process is not running, remove stale lock file
-        console.log('Removing stale lock file...');
-        fs.unlinkSync(lockFilePath);
-      }
-    }
-    
-    // Create lock file with current PID
-    fs.writeFileSync(lockFilePath, process.pid.toString());
-    console.log(`✅ Single instance lock created (PID: ${process.pid})`);
-    
-    // Clean up lock file on exit
-    process.on('exit', () => {
-      try {
-        if (fs.existsSync(lockFilePath)) {
-          fs.unlinkSync(lockFilePath);
-        }
-      } catch (error) {
-        // Ignore errors during cleanup
-      }
-    });
-    
-    // Also clean up on unexpected termination
-    process.on('SIGINT', cleanupAndExit);
-    process.on('SIGTERM', cleanupAndExit);
-    process.on('SIGQUIT', cleanupAndExit);
-    
-    return true;
-  } catch (error) {
-    console.error('Error setting up single instance lock:', error);
-    return false;
-  }
-}
-
-function cleanupAndExit(): void {
-  try {
-    if (fs.existsSync(lockFilePath)) {
-      fs.unlinkSync(lockFilePath);
-      console.log('Lock file cleaned up');
-    }
-  } catch (error) {
-    // Ignore cleanup errors
-  }
-  process.exit(0);
-}
-
-// Check if this is the only instance
-if (!ensureSingleInstance()) {
-  // If we get here, it means we couldn't resolve the single instance issue
-  console.log('❌ Failed to resolve single instance issue');
-  console.log('Exiting duplicate instance...');
-  app.quit();
-  process.exit(0);
-}
-
 class HostAgent {
   private hostService: HostService;
   private mdnsService: MDNSService;
@@ -196,13 +84,13 @@ class HostAgent {
   
   constructor() {
     this.configManager = new ConfigManager();
-    this.hostService = new HostService(this.configManager);
-    this.mdnsService = new MDNSService(this.configManager);
+    this.stateManager = new StateManager();
+    this.hostService = new HostService(this.configManager, this.stateManager);
+    this.mdnsService = new MDNSService(this.configManager, this.stateManager);
     this.debugService = new DebugService(this.configManager);
     this.displayIdentifier = new DisplayIdentifier();
     this.displayMonitor = new DisplayMonitor();
-    this.stateManager = new StateManager();
-    this.windowManager = new WindowManager();
+    this.windowManager = new WindowManager(this.stateManager);
     
     // Set window manager reference for display identifier
     this.displayIdentifier.setWindowManager(this.windowManager);
@@ -717,6 +605,38 @@ class HostAgent {
   }
 }
 
-// Initialize and start the host agent
-const hostAgent = new HostAgent();
-hostAgent.start();
+// Single instance management using Electron's native API
+const gotTheLock = app.requestSingleInstanceLock();
+
+if (!gotTheLock) {
+  console.log('🚫 Another instance is already running. Exiting...');
+  app.quit();
+  process.exit(0);
+} else {
+  console.log('✅ Single instance lock acquired');
+  
+  // Handle second instance attempts - focus existing windows
+  app.on('second-instance', (event, commandLine, workingDirectory) => {
+    console.log('🔄 Second instance attempt detected. Focusing existing windows...');
+    
+    // Focus all open browser windows (dashboards)
+    const allWindows = BrowserWindow.getAllWindows();
+    if (allWindows.length > 0) {
+      console.log(`📺 Focusing ${allWindows.length} existing windows`);
+      allWindows.forEach((window, index) => {
+        if (window.isMinimized()) {
+          window.restore();
+        }
+        window.focus();
+        window.show();
+        console.log(`  - Window ${index + 1}: ${window.getTitle()} focused`);
+      });
+    } else {
+      console.log('🔍 No windows found to focus');
+    }
+  });
+
+  // Initialize and start the host agent only if we got the lock
+  const hostAgent = new HostAgent();
+  hostAgent.start();
+}

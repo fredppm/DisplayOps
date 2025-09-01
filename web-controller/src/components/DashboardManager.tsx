@@ -29,6 +29,10 @@ export const DashboardManager: React.FC<DashboardManagerProps> = () => {
   // Dashboard editing states
   const [editingDashboard, setEditingDashboard] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Dashboard | null>(null);
+  
+  // Modal states
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string>('');
 
   // Helper function to add notifications
   const addNotification = (type: 'success' | 'error' | 'warning' | 'info', title: string, message: string) => {
@@ -161,17 +165,17 @@ export const DashboardManager: React.FC<DashboardManagerProps> = () => {
   const startEditingDashboard = (dashboard: Dashboard) => {
     setEditingDashboard(dashboard.id);
     setEditForm({ ...dashboard });
-    addNotification('info', 'Editing Dashboard', `Started editing ${dashboard.name}`);
+    setShowEditModal(true);
   };
 
   const cancelEditingDashboard = () => {
     setEditingDashboard(null);
     setEditForm(null);
-    addNotification('info', 'Edit Cancelled', 'Dashboard editing cancelled');
+    setShowEditModal(false);
   };
 
   const saveDashboardChanges = async () => {
-    if (!editForm || !editingDashboard) return;
+    if (!editForm) return;
 
     // Validate required fields
     if (!editForm.name.trim()) {
@@ -192,30 +196,40 @@ export const DashboardManager: React.FC<DashboardManagerProps> = () => {
       return;
     }
 
+    const dashboardData = {
+      name: editForm.name,
+      url: editForm.url,
+      description: editForm.description || '',
+      refreshInterval: editForm.refreshInterval,
+      requiresAuth: editForm.requiresAuth,
+      category: editForm.category
+    };
+
     try {
-      await updateDashboard(editingDashboard, {
-        name: editForm.name,
-        url: editForm.url,
-        description: editForm.description || '',
-        refreshInterval: editForm.refreshInterval,
-        requiresAuth: editForm.requiresAuth,
-        category: editForm.category
-      });
+      if (editingDashboard) {
+        // Editando dashboard existente
+        await updateDashboard(editingDashboard, dashboardData);
+      } else {
+        // Criando novo dashboard
+        await createDashboard(dashboardData);
+      }
       
       setEditingDashboard(null);
       setEditForm(null);
+      setShowEditModal(false);
     } catch (error) {
-      // Error handling is done in updateDashboard function
+      // Error handling is done in create/updateDashboard functions
     }
   };
 
-  const handleDeleteDashboard = async (dashboard: Dashboard) => {
-    if (!confirm(`Are you sure you want to delete "${dashboard.name}"? This action cannot be undone.`)) {
-      return;
-    }
+  const confirmDeleteDashboard = (dashboardId: string) => {
+    setShowDeleteConfirm(dashboardId);
+  };
 
+  const handleDeleteDashboard = async (dashboardId: string) => {
     try {
-      await deleteDashboard(dashboard.id);
+      await deleteDashboard(dashboardId);
+      setShowDeleteConfirm('');
     } catch (error) {
       // Error handling is done in deleteDashboard function
     }
@@ -231,22 +245,18 @@ export const DashboardManager: React.FC<DashboardManagerProps> = () => {
     }
   };
 
-  const addNewDashboard = async () => {
-    const newDashboardData = {
+  const addNewDashboard = () => {
+    setEditingDashboard(null); // Indica que é criação, não edição
+    setEditForm({
+      id: '', // Será definido pelo servidor
       name: 'New Dashboard',
       url: 'https://example.com',
       description: 'New dashboard description',
       refreshInterval: 300,
       requiresAuth: false,
       category: 'Custom'
-    };
-
-    try {
-      const newDashboard = await createDashboard(newDashboardData);
-      startEditingDashboard(newDashboard);
-    } catch (error) {
-      // Error handling is done in createDashboard function
-    }
+    });
+    setShowEditModal(true);
   };
 
 
@@ -299,236 +309,167 @@ export const DashboardManager: React.FC<DashboardManagerProps> = () => {
         </div>
       )}
 
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">Dashboard Management</h2>
-          <p className="text-gray-600 mt-1">
-            Configure and deploy dashboards to display devices
-          </p>
-        </div>
-        
-        <button
-          onClick={addNewDashboard}
-          className="btn-primary flex items-center"
-        >
-          <Plus className="w-5 h-5 mr-2" />
-          Add Dashboard
-        </button>
-      </div>
-
-      <div className="max-w-4xl mx-auto">
-        {/* Dashboards List */}
-        <div className="space-y-4">
-          <h3 className="text-lg font-semibold text-gray-900">Available Dashboards</h3>
-          
-          {loading ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-              <span className="ml-2 text-gray-600">Loading dashboards...</span>
+      {/* Dashboard Management Card */}
+      <div className="border border-gray-200 rounded-lg bg-white shadow-sm">
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-gray-200">
+          <div className="flex items-center justify-between">
+            <div className="min-w-0 flex-1">
+              <h2 className="text-lg font-medium text-gray-900">
+                Dashboard Management
+              </h2>
+              <div className="mt-1 text-sm text-gray-500">
+                Configure and deploy dashboards to display devices
+              </div>
             </div>
+            
+            <div className="ml-6 flex items-center space-x-3">
+              <button
+                onClick={addNewDashboard}
+                className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                disabled={loading}
+              >
+                <Plus className="w-4 h-4 mr-1.5" />
+                Add Dashboard
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Dashboards List */}
+        <div className="divide-y divide-gray-200">
+          {loading ? (
+            // Loading skeletons - show 3 placeholder items
+            Array.from({ length: 3 }).map((_, index) => (
+              <div key={`skeleton-${index}`} className="px-6 py-6 animate-pulse">
+                <div className="flex items-center justify-between">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center space-x-2">
+                      <div className="h-5 bg-gray-300 rounded w-48"></div>
+                      <div className="h-4 w-4 bg-gray-200 rounded"></div>
+                    </div>
+                    <div className="mt-1 space-y-1">
+                      <div className="h-3 bg-gray-200 rounded w-64"></div>
+                      <div className="flex items-center space-x-4">
+                        <div className="h-3 bg-gray-200 rounded w-20"></div>
+                        <div className="h-3 bg-gray-200 rounded w-16"></div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="ml-6 flex items-center space-x-2">
+                    <div className="h-6 bg-gray-200 rounded w-12"></div>
+                    <div className="h-6 bg-gray-200 rounded w-14"></div>
+                  </div>
+                </div>
+              </div>
+            ))
           ) : dashboards.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <p className="text-lg">No dashboards configured</p>
-              <p className="text-sm">Click "Add Dashboard" to create your first dashboard</p>
+            <div className="px-6 py-8 text-center">
+              <div className="w-12 h-12 text-gray-400 mx-auto mb-4">
+                <svg className="w-full h-full" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No dashboards configured yet</h3>
+              <p className="text-gray-600">
+                Use the "Add Dashboard" button above to create your first dashboard
+              </p>
             </div>
           ) : (
             dashboards.map((dashboard) => (
             <div
-              key={dashboard.id}
-              className={`card hover:shadow-md transition-shadow ${
-                editingDashboard === dashboard.id ? 'ring-2 ring-blue-500' :
-                selectedDashboard === dashboard.id ? 'ring-2 ring-primary-500' : ''
-              } ${editingDashboard === dashboard.id ? '' : 'cursor-pointer'}`}
-              onClick={editingDashboard === dashboard.id ? undefined : () => setSelectedDashboard(
+              key={dashboard.id} 
+              className={`px-6 py-6 ${
+                selectedDashboard === dashboard.id ? 'bg-gray-50' : 'hover:bg-gray-50'
+              } cursor-pointer transition-colors`}
+              onClick={() => setSelectedDashboard(
                 selectedDashboard === dashboard.id ? null : dashboard.id
               )}
             >
-              {editingDashboard === dashboard.id && editForm ? (
-                // Edit Mode
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-lg font-medium text-blue-900">Editing Dashboard</h4>
+              {/* View Mode */}
+                <div className="flex items-center justify-between">
+                  <div className="min-w-0 flex-1">
                     <div className="flex items-center space-x-2">
+                      <h4 className="text-lg font-medium text-gray-900">
+                        {dashboard.name}
+                      </h4>
                       <button
-                        onClick={saveDashboardChanges}
-                        className="btn-primary flex items-center text-sm px-3 py-1"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          window.open(dashboard.url, '_blank');
+                        }}
+                        className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors"
+                        title="Open in new tab"
                       >
-                        <Save className="w-4 h-4 mr-1" />
-                        Save
-                      </button>
-                      <button
-                        onClick={cancelEditingDashboard}
-                        className="btn-secondary flex items-center text-sm px-3 py-1"
-                      >
-                        <XCircle className="w-4 h-4 mr-1" />
-                        Cancel
+                        <ExternalLink className="w-4 h-4" />
                       </button>
                     </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-3">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
-                      <input
-                        type="text"
-                        value={editForm.name}
-                        onChange={(e) => setEditForm(prev => prev ? { ...prev, name: e.target.value } : null)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                        placeholder="Dashboard name"
-                      />
+                    
+                    {/* Description with statistics */}
+                    <div className="flex items-center text-gray-400 ">
+                      {dashboard.description && (
+                        <span className="truncate max-w-xs">
+                          {dashboard.description}
+                        </span>
+                      )}
                     </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">URL</label>
-                      <input
-                        type="url"
-                        value={editForm.url}
-                        onChange={(e) => setEditForm(prev => prev ? { ...prev, url: e.target.value } : null)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                        placeholder="https://example.com/dashboard"
-                      />
+                    <div className="mt-1 flex items-center space-x-4 text-sm text-gray-500">
+                      <span className="flex items-center">
+                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                        </svg>
+                        Refresh: {dashboard.refreshInterval}s
+                      </span>
+                      
+                      {dashboard.category && (
+                        <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-800">
+                          {dashboard.category}
+                        </span>
+                      )}
+                      
+                      {dashboard.requiresAuth && (
+                        <span className="flex items-center text-yellow-600">
+                          <AlertCircle className="w-4 h-4 mr-1" />
+                          Requires Auth
+                        </span>
+                      )}
+                      
                     </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                      <textarea
-                        value={editForm.description || ''}
-                        onChange={(e) => setEditForm(prev => prev ? { ...prev, description: e.target.value } : null)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                        rows={2}
-                        placeholder="Dashboard description"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Refresh Interval (sec)</label>
-                        <input
-                          type="number"
-                          value={editForm.refreshInterval}
-                          onChange={(e) => setEditForm(prev => prev ? { ...prev, refreshInterval: parseInt(e.target.value) || 300 } : null)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                          min="30"
-                          max="3600"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                        <select
-                          value={editForm.category || ''}
-                          onChange={(e) => setEditForm(prev => prev ? { ...prev, category: e.target.value } : null)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                        >
-                          <option value="">No category</option>
-                          <option value="Monitoring">Monitoring</option>
-                          <option value="Business Intelligence">Business Intelligence</option>
-                          <option value="Analytics">Analytics</option>
-                          <option value="Custom">Custom</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center">
-                      <input
-                        type="checkbox"
-                        id={`requires-auth-${dashboard.id}`}
-                        checked={editForm.requiresAuth}
-                        onChange={(e) => setEditForm(prev => prev ? { ...prev, requiresAuth: e.target.checked } : null)}
-                        className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-                      />
-                      <label htmlFor={`requires-auth-${dashboard.id}`} className="ml-2 block text-sm text-gray-900">
-                        Requires Authentication
-                      </label>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                // View Mode
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex-1">
-                    <h4 className="text-lg font-medium text-gray-900">
-                      {dashboard.name}
-                    </h4>
-                    <p className="text-sm text-gray-600 mt-1">
-                      {dashboard.description}
-                    </p>
                   </div>
                   
-                  <div className="flex items-center space-x-2 ml-4">
+                  {/* Dashboard Actions - Smaller buttons */}
+                  <div className="ml-6 flex items-center space-x-2">
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         startEditingDashboard(dashboard);
                       }}
-                      className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
-                      title="Edit dashboard"
+                      className="inline-flex items-center px-2 py-1 text-xs font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                     >
-                      <Edit3 className="w-4 h-4" />
+                      <Edit3 className="w-3 h-3 mr-1" />
+                      Edit
                     </button>
+                    
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleDeleteDashboard(dashboard);
+                        confirmDeleteDashboard(dashboard.id);
                       }}
-                      className="p-1 text-gray-400 hover:text-red-600 transition-colors"
-                      title="Delete dashboard"
+                      className="inline-flex items-center px-2 py-1 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
                     >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                    {dashboard.requiresAuth && (
-                      <AlertCircle className="w-4 h-4 text-yellow-500" />
-                    )}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        window.open(dashboard.url, '_blank');
-                      }}
-                      className="p-1 text-gray-400 hover:text-primary-600 transition-colors"
-                      title="Open dashboard"
-                    >
-                      <ExternalLink className="w-4 h-4" />
+                      <Trash2 className="w-3 h-3 mr-1" />
+                      Delete
                     </button>
                   </div>
                 </div>
-              )}
-
-              {editingDashboard !== dashboard.id && (
-                <div className="flex items-center justify-between text-sm text-gray-500">
-                  <div className="flex items-center space-x-4">
-                    <span>Refresh: {dashboard.refreshInterval}s</span>
-                    {dashboard.category && (
-                      <span className="bg-gray-100 px-2 py-1 rounded text-xs">
-                        {dashboard.category}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              )}
-
               {/* Expanded Details */}
-              {selectedDashboard === dashboard.id && editingDashboard !== dashboard.id && (
-                <div className="mt-4 pt-4 border-t border-gray-200">
-                  <div className="space-y-2">
+              {selectedDashboard === dashboard.id && (
+                <div className="mt-4">
+                  <div className="space-y-3">
                     <div>
-                      <span className="text-xs text-gray-500 uppercase tracking-wide">URL</span>
-                      <div className="text-sm text-gray-900 font-mono bg-gray-50 p-2 rounded">
+                      <span className="text-xs text-gray-500 uppercase tracking-wide font-medium">URL</span>
+                      <div className="text-sm text-gray-400 font-mono">
                         {dashboard.url}
-                      </div>
-                    </div>
-                    {dashboard.category && (
-                      <div>
-                        <span className="text-xs text-gray-500 uppercase tracking-wide">Category</span>
-                        <div className="text-sm text-gray-900">
-                          {dashboard.category}
-                        </div>
-                      </div>
-                    )}
-                    <div>
-                      <span className="text-xs text-gray-500 uppercase tracking-wide">Authentication</span>
-                      <div className="text-sm text-gray-900">
-                        {dashboard.requiresAuth ? 'Required' : 'Not required'}
                       </div>
                     </div>
                   </div>
@@ -539,6 +480,147 @@ export const DashboardManager: React.FC<DashboardManagerProps> = () => {
           )}
         </div>
       </div>
+
+      {/* Add/Edit Dashboard Modal */}
+      {showEditModal && editForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" style={{margin: 0, top: 0}}>
+          <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <h3 className="text-lg font-semibold mb-4">{editingDashboard ? 'Edit Dashboard' : 'Add New Dashboard'}</h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
+                <input
+                  type="text"
+                  value={editForm.name}
+                  onChange={(e) => setEditForm(prev => ({ ...prev!, name: e.target.value }))}
+                  className="w-full p-2 border rounded"
+                  placeholder="Dashboard name"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">URL *</label>
+                <input
+                  type="url"
+                  value={editForm.url}
+                  onChange={(e) => setEditForm(prev => ({ ...prev!, url: e.target.value }))}
+                  className="w-full p-2 border rounded font-mono"
+                  placeholder="https://example.com/dashboard"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <textarea
+                  value={editForm.description || ''}
+                  onChange={(e) => setEditForm(prev => ({ ...prev!, description: e.target.value }))}
+                  className="w-full p-2 border rounded"
+                  placeholder="Dashboard description"
+                  rows={2}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Refresh Interval (seconds)</label>
+                  <input
+                    type="number"
+                    min="30"
+                    max="3600"
+                    value={editForm.refreshInterval}
+                    onChange={(e) => setEditForm(prev => ({ ...prev!, refreshInterval: parseInt(e.target.value) || 300 }))}
+                    className="w-full p-2 border rounded"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                  <select
+                    value={editForm.category}
+                    onChange={(e) => setEditForm(prev => ({ ...prev!, category: e.target.value }))}
+                    className="w-full p-2 border rounded"
+                  >
+                    <option value="Custom">Custom</option>
+                    <option value="Analytics">Analytics</option>
+                    <option value="Monitoring">Monitoring</option>
+                    <option value="Business">Business</option>
+                    <option value="Development">Development</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="flex items-center p-2 border rounded hover:bg-gray-50">
+                  <input
+                    type="checkbox"
+                    checked={editForm.requiresAuth}
+                    onChange={(e) => setEditForm(prev => ({ ...prev!, requiresAuth: e.target.checked }))}
+                    className="mr-3"
+                  />
+                  <div>
+                    <div className="font-medium text-gray-900 flex items-center">
+                      <AlertCircle className="w-4 h-4 mr-2 text-yellow-600" />
+                      Requires Authentication
+                    </div>
+                    <div className="text-xs text-gray-600">Dashboard needs login credentials to display properly</div>
+                  </div>
+                </label>
+              </div>
+
+              <div className="flex justify-end space-x-3 pt-4 border-t">
+                <button 
+                  onClick={cancelEditingDashboard}
+                  className="px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded flex items-center transition-colors"
+                >
+                  <XCircle className="w-3 h-3 mr-1" />
+                  Cancel
+                </button>
+                <button 
+                  onClick={saveDashboardChanges}
+                  disabled={!editForm.name || !editForm.url || !isValidUrl(editForm.url)}
+                  className="px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded flex items-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Save className="w-3 h-3 mr-1" />
+                  {editingDashboard ? 'Save Dashboard' : 'Create Dashboard'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" style={{margin: 0, top: 0}}>
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold mb-4 text-red-600">⚠️ Delete Dashboard</h3>
+            
+            <p className="text-gray-700 mb-4">
+              Are you sure you want to delete <strong>{dashboards.find(d => d.id === showDeleteConfirm)?.name}</strong>?
+            </p>
+            
+            <p className="text-sm text-gray-600 mb-6">
+              This action cannot be undone.
+            </p>
+            
+            <div className="flex justify-end space-x-3">
+              <button 
+                onClick={() => setShowDeleteConfirm('')}
+                className="px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded flex items-center transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={() => handleDeleteDashboard(showDeleteConfirm)}
+                className="px-3 py-1.5 text-xs bg-red-600 hover:bg-red-700 text-white rounded flex items-center transition-colors"
+              >
+                <Trash2 className="w-3 h-3 mr-1" />
+                Delete Dashboard
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -100,13 +100,15 @@ const CONNECTION_STATES = {
   RECONNECTING: 'reconnecting'
 };
 
-// Reconnection configuration
+// Reconnection configuration - More robust settings
 const RECONNECTION_CONFIG = {
   INITIAL_DELAY: 2000,     // Start with 2s delay
-  MAX_DELAY: 30000,        // Max 30s between attempts
+  MAX_DELAY: 60000,        // Max 60s between attempts
   MULTIPLIER: 1.5,         // Exponential backoff
-  MAX_ATTEMPTS: 10,        // Stop after 10 failed attempts
-  HEALTH_CHECK_INTERVAL: 15000  // Check connection every 15s
+  MAX_ATTEMPTS: 30,        // Stop after 30 failed attempts (increased from 10)
+  HEALTH_CHECK_INTERVAL: 20000,  // Check connection every 20s (reduced frequency)
+  CONNECTION_TIMEOUT: 15000,     // Increased from 5s to 15s for slower networks
+  JITTER_FACTOR: 0.3       // Add randomness to prevent thundering herd
 };
 
 // Dashboard patterns for auto-detection
@@ -131,7 +133,9 @@ let currentState = {
   reconnectionAttempts: 0,
   reconnectionTimer: null,
   healthCheckTimer: null,
-  lastConnectionCheck: null
+  lastConnectionCheck: null,
+  lastSuccessfulSync: null,
+  persistedStateLoaded: false
 };
 
 // Initialize extension
@@ -145,19 +149,44 @@ chrome.runtime.onStartup.addListener(async () => {
   await initializeExtension();
 });
 
-// Initialize extension state
+// Initialize extension state with enhanced persistence
 async function initializeExtension() {
   try {
     Logger.info('INIT', 'Initializing Office Display Extension...');
     
-    // Load stored configuration
-    const stored = await chrome.storage.local.get(['officeDisplayEndpoint', 'monitoredDomains']);
-    Logger.debug('INIT', 'Loaded stored configuration', { endpoint: stored.officeDisplayEndpoint, domainsCount: Object.keys(stored.monitoredDomains || {}).length });
+    // Load comprehensive stored state
+    const stored = await chrome.storage.local.get([
+      'officeDisplayEndpoint', 
+      'monitoredDomains',
+      'connectionState',
+      'lastConnectionCheck',
+      'lastSuccessfulSync',
+      'reconnectionAttempts'
+    ]);
     
-    // Load monitored domains
+    Logger.debug('INIT', 'Loaded stored configuration', { 
+      endpoint: stored.officeDisplayEndpoint, 
+      domainsCount: Object.keys(stored.monitoredDomains || {}).length,
+      previousConnectionState: stored.connectionState,
+      lastCheck: stored.lastConnectionCheck
+    });
+    
+    // Restore persisted state
     if (stored.monitoredDomains) {
       currentState.domains = new Map(Object.entries(stored.monitoredDomains));
     }
+    
+    if (stored.lastConnectionCheck) {
+      currentState.lastConnectionCheck = stored.lastConnectionCheck;
+    }
+    
+    if (stored.lastSuccessfulSync) {
+      currentState.lastSuccessfulSync = stored.lastSuccessfulSync;
+    }
+    
+    // Don't restore reconnection attempts - start fresh
+    currentState.reconnectionAttempts = 0;
+    currentState.persistedStateLoaded = true;
     
     // Initialize connection management
     await initializeConnection(stored.officeDisplayEndpoint);
@@ -207,7 +236,7 @@ async function initializeConnection(storedEndpoint = null) {
   updateIcon(currentState.connectionState === CONNECTION_STATES.CONNECTED ? ICON_STATES.IDLE : ICON_STATES.ERROR);
 }
 
-// Auto-detect Office Display endpoint
+// Auto-detect Office Display endpoint with improved timeout handling
 async function autoDetectOfficeDisplay() {
   console.log('🔍 Auto-detecting Office Display endpoint...');
   
@@ -216,11 +245,12 @@ async function autoDetectOfficeDisplay() {
       console.log(`  Testing endpoint: ${endpoint}`);
       const response = await fetch(`${endpoint}/api/cookies/status`, {
         method: 'GET',
-        signal: AbortSignal.timeout(5000) // Increased to 5s timeout
+        signal: AbortSignal.timeout(RECONNECTION_CONFIG.CONNECTION_TIMEOUT)
       });
       
       if (response.ok) {
         console.log(`✅ Found Office Display at: ${endpoint}`);
+        await persistConnectionState(endpoint);
         return endpoint;
       } else {
         console.log(`  ❌ Endpoint ${endpoint} returned ${response.status}`);
@@ -231,17 +261,17 @@ async function autoDetectOfficeDisplay() {
   }
   
   console.log('❌ No Office Display endpoint found');
-  return null; // Don't use default if nothing found
+  return null;
 }
 
-// Test connection to specific endpoint
+// Test connection to specific endpoint with improved timeout
 async function testConnection(endpoint) {
   if (!endpoint) return false;
   
   try {
     const response = await fetch(`${endpoint}/api/cookies/status`, {
       method: 'GET',
-      signal: AbortSignal.timeout(5000)
+      signal: AbortSignal.timeout(RECONNECTION_CONFIG.CONNECTION_TIMEOUT)
     });
     return response.ok;
   } catch (error) {
@@ -278,13 +308,19 @@ async function checkConnectionHealth() {
       console.log('✅ Connection restored to:', currentState.officeDisplay);
       currentState.connectionState = CONNECTION_STATES.CONNECTED;
       currentState.reconnectionAttempts = 0;
+      currentState.lastConnectionCheck = Date.now();
+      await persistConnectionState();
       updateIcon(currentState.hasCredentials ? ICON_STATES.READY : ICON_STATES.IDLE);
+    } else {
+      // Update last check time even if already connected
+      currentState.lastConnectionCheck = Date.now();
+      await persistConnectionState();
     }
-    currentState.lastConnectionCheck = Date.now();
   } else {
     if (currentState.connectionState === CONNECTION_STATES.CONNECTED) {
       console.log('❌ Connection lost to:', currentState.officeDisplay);
       currentState.connectionState = CONNECTION_STATES.DISCONNECTED;
+      await persistConnectionState();
       updateIcon(ICON_STATES.ERROR);
     }
     
@@ -295,27 +331,36 @@ async function checkConnectionHealth() {
   }
 }
 
-// Attempt reconnection with exponential backoff
+// Attempt reconnection with exponential backoff and jitter
 async function attemptReconnection() {
   if (currentState.reconnectionAttempts >= RECONNECTION_CONFIG.MAX_ATTEMPTS) {
     console.log('❌ Max reconnection attempts reached, stopping');
+    await persistConnectionState();
     return;
   }
   
   currentState.connectionState = CONNECTION_STATES.RECONNECTING;
   currentState.reconnectionAttempts++;
   
-  const delay = Math.min(
+  // Calculate base delay with exponential backoff
+  const baseDelay = Math.min(
     RECONNECTION_CONFIG.INITIAL_DELAY * Math.pow(RECONNECTION_CONFIG.MULTIPLIER, currentState.reconnectionAttempts - 1),
     RECONNECTION_CONFIG.MAX_DELAY
   );
   
-  console.log(`🔄 Attempting reconnection ${currentState.reconnectionAttempts}/${RECONNECTION_CONFIG.MAX_ATTEMPTS} in ${delay}ms...`);
+  // Add jitter to prevent thundering herd
+  const jitter = baseDelay * RECONNECTION_CONFIG.JITTER_FACTOR * (Math.random() - 0.5);
+  const delay = Math.max(1000, baseDelay + jitter); // Minimum 1s delay
+  
+  console.log(`🔄 Attempting reconnection ${currentState.reconnectionAttempts}/${RECONNECTION_CONFIG.MAX_ATTEMPTS} in ${Math.round(delay)}ms...`);
   
   // Clear existing timer
   if (currentState.reconnectionTimer) {
     clearTimeout(currentState.reconnectionTimer);
   }
+  
+  // Persist reconnection attempt
+  await persistConnectionState();
   
   currentState.reconnectionTimer = setTimeout(async () => {
     try {
@@ -324,6 +369,8 @@ async function attemptReconnection() {
         console.log('✅ Reconnected to existing endpoint:', currentState.officeDisplay);
         currentState.connectionState = CONNECTION_STATES.CONNECTED;
         currentState.reconnectionAttempts = 0;
+        currentState.lastConnectionCheck = Date.now();
+        await persistConnectionState();
         updateIcon(currentState.hasCredentials ? ICON_STATES.READY : ICON_STATES.IDLE);
         return;
       }
@@ -333,19 +380,23 @@ async function attemptReconnection() {
       if (newEndpoint && await testConnection(newEndpoint)) {
         console.log('✅ Reconnected to new endpoint:', newEndpoint);
         currentState.officeDisplay = newEndpoint;
-        await chrome.storage.local.set({ officeDisplayEndpoint: newEndpoint });
         currentState.connectionState = CONNECTION_STATES.CONNECTED;
         currentState.reconnectionAttempts = 0;
+        currentState.lastConnectionCheck = Date.now();
+        await chrome.storage.local.set({ officeDisplayEndpoint: newEndpoint });
+        await persistConnectionState();
         updateIcon(currentState.hasCredentials ? ICON_STATES.READY : ICON_STATES.IDLE);
         return;
       }
       
       console.log('❌ Reconnection attempt failed');
       currentState.connectionState = CONNECTION_STATES.DISCONNECTED;
+      await persistConnectionState();
       
     } catch (error) {
       console.error('❌ Reconnection error:', error);
       currentState.connectionState = CONNECTION_STATES.DISCONNECTED;
+      await persistConnectionState();
     }
   }, delay);
 }
@@ -583,6 +634,10 @@ async function syncCredentials(domain) {
       await saveDomains();
     }
     
+    // Update last successful sync time and persist
+    currentState.lastSuccessfulSync = Date.now();
+    await persistConnectionState();
+    
     updateIcon(ICON_STATES.SYNCED);
     
     // Reset to ready after 5 seconds
@@ -608,6 +663,26 @@ async function syncCredentials(domain) {
     }, 3000);
     
     throw error;
+  }
+}
+
+// Persist connection state to storage
+async function persistConnectionState(endpoint = null) {
+  try {
+    const stateToSave = {
+      connectionState: currentState.connectionState,
+      lastConnectionCheck: currentState.lastConnectionCheck,
+      reconnectionAttempts: currentState.reconnectionAttempts,
+      lastSuccessfulSync: currentState.lastSuccessfulSync
+    };
+    
+    if (endpoint) {
+      stateToSave.officeDisplayEndpoint = endpoint;
+    }
+    
+    await chrome.storage.local.set(stateToSave);
+  } catch (error) {
+    console.warn('Failed to persist connection state:', error);
   }
 }
 
@@ -685,7 +760,15 @@ async function handleMessage(message, sender, sendResponse) {
         
       case 'FORCE_RECONNECT':
         Logger.info('CONNECTION', 'Forcing reconnection...');
+        // Clear any existing timers
+        if (currentState.reconnectionTimer) {
+          clearTimeout(currentState.reconnectionTimer);
+          currentState.reconnectionTimer = null;
+        }
+        // Reset attempts and force immediate reconnection
         currentState.reconnectionAttempts = 0;
+        currentState.connectionState = CONNECTION_STATES.DISCONNECTED;
+        await persistConnectionState();
         await attemptReconnection();
         sendResponse({ success: true });
         break;

@@ -1,4 +1,4 @@
-import { MiniPC, HostMetrics } from '@/types/shared-types';
+import { MiniPC, HostMetrics, DisplayState } from '@/types/shared-types';
 import { MDNSDiscoveryService } from './mdns-discovery-service';
 import { GrpcClientService } from './server/grpc-client-service';
 
@@ -31,7 +31,7 @@ export class WindowsDiscoveryService {
     this.mdnsService = new MDNSDiscoveryService();
     
     try {
-      this.grpcService = new GrpcClientService();
+      this.grpcService = GrpcClientService.getInstance();
       this.setupGrpcEventHandlers();
     } catch (error) {
       console.warn('⚠️ gRPC service not available, continuing with mDNS only:', error instanceof Error ? error.message : error);
@@ -202,7 +202,12 @@ export class WindowsDiscoveryService {
 
   // 🚀 NEW: Setup gRPC event handlers for real-time updates
   private setupGrpcEventHandlers(): void {
-    if (!this.grpcService) return;
+    console.log('🔧 WindowsDiscoveryService: Configurando event handlers para gRPC...');
+    if (!this.grpcService) {
+      console.warn('⚠️ WindowsDiscoveryService: gRPC service é null, não configurando handlers');
+      return;
+    }
+    console.log('✅ WindowsDiscoveryService: gRPC service disponível, configurando handlers...');
     
     // Handle when gRPC successfully connects to a host
     this.grpcService.on('host-connected', ({ hostId, host }) => {
@@ -230,13 +235,47 @@ export class WindowsDiscoveryService {
     
     // Handle heartbeats to update host status
     this.grpcService.on('host-event', (hostEvent) => {
-      if (hostEvent.type === 'HEARTBEAT' && hostEvent.payload?.hostStatus) {
-        console.log(`💓 gRPC: Received heartbeat for ${hostEvent.hostId}:`, {
-          cpu: hostEvent.payload.hostStatus.cpu_usage_percent,
-          memory: hostEvent.payload.hostStatus.memory_usage_percent,
-          online: hostEvent.payload.hostStatus.online
-        });
-        this.updateHostMetricsFromHeartbeat(hostEvent.hostId, hostEvent.payload.hostStatus);
+      if (hostEvent.type === 'HEARTBEAT') {
+        // 🔍 DEBUG: Log the complete structure to identify correct field names
+        console.log(`🔍 HEARTBEAT: Recebido evento ${hostEvent.eventId || 'N/A'} para ${hostEvent.hostId} na instância ${(this as any).__instanceId}:`);
+        console.log('  - Payload completo:', JSON.stringify(hostEvent.payload, null, 2));
+        
+        // Try both field name variations (snake_case vs camelCase)
+        const hostStatus = hostEvent.payload?.hostStatus || hostEvent.payload?.host_status;
+        const displayStatuses = hostEvent.payload?.displayStatuses || hostEvent.payload?.display_statuses;
+        
+        console.log('🔍 HEARTBEAT: Campos encontrados:');
+        console.log('  - hostEvent.payload?.hostStatus:', !!hostEvent.payload?.hostStatus);
+        console.log('  - hostEvent.payload?.host_status:', !!hostEvent.payload?.host_status);
+        console.log('  - hostEvent.payload?.displayStatuses:', !!hostEvent.payload?.displayStatuses);
+        console.log('  - hostEvent.payload?.display_statuses:', !!hostEvent.payload?.display_statuses);
+        
+        if (hostStatus) {
+          console.log(`🔍 HEARTBEAT: Estado ANTES de processar:`, {
+            isConnected: this.discoveredHosts.get(hostEvent.hostId)?.metrics?.online || 'N/A',
+            reconnectAttempts: 'N/A'
+          });
+          
+          console.log(`💓 gRPC: Received heartbeat for ${hostEvent.hostId}:`, {
+            cpu: hostStatus.cpu_usage_percent,
+            memory: hostStatus.memory_usage_percent,
+            online: hostStatus.online
+          });
+          this.updateHostMetricsFromHeartbeat(hostEvent.hostId, hostStatus);
+          
+          console.log(`🔍 HEARTBEAT: Estado APÓS processar evento:`);
+          const updatedHost = this.discoveredHosts.get(hostEvent.hostId);
+          console.log('  - isConnected DEPOIS:', updatedHost?.metrics?.online);
+          console.log('  - lastHeartbeat atualizado:', updatedHost?.lastHeartbeat);
+        } else {
+          console.warn(`⚠️ HEARTBEAT: Nenhum hostStatus encontrado no payload para ${hostEvent.hostId}`);
+        }
+        
+        // Process display states from heartbeat
+        if (displayStatuses && displayStatuses.length > 0) {
+          console.log(`📺 gRPC: Processing ${displayStatuses.length} display states from heartbeat`);
+          this.updateHostDisplaysFromHeartbeat(hostEvent.hostId, displayStatuses);
+        }
       }
     });
   }
@@ -298,14 +337,23 @@ export class WindowsDiscoveryService {
     const host = this.discoveredHosts.get(hostId);
     if (!host) return;
 
+    // 🔍 DEBUG: Log the raw hostMetrics structure
+    console.log(`🔍 updateHostMetricsFromHeartbeat: Raw hostMetrics for ${hostId}:`, hostMetrics);
+
     // Convert gRPC metrics format to our internal format
+    // If we're receiving a heartbeat, the host is online by definition
     const updatedMetrics = {
-      online: hostMetrics.online || false,
+      online: hostMetrics.online !== false, // ✅ Simple: online unless explicitly false
       cpuUsage: parseFloat(hostMetrics.cpu_usage_percent) || 0,
       memoryUsage: parseFloat(hostMetrics.memory_usage_percent) || 0,
       browserProcesses: parseInt(hostMetrics.browser_processes) || 0,
       lastError: hostMetrics.last_error || undefined
     };
+
+    console.log(`🔍 updateHostMetricsFromHeartbeat: Final status for ${hostId}:`, {
+      originalOnline: hostMetrics.online,
+      finalOnline: updatedMetrics.online
+    });
 
     const updatedHost = {
       ...host,
@@ -317,6 +365,49 @@ export class WindowsDiscoveryService {
     this.discoveredHosts.set(hostId, updatedHost);
     
     // Notify callback about status update
+    if (this.onHostDiscoveredCallback) {
+      this.onHostDiscoveredCallback(updatedHost);
+    }
+  }
+
+  // Update host display states from heartbeat
+  private updateHostDisplaysFromHeartbeat(hostId: string, displayStatuses: any[]): void {
+    const host = this.discoveredHosts.get(hostId);
+    if (!host) return;
+
+    // 🔍 DEBUG: Log raw display statuses structure
+    console.log(`🔍 updateHostDisplaysFromHeartbeat: Raw displayStatuses for ${hostId}:`, displayStatuses);
+
+    // Convert gRPC display statuses to our internal format
+    const displays = displayStatuses.map((display, index) => {
+      // Try both field name variations for display fields
+      const displayId = display.display_id || display.displayId || `display-${index + 1}`;
+      const isActive = display.active !== undefined ? display.active : (display.isActive || false);
+      const assignedDashboard = display.assigned_dashboard || display.assignedDashboard;
+      
+      return {
+        id: displayId,
+        isActive: isActive, // Now comes from StateManager - should be true for active displays
+        assignedDashboard: assignedDashboard ? {
+          dashboardId: assignedDashboard.dashboard_id || assignedDashboard.dashboardId,
+          url: assignedDashboard.url
+        } : null
+      };
+    });
+
+    const updatedHost = {
+      ...host,
+      displays: displays.map(d => d.id), // Keep backward compatibility with string array
+      displayStates: displays, // Add detailed display states
+      lastHeartbeat: new Date()
+    };
+
+    console.log(`📺 gRPC: Updated ${hostId} with ${displays.length} displays:`, 
+      displays.map(d => `${d.id}(${d.assignedDashboard?.dashboardId || 'none'})`).join(', '));
+
+    this.discoveredHosts.set(hostId, updatedHost);
+    
+    // Notify callback about display update
     if (this.onHostDiscoveredCallback) {
       this.onHostDiscoveredCallback(updatedHost);
     }

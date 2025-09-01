@@ -12,7 +12,8 @@ class GrpcManagerSingleton {
   private isInitialized: boolean = false;
 
   private constructor() {
-    this.grpcService = new GrpcClientService();
+    console.log('🔧 GrpcManager: Inicializando com GrpcClientService singleton');
+    this.grpcService = GrpcClientService.getInstance();
     this.setupEventHandlers();
   }
 

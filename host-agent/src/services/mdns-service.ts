@@ -1,5 +1,6 @@
 const bonjour = require('bonjour');
 import { ConfigManager } from '../managers/config-manager';
+import { StateManager } from './state-manager';
 import os from 'os';
 
 export class MDNSService {
@@ -7,10 +8,12 @@ export class MDNSService {
   private publishedService: any | null = null;
   private isAdvertising: boolean = false;
   private configManager: ConfigManager;
+  private stateManager: StateManager;
   private updateInterval: NodeJS.Timeout | null = null;
 
-  constructor(configManager: ConfigManager) {
+  constructor(configManager: ConfigManager, stateManager: StateManager) {
     this.configManager = configManager;
+    this.stateManager = stateManager;
     this.bonjourInstance = bonjour();
   }
 
@@ -75,6 +78,18 @@ export class MDNSService {
     const config = this.configManager.getConfig();
     const systemInfo = this.configManager.getSystemInfo();
     
+    // Get display state to include dashboard information
+    const displayStates = this.stateManager.getAllDisplayStates();
+    const activeDashboards: string[] = [];
+    const displayDashboardMap: string[] = [];
+    
+    for (const [displayId, display] of Object.entries(displayStates)) {
+      if (display.assignedDashboard) {
+        activeDashboards.push(display.assignedDashboard.dashboardId);
+        displayDashboardMap.push(`${displayId}:${display.assignedDashboard.dashboardId}`);
+      }
+    }
+    
     return {
       version: config.version,
       agentId: config.agentId,
@@ -87,7 +102,10 @@ export class MDNSService {
       nodeVersion: systemInfo.nodeVersion,
       electronVersion: systemInfo.electronVersion || 'unknown',
       status: 'online',
-      grpcPort: '8082'
+      grpcPort: '8082',
+      activeDashboards: activeDashboards.join(','),
+      displayDashboards: displayDashboardMap.join(','),
+      dashboardCount: activeDashboards.length.toString()
     };
   }
 

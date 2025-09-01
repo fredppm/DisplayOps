@@ -11,6 +11,13 @@ export interface UseSSEHostDiscoveryReturn {
   requestHostsUpdate: () => void;
 }
 
+// Circuit breaker configuration
+const CIRCUIT_BREAKER_CONFIG = {
+  MAX_CONSECUTIVE_FAILURES: 10,    // Stop after 10 consecutive failures
+  OFFLINE_RETRY_DELAY: 300000,     // Wait 5 minutes before retry when offline
+  CONNECTION_REFUSED_MAX_ATTEMPTS: 3, // Stop quickly for CONNECTION_REFUSED
+};
+
 export const useSSEHostDiscovery = (): UseSSEHostDiscoveryReturn => {
   // State
   const [discoveredHosts, setDiscoveredHosts] = useState<MiniPC[]>([]);
@@ -19,6 +26,8 @@ export const useSSEHostDiscovery = (): UseSSEHostDiscoveryReturn => {
   const [isConnected, setIsConnected] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [reconnectAttempts, setReconnectAttempts] = useState(0);
+  const [isCircuitBreakerOpen, setIsCircuitBreakerOpen] = useState(false);
+  const [consecutiveFailures, setConsecutiveFailures] = useState(0);
   
   // Update discovered hosts
   const setDiscoveredHostsWithLog = useCallback((hosts: MiniPC[]) => {
@@ -28,13 +37,27 @@ export const useSSEHostDiscovery = (): UseSSEHostDiscoveryReturn => {
   // Refs
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isConnectingRef = useRef(false);
 
   const connect = useCallback(() => {
+    // Circuit breaker check
+    if (isCircuitBreakerOpen) {
+      console.log('🔴 Circuit breaker open - not attempting connection');
+      return;
+    }
+
+    // Prevent multiple simultaneous connection attempts
+    if (isConnectingRef.current) {
+      console.log('🔄 Already attempting to connect');
+      return;
+    }
+
     if (eventSourceRef.current?.readyState === EventSource.OPEN) {
       console.log('🔄 SSE already connected');
       return;
     }
 
+    isConnectingRef.current = true;
     const endpoint = '/api/discovery/events';
     setIsDiscovering(true);
     setConnectionError(null);
@@ -43,9 +66,12 @@ export const useSSEHostDiscovery = (): UseSSEHostDiscoveryReturn => {
     eventSourceRef.current = eventSource;
 
     eventSource.onopen = () => {
+      isConnectingRef.current = false;
       setIsConnected(true);
       setIsDiscovering(false);
       setReconnectAttempts(0);
+      setConsecutiveFailures(0); // Reset circuit breaker
+      setIsCircuitBreakerOpen(false);
       setConnectionError(null);
     };
 
@@ -81,14 +107,46 @@ export const useSSEHostDiscovery = (): UseSSEHostDiscoveryReturn => {
     });
 
     eventSource.onerror = (error) => {
+      isConnectingRef.current = false;
       setIsConnected(false);
       setIsDiscovering(false);
       setConnectionError('Connection error');
 
-      // Auto-reconnect
+      // Update failure counters
+      setConsecutiveFailures(prev => {
+        const newFailures = prev + 1;
+        
+        // Check if we should open circuit breaker
+        if (newFailures >= CIRCUIT_BREAKER_CONFIG.MAX_CONSECUTIVE_FAILURES) {
+          console.log('🔴 Circuit breaker opened - too many consecutive failures');
+          setIsCircuitBreakerOpen(true);
+          
+          // Schedule a retry after offline delay
+          reconnectTimeoutRef.current = setTimeout(() => {
+            console.log('🟡 Circuit breaker retry attempt after offline period');
+            setIsCircuitBreakerOpen(false);
+            setConsecutiveFailures(0);
+            connect();
+          }, CIRCUIT_BREAKER_CONFIG.OFFLINE_RETRY_DELAY);
+          
+          return newFailures;
+        }
+        
+        return newFailures;
+      });
+
+      // Auto-reconnect with exponential backoff (only if circuit breaker is closed)
       setReconnectAttempts(prev => {
         const newAttempts = prev + 1;
-        const delay = Math.min(newAttempts * 3000, 30000); // Max 30s delay
+        
+        // Don't reconnect if circuit breaker is about to open
+        if (consecutiveFailures + 1 >= CIRCUIT_BREAKER_CONFIG.MAX_CONSECUTIVE_FAILURES) {
+          return newAttempts;
+        }
+
+        // Exponential backoff: 1s, 2s, 5s, 10s, 30s, 60s
+        const delays = [1000, 2000, 5000, 10000, 30000, 60000];
+        const delay = delays[Math.min(newAttempts - 1, delays.length - 1)];
         
         reconnectTimeoutRef.current = setTimeout(() => {
           connect();
@@ -111,6 +169,7 @@ export const useSSEHostDiscovery = (): UseSSEHostDiscoveryReturn => {
       eventSourceRef.current = null;
     }
 
+    isConnectingRef.current = false;
     setIsConnected(false);
     setIsDiscovering(false);
   }, []);
@@ -137,9 +196,12 @@ export const useSSEHostDiscovery = (): UseSSEHostDiscoveryReturn => {
     }
   }, [isConnected]);
 
-  // Auto-connect on mount
+  // Auto-connect on mount (with debounce to prevent multiple calls)
   useEffect(() => {
-    connect();
+    // Small delay to prevent multiple rapid calls during React strict mode
+    const connectTimeout = setTimeout(() => {
+      connect();
+    }, 100);
 
     // Cleanup on page unload
     const handleBeforeUnload = () => {
@@ -149,21 +211,22 @@ export const useSSEHostDiscovery = (): UseSSEHostDiscoveryReturn => {
     window.addEventListener('beforeunload', handleBeforeUnload);
 
     return () => {
+      clearTimeout(connectTimeout);
       disconnect();
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [connect, disconnect]);
+  }, []); // Empty deps array to only run once on mount
 
   // HTTP fallback when disconnected (with delay to avoid race conditions)
   useEffect(() => {
-    if (!isConnected) {
+    if (!isConnected && !isCircuitBreakerOpen) {
       const fallbackTimeout = setTimeout(() => {
         requestHostsUpdate();
       }, 2000); // Wait 2s before fallback
       
       return () => clearTimeout(fallbackTimeout);
     }
-  }, [isConnected, requestHostsUpdate]);
+  }, [isConnected, isCircuitBreakerOpen, requestHostsUpdate]);
 
   return {
     discoveredHosts,

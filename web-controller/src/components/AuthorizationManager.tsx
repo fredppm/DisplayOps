@@ -292,6 +292,7 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
   const [showInstructions, setShowInstructions] = useState(false);
   const [syncingDomains, setSyncingDomains] = useState<Set<string>>(new Set());
   const [showCookies, setShowCookies] = useState<Set<string>>(new Set());
+  const [selectedDomain, setSelectedDomain] = useState<string | null>(null);
   
   // Modal states
   const [showImportModal, setShowImportModal] = useState(false);
@@ -299,6 +300,8 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
   const [editingCookie, setEditingCookie] = useState<any>(null);
   const [currentDomainId, setCurrentDomainId] = useState<string>('');
   const [showRemoveConfirm, setShowRemoveConfirm] = useState<string>('');
+  const [removingDomains, setRemovingDomains] = useState<Set<string>>(new Set());
+  const [deletingCookies, setDeletingCookies] = useState<Set<string>>(new Set());
 
   // Helper function to add notifications
   const addNotification = (type: 'success' | 'error' | 'warning' | 'info', title: string, message: string) => {
@@ -491,7 +494,7 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
     loadSavedCookieData(false);
   }, []);
 
-  const updateCookies = (domainId: string, cookies: string) => {
+  const updateCookies = (domainId: string, cookies: any[]) => {
     setAuthDomains(prev => prev.map(domain => 
       domain.id === domainId 
         ? { ...domain, cookies, isValid: Array.isArray(cookies) ? cookies.length > 0 : false }
@@ -516,11 +519,39 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
     setShowRemoveConfirm(domainId);
   };
 
-  const removeDomain = (domainId: string) => {
+  const removeDomain = async (domainId: string) => {
     const domain = authDomains.find(d => d.id === domainId);
-    setAuthDomains(prev => prev.filter(d => d.id !== domainId));
-    setShowRemoveConfirm('');
-    addNotification('success', 'Domain Removed', `${domain?.domain} has been removed`);
+    if (!domain) return;
+
+    setRemovingDomains(prev => new Set([...prev, domainId]));
+    
+    try {
+      // Call API to remove domain from server
+      const response = await fetch('/api/cookies/domain', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domain: domain.domain })
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        setAuthDomains(prev => prev.filter(d => d.id !== domainId));
+        setShowRemoveConfirm('');
+        addNotification('success', 'Domain Removed', `${domain.domain} and all its cookies have been removed`);
+      } else {
+        addNotification('error', 'Remove Failed', result.error || 'Failed to remove domain from server');
+      }
+    } catch (error) {
+      console.error('Error removing domain:', error);
+      addNotification('error', 'Remove Failed', 'Failed to communicate with server');
+    } finally {
+      setRemovingDomains(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(domainId);
+        return newSet;
+      });
+    }
   };
 
   const validateCookies = async (domainId: string) => {
@@ -628,12 +659,24 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
 
     setSyncingDomains(prev => new Set([...prev, domainId]));
 
-    try {
-      addNotification('info', 'Syncing Cookies', `Syncing ${domain.domain} to all displays...`);
+    // Single notification ID to update progress
+    const syncNotificationId = Math.random().toString(36).substr(2, 9);
+    
+    // Initial notification
+    const initialNotification = {
+      id: syncNotificationId,
+      type: 'info' as const,
+      title: 'Syncing Cookies',
+      message: `Starting sync for ${domain.domain}...`,
+      timestamp: new Date()
+    };
+    setNotifications(prev => [initialNotification, ...prev.slice(0, 4)]);
 
+    try {
       let successCount = 0;
       let errorCount = 0;
       let hostCount = 0;
+      const results: string[] = [];
 
       // Process cookies locally in web-controller
       try {
@@ -654,15 +697,26 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
           const result = await response.json();
           if (result.success) {
             successCount = result.data.injectedCount;
+            results.push(`Local: ${successCount} cookies processed`);
           } else {
             errorCount++;
+            results.push('Local processing failed');
           }
         } else {
           errorCount++;
+          results.push('Local processing failed');
         }
       } catch (error) {
         errorCount++;
+        results.push('Local processing failed');
       }
+
+      // Update notification - discovering hosts
+      setNotifications(prev => prev.map(n => 
+        n.id === syncNotificationId 
+          ? { ...n, message: `Discovering hosts...` }
+          : n
+      ));
 
       // Now sync cookies to all discovered hosts
       try {
@@ -671,9 +725,13 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
           const hostsData = await hostsResponse.json();
           if (hostsData.success && hostsData.data && hostsData.data.length > 0) {
             
-            addNotification('info', 'Host Discovery', `Found ${hostsData.data.length} hosts, syncing cookies...`);
+            // Update notification - syncing to hosts
+            setNotifications(prev => prev.map(n => 
+              n.id === syncNotificationId 
+                ? { ...n, message: `Syncing to ${hostsData.data.length} hosts...` }
+                : n
+            ));
             
-            // Cookies are already structured arrays from storage
             const parsedCookies = Array.isArray(domain.cookies) ? domain.cookies : [];
 
             // Send cookies to each host
@@ -697,7 +755,6 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
                 if (hostResponse.ok) {
                   const hostResult = await hostResponse.json();
                   if (hostResult.success) {
-                    hostCount++;
                     return { success: true, host: host.hostname || host.ipAddress };
                   } else {
                     return { success: false, host: host.hostname || host.ipAddress, error: hostResult.error };
@@ -716,7 +773,6 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
 
             const hostResults = await Promise.all(syncPromises);
             
-            // Count successes and errors
             const successfulHosts = hostResults.filter(r => r.success);
             const failedHosts = hostResults.filter(r => !r.success);
             
@@ -724,28 +780,27 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
             errorCount += failedHosts.length;
 
             if (successfulHosts.length > 0) {
-              addNotification('success', 'Host Sync Complete', 
-                `Successfully synced to ${successfulHosts.length} hosts: ${successfulHosts.map(h => h.host).join(', ')}`);
+              results.push(`Hosts: ${successfulHosts.length}/${hostsData.data.length} synced`);
               
               // Auto-refresh pages after successful cookie sync
               await refreshPagesAfterSync(successfulHosts, hostsData.data);
             }
             
             if (failedHosts.length > 0) {
-              addNotification('warning', 'Host Sync Issues', 
-                `Failed to sync to ${failedHosts.length} hosts: ${failedHosts.map(h => `${h.host} (${h.error})`).join(', ')}`);
+              results.push(`Failed: ${failedHosts.map(h => h.host).join(', ')}`);
             }
           } else {
-            addNotification('warning', 'No Hosts Found', 'No hosts discovered. Make sure host-agents are running.');
+            results.push('No hosts discovered');
           }
         } else {
-          addNotification('error', 'Host Discovery Failed', 'Could not discover hosts. Check discovery service.');
+          results.push('Host discovery failed');
         }
       } catch (error) {
-        addNotification('error', 'Host Sync Error', 'Failed to discover or sync with hosts');
+        results.push('Host sync error');
         errorCount++;
       }
 
+      // Final consolidated notification
       if (successCount > 0 || hostCount > 0) {
         // Update last sync time and valid status
         setAuthDomains(prev => prev.map(d => 
@@ -756,25 +811,58 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
           } : d
         ));
 
-        const message = `Successfully processed ${successCount} cookies and synced to ${hostCount} hosts${errorCount > 0 ? `, ${errorCount} errors` : ''}. Data saved permanently!`;
-        addNotification('success', 'Sync Complete', message);
+        // Replace with success notification
+        setNotifications(prev => prev.map(n => 
+          n.id === syncNotificationId 
+            ? { 
+                ...n, 
+                type: 'success' as const, 
+                title: 'Sync Complete', 
+                message: results.join(' • ') 
+              }
+            : n
+        ));
         
         // Auto-reload data to reflect server state (silently)
         setTimeout(() => loadSavedCookieData(false), 1000);
       } else {
-        addNotification('error', 'Sync Failed', 
-          `Failed to process cookies or sync with hosts. Check format and host connectivity.`);
+        // Replace with error notification
+        setNotifications(prev => prev.map(n => 
+          n.id === syncNotificationId 
+            ? { 
+                ...n, 
+                type: 'error' as const, 
+                title: 'Sync Failed', 
+                message: 'No cookies synced. Check connectivity and format.' 
+              }
+            : n
+        ));
       }
 
     } catch (error) {
       console.error('Cookie sync error:', error);
-      addNotification('error', 'Sync Error', 'Failed to sync cookies to displays');
+      // Replace with error notification
+      setNotifications(prev => prev.map(n => 
+        n.id === syncNotificationId 
+          ? { 
+              ...n, 
+              type: 'error' as const, 
+              title: 'Sync Error', 
+              message: 'Failed to sync cookies to displays' 
+            }
+          : n
+      ));
     } finally {
       setSyncingDomains(prev => {
         const newSet = new Set(prev);
         newSet.delete(domainId);
         return newSet;
       });
+      
+      // Auto-remove notification after 8 seconds
+      setTimeout(() => {
+        setNotifications(prev => prev.filter(n => n.id !== syncNotificationId));
+      }, 8000);
     }
   };
 
@@ -838,6 +926,9 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
     const domain = authDomains.find(d => d.id === domainId);
     if (!domain) return;
 
+    const cookieKey = `${domainId}-${cookieName}`;
+    setDeletingCookies(prev => new Set([...prev, cookieKey]));
+
     try {
       const response = await fetch('/api/cookies/remove', {
         method: 'POST',
@@ -850,14 +941,21 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
 
       const result = await response.json();
       if (result.success) {
-        addNotification('success', 'Cookie Deleted', `Removed ${cookieName} from ${domain.domain}`);
+        addNotification('success', 'Cookie Deleted', `Removed "${cookieName}" from ${domain.domain}`);
         // Reload data to show updated cookies
-        loadSavedCookieData(true);
+        loadSavedCookieData(false);
       } else {
-        addNotification('error', 'Delete Failed', result.error || 'Failed to delete cookie');
+        addNotification('error', 'Delete Failed', result.error || `Failed to delete "${cookieName}"`);
       }
     } catch (error) {
-      addNotification('error', 'Delete Failed', `Failed to delete ${cookieName}`);
+      console.error('Error deleting cookie:', error);
+      addNotification('error', 'Delete Failed', `Failed to delete "${cookieName}" - check connection`);
+    } finally {
+      setDeletingCookies(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(cookieKey);
+        return newSet;
+      });
     }
   };
 
@@ -910,164 +1008,286 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
         </div>
       )}
 
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900 flex items-center">
-            Cookie Management
-            {isLoadingData && (
-              <RefreshCw className="w-5 h-5 text-blue-500 ml-3 animate-spin" />
-            )}
-          </h2>
-          <p className="text-gray-600 mt-1">
-            Import cookies to enable automatic login on display devices
-            {isLoadingData && (
-              <span className="text-blue-600 font-medium ml-2">• Loading saved data...</span>
-            )}
-          </p>
-        </div>
-        
-        <button
-          onClick={addNewDomain}
-          className="px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded flex items-center transition-colors"
-        >
-          <Plus className="w-3 h-3 mr-1.5" />
-          Add Domain
-        </button>
-      </div>
 
 
-      {/* Cookie Domains */}
-      <div className="space-y-6">
-        {authDomains.length === 0 ? (
-          <div className="text-center py-12">
-            <Cookie className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No domains configured yet</h3>
-            <p className="text-gray-600 mb-6">
-              Add a domain to start managing cookies for your dashboards
-            </p>
-            <button
-              onClick={addNewDomain}
-              className="btn-primary flex items-center mx-auto"
-            >
-              <Plus className="w-5 h-5 mr-2" />
-              Add Your First Domain
-            </button>
-          </div>
-        ) : (
-          authDomains.map((domain) => (
-          <div key={domain.id} className="card">
-            <div className="flex items-start justify-between mb-4">
-              <div className="flex-1 flex items-center space-x-2">
-                <input
-                  type="text"
-                  value={domain.domain}
-                  onChange={(e) => setAuthDomains(prev => prev.map(d => 
-                    d.id === domain.id ? { ...d, domain: e.target.value } : d
-                  ))}
-                  className="text-lg font-medium bg-transparent border-none p-0 focus:outline-none focus:ring-0 text-gray-900 flex-1"
-                  placeholder="https://example.com"
-                />
-                <button
-                  onClick={() => window.open(domain.domain, '_blank')}
-                  className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
-                  title="Open domain"
-                >
-                  <ExternalLink className="w-4 h-4" />
-                </button>
-              </div>
-              
-              <div className="flex items-center space-x-2">
-                {/* Actions moved to bottom */}
+      {/* Cookie Management Card */}
+      <div className="border border-gray-200 rounded-lg bg-white shadow-sm">
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-gray-200">
+          <div className="flex items-center justify-between">
+            <div className="min-w-0 flex-1">
+              <h2 className="text-lg font-medium text-gray-900 flex items-center">
+                Cookie Management
+              </h2>
+              <div className="mt-1 text-sm text-gray-500">
+                Import cookies to enable automatic login on display devices
               </div>
             </div>
+            
+            <div className="ml-6 flex items-center space-x-3">
+              <button
+                onClick={addNewDomain}
+                className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              >
+                <Plus className="w-4 h-4 mr-1.5" />
+                Add Domain
+              </button>
+            </div>
+          </div>
+        </div>
 
-            <div className="space-y-4">
-              {/* Domain Actions */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
+        {/* Domains List */}
+        <div className="divide-y divide-gray-200">
+          {isLoadingData ? (
+            // Loading skeletons - show 2 placeholder items
+            Array.from({ length: 2 }).map((_, index) => (
+              <div key={`skeleton-${index}`} className="px-6 py-6 animate-pulse">
+                <div className="flex items-center justify-between">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center space-x-2">
+                      <div className="h-5 bg-gray-300 rounded w-56"></div>
+                      <div className="h-4 w-4 bg-gray-200 rounded"></div>
+                    </div>
+                    <div className="mt-1 space-y-1">
+                      <div className="flex items-center space-x-4">
+                        <div className="h-3 bg-gray-200 rounded w-20"></div>
+                        <div className="h-3 bg-gray-200 rounded w-16"></div>
+                        <div className="h-3 bg-gray-200 rounded w-24"></div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="ml-6 flex items-center space-x-2">
+                    <div className="h-6 bg-gray-200 rounded w-16"></div>
+                    <div className="h-6 bg-gray-200 rounded w-14"></div>
+                  </div>
+                </div>
+              </div>
+            ))
+          ) : authDomains.length === 0 ? (
+            <div className="px-6 py-8 text-center">
+              <Cookie className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No domains configured yet</h3>
+              <p className="text-gray-600">
+                Use the "Add Domain" button above to start managing cookies
+              </p>
+            </div>
+          ) : (
+            authDomains.map((domain) => {
+            const storedCookies = getStoredCookiesForDomain(domain.id);
+            const secureCookiesCount = storedCookies.filter(c => c.secure).length;
+            const hasSecureCookies = secureCookiesCount > 0;
+            const securityRatio = storedCookies.length > 0 ? Math.round((secureCookiesCount / storedCookies.length) * 100) : 0;
+            
+            return (
+          <div 
+            key={domain.id} 
+            className={`px-6 py-6 ${
+              selectedDomain === domain.id ? 'bg-gray-50' : 'hover:bg-gray-50'
+            } cursor-pointer transition-colors`}
+            onClick={() => setSelectedDomain(
+              selectedDomain === domain.id ? null : domain.id
+            )}
+          >
+            {/* Domain Header */}
+            <div className="flex items-center justify-between">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center space-x-1">
+                  <span
+                    className="text-lg font-medium text-gray-900 bg-transparent border-none p-0 focus:outline-none focus:ring-0"
+                  >{domain.domain}</span>
                   <button
-                    onClick={() => openImportModal(domain.id)}
-                    className="px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded flex items-center transition-colors"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      window.open(domain.domain, '_blank');
+                    }}
+                    className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors"
+                    title="Open in new tab"
                   >
-                    <Upload className="w-3 h-3 mr-1.5" />
-                    Import DevTools
-                  </button>
-                  <button
-                    onClick={() => openAddCookieModal(domain.id)}
-                    className="px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded flex items-center transition-colors"
-                  >
-                    <Cookie className="w-3 h-3 mr-1.5" />
-                    Add Cookie
+                    <ExternalLink className="w-4 h-4" />
                   </button>
                 </div>
                 
+                {/* Description with statistics */}
+                <div className="mt-1 flex items-center space-x-4 text-sm text-gray-500">
+                  <span className="flex items-center">
+                    <Cookie className="w-4 h-4 mr-1" />
+                    {storedCookies.length} {storedCookies.length === 1 ? 'cookie' : 'cookies'}
+                  </span>
+                  
+                  {storedCookies.length > 0 && (
+                    <>
+                      <span className="flex items-center">
+                        {hasSecureCookies ? (
+                          <ShieldCheck className="w-4 h-4 mr-1 text-green-500" />
+                        ) : (
+                          <Shield className="w-4 h-4 mr-1 text-gray-400" />
+                        )}
+                        {securityRatio}% secure
+                      </span>
+                      
+                      {domain.lastSync && (
+                        <span className="flex items-center">
+                          <Calendar className="w-4 h-4 mr-1" />
+                          Last sync: {domain.lastSync.toLocaleDateString()}
+                        </span>
+                      )}
+                    </>
+                  )}
+                  
+                  {storedCookies.length === 0 && (
+                    <span className="text-gray-400">No cookies imported yet</span>
+                  )}
+                </div>
+              </div>
+              
+              {/* Domain Actions - Smaller buttons */}
+              <div className="ml-6 flex items-center space-x-2">
                 <button
-                  onClick={() => confirmRemoveDomain(domain.id)}
-                  className="px-3 py-1.5 text-xs bg-red-50 hover:bg-red-100 text-red-600 rounded flex items-center transition-colors"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    syncToAllDisplays(domain.id);
+                  }}
+                  className="inline-flex items-center px-2 py-1 text-xs font-medium text-white bg-indigo-600 border border-transparent rounded hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={storedCookies.length === 0 || hosts.filter(h => h.metrics.online).length === 0 || syncingDomains.has(domain.id)}
+                >
+                  {syncingDomains.has(domain.id) ? (
+                    <RefreshCw className="w-3 h-3 mr-1" />
+                  ) : (
+                    <Upload className="w-3 h-3 mr-1" />
+                  )}
+                  Sync to All
+                </button>
+                
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    confirmRemoveDomain(domain.id);
+                  }}
+                  className="inline-flex items-center px-2 py-1 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={removingDomains.has(domain.id)}
                   title="Remove domain"
                 >
-                  <X className="w-3 h-3 mr-1.5" />
-                  Remove Domain
+                  {removingDomains.has(domain.id) ? (
+                    <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
+                  ) : (
+                    <X className="w-3 h-3 mr-1" />
+                  )}
+                  Remove
                 </button>
               </div>
+            </div>
 
-              {/* Stored Cookies Display */}
-              {getStoredCookiesForDomain(domain.id).length > 0 && (
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
-                    <Cookie className="w-4 h-4 mr-2 text-amber-600" />
-                    Stored Cookies ({getStoredCookiesForDomain(domain.id).length})
-                  </h4>
-                  <div className="space-y-2 max-h-48 overflow-y-auto">
+            {/* Expanded Details - Show only when selected */}
+            {selectedDomain === domain.id && (
+              <div className="mt-4">
+                {/* Stored Cookies Display */}
+                {getStoredCookiesForDomain(domain.id).length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-medium text-gray-900 flex items-center">
+                      <Cookie className="w-4 h-4 mr-2 text-indigo-600" />
+                      Stored Cookies ({getStoredCookiesForDomain(domain.id).length})
+                    </h4>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openImportModal(domain.id);
+                        }}
+                        className="inline-flex items-center px-2 py-1 text-xs font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                      >
+                        <Upload className="w-3 h-3 mr-1" />
+                        Import
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openAddCookieModal(domain.id);
+                        }}
+                        className="inline-flex items-center px-2 py-1 text-xs font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                      >
+                        <Plus className="w-3 h-3 mr-1" />
+                        Add
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-3 max-h-64 overflow-y-auto">
                     {getStoredCookiesForDomain(domain.id).map((cookie, index) => (
-                      <div key={index} className="bg-white rounded p-3 border border-gray-200 relative">
+                      <div key={index} className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-sm transition-shadow">
                         <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <div className="font-mono text-sm font-medium text-gray-900 flex items-center space-x-2">
-                              <span className="font-semibold">{cookie.name}</span>
-                              <span className="text-gray-400">=</span>
-                              <span className="text-gray-600 truncate max-w-xs">
-                                {cookie.value.length > 40 ? `${cookie.value.substring(0, 40)}...` : cookie.value}
-                              </span>
+                          <div className="flex-1 min-w-0">
+                            {/* Cookie Name and Value */}
+                            <div className="flex items-center space-x-3 mb-3">
+                              <div className="flex-1 min-w-0">
+                                <div className="text-sm font-medium text-gray-900">{cookie.name}</div>
+                                <div className="text-sm text-gray-500 truncate font-mono">
+                                  {cookie.value.length > 60 ? `${cookie.value.substring(0, 60)}...` : cookie.value}
+                                </div>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-3 mt-2 text-xs text-gray-600">
-                              <span><strong>Path:</strong> {cookie.path || '/'}</span>
+                            
+                            {/* Cookie Attributes */}
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-800">
+                                Path: {cookie.path || '/'}
+                              </span>
+                              
                               {cookie.secure && (
-                                <span className="text-green-600 flex items-center">
+                                <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-green-100 text-green-800">
                                   <Lock className="w-3 h-3 mr-1" />
                                   Secure
                                 </span>
                               )}
+                              
                               {cookie.httpOnly && (
-                                <span className="text-blue-600 flex items-center">
+                                <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-blue-100 text-blue-800">
                                   <Shield className="w-3 h-3 mr-1" />
                                   HttpOnly
                                 </span>
                               )}
-                              {cookie.sameSite && <span><strong>SameSite:</strong> {cookie.sameSite}</span>}
+                              
+                              {cookie.sameSite && (
+                                <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-purple-100 text-purple-800">
+                                  SameSite: {cookie.sameSite}
+                                </span>
+                              )}
+                              
                               {cookie.expirationDate && (
-                                <span className="flex items-center">
+                                <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-yellow-100 text-yellow-800">
                                   <Calendar className="w-3 h-3 mr-1" />
                                   {new Date(cookie.expirationDate * 1000).toLocaleDateString()}
                                 </span>
                               )}
                             </div>
                           </div>
-                          <div className="flex items-center space-x-1">
+                          
+                          {/* Cookie Actions */}
+                          <div className="flex items-center space-x-2 ml-4">
                             <button
-                              onClick={() => openAddCookieModal(domain.id, cookie)}
-                              className="text-blue-400 hover:text-blue-600 p-1"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openAddCookieModal(domain.id, cookie);
+                              }}
+                              className="inline-flex items-center p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors"
                               title="Edit cookie"
                             >
                               <Edit className="w-4 h-4" />
                             </button>
                             <button
-                              onClick={() => deleteCookie(domain.id, cookie.name)}
-                              className="text-red-400 hover:text-red-600 p-1"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteCookie(domain.id, cookie.name);
+                              }}
+                              className="inline-flex items-center p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              disabled={deletingCookies.has(`${domain.id}-${cookie.name}`)}
                               title="Delete cookie"
                             >
-                              <X className="w-4 h-4" />
+                              {deletingCookies.has(`${domain.id}-${cookie.name}`) ? (
+                                <RefreshCw className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <X className="w-4 h-4" />
+                              )}
                             </button>
                           </div>
                         </div>
@@ -1079,39 +1299,49 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
 
               {/* Empty State */}
               {getStoredCookiesForDomain(domain.id).length === 0 && (
-                <div className="bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-                  <Cookie className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                  <p className="text-sm text-gray-500 mb-3">No cookies imported yet</p>
-                  <p className="text-xs text-gray-400">Import cookies from DevTools or add them manually</p>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-medium text-gray-900 flex items-center">
+                      <Cookie className="w-4 h-4 mr-2 text-indigo-600" />
+                      Stored Cookies (0)
+                    </h4>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openImportModal(domain.id);
+                        }}
+                        className="inline-flex items-center px-2 py-1 text-xs font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                      >
+                        <Upload className="w-3 h-3 mr-1" />
+                        Import
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openAddCookieModal(domain.id);
+                        }}
+                        className="inline-flex items-center px-2 py-1 text-xs font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                      >
+                        <Plus className="w-3 h-3 mr-1" />
+                        Add
+                      </button>
+                    </div>
+                  </div>
+                  <div className="bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+                    <Cookie className="w-10 h-10 text-gray-400 mx-auto mb-3" />
+                    <p className="text-sm font-medium text-gray-900 mb-1">No cookies imported yet</p>
+                    <p className="text-sm text-gray-500">Import cookies from DevTools or add them manually using the buttons above</p>
+                  </div>
                 </div>
               )}
-
-              {/* Sync Section - Simplified workflow */}
-              <div className="flex items-center justify-end space-x-4 pt-4 border-t border-gray-200">
-                {domain.lastSync && (
-                  <span className="text-xs text-gray-500 flex items-center">
-                    <Calendar className="w-3 h-3 mr-1" />
-                    {domain.lastSync.toLocaleString()}
-                  </span>
-                )}
-                
-                <button
-                  onClick={() => syncToAllDisplays(domain.id)}
-                  className="px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded flex items-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  disabled={getStoredCookiesForDomain(domain.id).length === 0 || hosts.filter(h => h.metrics.online).length === 0 || syncingDomains.has(domain.id)}
-                >
-                  {syncingDomains.has(domain.id) ? (
-                    <RefreshCw className="w-3 h-3 mr-1.5 animate-spin" />
-                  ) : (
-                    <Upload className="w-3 h-3 mr-1.5" />
-                  )}
-                  Sync to All Displays ({getStoredCookiesForDomain(domain.id).length} cookies)
-                </button>
               </div>
-            </div>
+            )}
           </div>
-          ))
+          );
+          })
         )}
+        </div>
       </div>
 
 
@@ -1199,9 +1429,17 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
               </button>
               <button 
                 onClick={() => removeDomain(showRemoveConfirm)}
-                className="px-3 py-1.5 text-xs bg-red-600 hover:bg-red-700 text-white rounded flex items-center transition-colors"
+                className="px-3 py-1.5 text-xs bg-red-600 hover:bg-red-700 text-white rounded flex items-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={removingDomains.has(showRemoveConfirm)}
               >
-                Remove Domain
+                {removingDomains.has(showRemoveConfirm) ? (
+                  <>
+                    <RefreshCw className="w-3 h-3 mr-1.5 animate-spin" />
+                    Removing...
+                  </>
+                ) : (
+                  'Remove Domain'
+                )}
               </button>
             </div>
           </div>
