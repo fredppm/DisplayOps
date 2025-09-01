@@ -488,19 +488,23 @@ export class WindowManager extends EventEmitter {
 
     // Handle window closed
     window.on('closed', () => {
-      console.log(`Window ${id} was closed`);
+      console.log(`🔴 [WINDOW-CLOSED] Window ${id} was closed on display ${managedWindow.config.displayId}`);
       
-      // Update StateManager to mark display as inactive
+      // Update StateManager to mark display as inactive and clear dashboard assignment
       if (this.stateManager) {
-        this.stateManager.saveDisplayState(managedWindow.config.displayId, {
-          isActive: false,
-          windowId: undefined // Clear windowId since window is being closed
-        });
-        console.log(`❌ Marked display ${managedWindow.config.displayId} as inactive in StateManager (window closed: ${id})`);
+        // Clear the assigned dashboard completely when window is closed
+        this.stateManager.clearAssignedDashboard(managedWindow.config.displayId);
+        console.log(`🧹 [STATE-CLEARED] Cleared dashboard assignment and marked display ${managedWindow.config.displayId} as inactive (window closed: ${id})`);
       }
       
       this.windows.delete(id);
-      this.emit('window-closed', { windowId: id, totalWindows: this.windows.size });
+      console.log(`📢 [EVENT-EMIT] Emitting 'window-closed' event for ${managedWindow.config.displayId}`);
+      this.emit('window-closed', { 
+        windowId: id, 
+        displayId: managedWindow.config.displayId,
+        totalWindows: this.windows.size 
+      });
+      console.log(`✅ [EVENT-EMITTED] Event emitted successfully`);
     });
 
     // Handle unresponsive window
@@ -716,6 +720,8 @@ export class WindowManager extends EventEmitter {
 
   public async refreshDisplay(displayId: string): Promise<{ success: boolean; url?: string; error?: string }> {
     try {
+      console.log(`🔄 [WINDOW-MANAGER] Refreshing display: ${displayId}`);
+      
       // Find window for this display
       const window = Array.from(this.windows.values()).find(w => 
         w.config.displayId === displayId
@@ -725,13 +731,30 @@ export class WindowManager extends EventEmitter {
         return { success: false, error: `No window found for display ${displayId}` };
       }
 
-      const success = this.refreshWindow(window.id);
+      // Try to get the original dashboard URL from StateManager
+      let targetUrl = window.config.url; // fallback to current config URL
+      
+      if (this.stateManager) {
+        const assignedDashboard = this.stateManager.getAssignedDashboard(displayId);
+        if (assignedDashboard && assignedDashboard.url) {
+          targetUrl = assignedDashboard.url;
+          console.log(`🔄 [WINDOW-MANAGER] Found assigned dashboard URL: ${targetUrl}`);
+        } else {
+          console.log(`🔄 [WINDOW-MANAGER] No assigned dashboard found, using config URL: ${targetUrl}`);
+        }
+      }
+
+      // Navigate to the original URL instead of just reloading
+      console.log(`🔄 [WINDOW-MANAGER] Navigating to dashboard URL: ${targetUrl}`);
+      const success = await this.navigateWindow(window.id, targetUrl);
+      
       return { 
         success, 
-        url: window.config.url,
-        error: success ? undefined : 'Failed to refresh display'
+        url: targetUrl,
+        error: success ? undefined : 'Failed to navigate to dashboard URL'
       };
     } catch (error) {
+      console.error(`❌ [WINDOW-MANAGER] Error refreshing display ${displayId}:`, error);
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   }

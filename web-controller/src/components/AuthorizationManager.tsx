@@ -582,16 +582,26 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
 
   const refreshPagesAfterSync = async (successfulHosts: any[], allHosts: any[]) => {
     try {
-      addNotification('info', 'Refreshing Pages', 'Refreshing all displays to apply cookies...');
+      addNotification('info', 'Optimized Refresh', 'Refreshing only active displays with dashboards to apply cookies...');
       
       const refreshPromises = successfulHosts.map(async (syncResult) => {
         const host = allHosts.find(h => h.hostname === syncResult.host || h.ipAddress === syncResult.host);
         if (!host) return { success: false, host: syncResult.host, error: 'Host not found' };
 
-        // Get all displays for this host (assuming display-1, display-2, display-3)
-        const displays = ['display-1', 'display-2', 'display-3'];
+        // Only refresh displays that have active dashboards
+        const activeDisplays = (host.displayStates || [])
+          .filter(display => display.isActive && display.assignedDashboard)
+          .map(display => display.id);
         
-        const displayRefreshPromises = displays.map(async (displayId) => {
+        console.log(`🔄 Cookie refresh: Host ${host.hostname} has ${activeDisplays.length} active displays with dashboards:`, activeDisplays);
+        
+        // Skip if no active displays with dashboards
+        if (activeDisplays.length === 0) {
+          console.log(`⏭️ Cookie refresh: Skipping host ${host.hostname} - no active displays with dashboards`);
+          return { success: true, host: syncResult.host, refreshedDisplays: 0, totalDisplays: 0 };
+        }
+        
+        const displayRefreshPromises = activeDisplays.map(async (displayId) => {
           try {
             const response = await fetch(`/api/host/${host.id}/command`, {
               method: 'POST',
@@ -628,17 +638,21 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
           success: successfulDisplays > 0, 
           host: syncResult.host, 
           refreshedDisplays: successfulDisplays,
-          totalDisplays: displays.length
+          totalDisplays: activeDisplays.length
         };
       });
 
       const refreshResults = await Promise.all(refreshPromises);
       const successfulRefreshes = refreshResults.filter(r => r.success);
+      const totalRefreshed = successfulRefreshes.reduce((sum, r) => sum + (r.refreshedDisplays || 0), 0);
+      const hostsWithActiveDisplays = successfulRefreshes.filter(r => r.totalDisplays > 0);
       
-      if (successfulRefreshes.length > 0) {
-        const totalRefreshed = successfulRefreshes.reduce((sum, r) => sum + (r.refreshedDisplays || 0), 0);
+      if (totalRefreshed > 0) {
         addNotification('success', 'Pages Refreshed', 
-          `Refreshed ${totalRefreshed} displays across ${successfulRefreshes.length} hosts. Cookies are now active!`);
+          `Refreshed ${totalRefreshed} active displays across ${hostsWithActiveDisplays.length} hosts. Cookies are now active!`);
+      } else if (successfulRefreshes.length > 0) {
+        addNotification('info', 'Cookies Synced', 
+          'Cookies synced successfully, but no active displays found to refresh.');
       } else {
         addNotification('warning', 'Refresh Issues', 
           'Some displays may not have refreshed. Cookies synced but may need manual refresh.');

@@ -200,7 +200,7 @@ export class CookieService {
 
       console.log(`Parsed ${cookies.length} cookies for ${request.domain}`);
 
-      // Store cookies in memory
+      // Store cookies in memory  
       this.cookieStore.set(request.domain, cookies);
 
       // Inject cookies into all relevant Electron sessions

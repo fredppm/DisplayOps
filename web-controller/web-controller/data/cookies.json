@@ -12,32 +12,32 @@
           "httpOnly": true,
           "sameSite": "lax",
           "expirationDate": 1757009036.732116,
-          "importedAt": "2025-09-01T17:35:45.233Z"
+          "importedAt": "2025-09-01T20:32:46.833Z"
         },
         {
           "name": "grafana_session",
-          "value": "89491a5af45e28edd0ae0487baa66f43",
+          "value": "5af92f3454e39a452bbfee09e2f995f8",
           "domain": "grafana.vtex.com",
           "path": "/",
           "secure": true,
           "httpOnly": true,
           "sameSite": "lax",
-          "expirationDate": 1759340118.322288,
-          "importedAt": "2025-09-01T17:35:45.234Z"
+          "expirationDate": 1759350723.78776,
+          "importedAt": "2025-09-01T20:32:46.833Z"
         },
         {
           "name": "grafana_session_expiry",
-          "value": "1756748712",
+          "value": "1756759318",
           "domain": "grafana.vtex.com",
           "path": "/",
           "secure": true,
           "httpOnly": false,
           "sameSite": "lax",
-          "expirationDate": 1759340118.322559,
-          "importedAt": "2025-09-01T17:35:45.234Z"
+          "expirationDate": 1759350723.787794,
+          "importedAt": "2025-09-01T20:32:46.833Z"
         }
       ],
-      "lastImport": "2025-09-01T17:35:45.234Z",
+      "lastImport": "2025-09-01T20:32:46.833Z",
       "description": "Cookies for https://grafana.vtex.com"
     },
     "https://healthmonitor.vtex.com": {
@@ -51,7 +51,7 @@
           "secure": true,
           "httpOnly": true,
           "sameSite": "lax",
-          "importedAt": "2025-09-01T13:51:31.431Z"
+          "importedAt": "2025-09-01T20:32:23.020Z"
         },
         {
           "name": "__Secure-next-auth.callback-url",
@@ -61,7 +61,7 @@
           "secure": true,
           "httpOnly": true,
           "sameSite": "lax",
-          "importedAt": "2025-09-01T13:51:31.431Z"
+          "importedAt": "2025-09-01T20:32:23.020Z"
         },
         {
           "name": "__Secure-next-auth.session-token",
@@ -72,12 +72,12 @@
           "httpOnly": true,
           "sameSite": "lax",
           "expirationDate": 1759326685.932846,
-          "importedAt": "2025-09-01T13:51:31.431Z"
+          "importedAt": "2025-09-01T20:32:23.020Z"
         }
       ],
-      "lastImport": "2025-09-01T13:51:31.431Z",
+      "lastImport": "2025-09-01T20:32:23.020Z",
       "description": "Cookies for https://healthmonitor.vtex.com"
     }
   },
-  "lastUpdated": "2025-09-01T17:35:45.234Z"
+  "lastUpdated": "2025-09-01T20:32:46.833Z"
 }

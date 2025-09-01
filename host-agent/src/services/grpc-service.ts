@@ -320,36 +320,113 @@ export class GrpcService extends EventEmitter {
   }
 
   private async handleSetCookies(cmd: any): Promise<any> {
+    console.log(`🍪 [GRPC-SERVICE] Starting cookie sync for ${cmd.cookies.length} cookies`);
+    console.log(`🍪 [GRPC-SERVICE] Domain: ${cmd.domain || 'not specified'}`);
+    
     let cookiesSet = 0;
     const failedCookies: string[] = [];
+    let domainsCleared = new Set<string>();
 
+    // Group cookies by domain and clear existing cookies for each domain first
+    const cookiesByDomain = new Map<string, any[]>();
     for (const cookie of cmd.cookies) {
+      const domain = cookie.domain || cmd.domain;
+      if (!cookiesByDomain.has(domain)) {
+        cookiesByDomain.set(domain, []);
+      }
+      cookiesByDomain.get(domain)!.push(cookie);
+    }
+
+    // Clear existing cookies for each domain first
+    for (const [domain, cookies] of cookiesByDomain.entries()) {
+      if (domain && !domainsCleared.has(domain)) {
+        console.log(`🗑️ [GRPC-SERVICE] Clearing existing cookies for domain: ${domain}`);
+        try {
+          await this.hostService.clearDomainCookies(domain);
+          domainsCleared.add(domain);
+          console.log(`✅ [GRPC-SERVICE] Cleared existing cookies for domain: ${domain}`);
+        } catch (error) {
+          console.error(`❌ [GRPC-SERVICE] Failed to clear cookies for domain ${domain}:`, error);
+          // Continue anyway - clearing is optional, setting is more important
+        }
+      }
+    }
+
+    // Now set all the new cookies
+    for (let i = 0; i < cmd.cookies.length; i++) {
+      const cookie = cmd.cookies[i];
       try {
+        console.log(`🍪 [GRPC-SERVICE] Processing cookie ${i + 1}/${cmd.cookies.length}: ${cookie.name}`);
+        
+        console.log(`🍪 [GRPC-SERVICE] Raw cookie from request:`, {
+          name: cookie.name,
+          value: cookie.value?.substring(0, 50) + '...',
+          domain: cookie.domain,
+          path: cookie.path,
+          expires: cookie.expires,
+          http_only: cookie.http_only,
+          secure: cookie.secure,
+          same_site: cookie.same_site
+        });
+        
         // Convert gRPC cookie format to internal format
         const cookieData = {
           name: cookie.name,
           value: cookie.value,
-          domain: cookie.domain,
-          path: cookie.path,
-          expires: cookie.expires ? new Date(cookie.expires * 1000) : undefined,
-          httpOnly: cookie.http_only,
-          secure: cookie.secure,
-          sameSite: cookie.same_site as any
+          domain: cookie.domain || cmd.domain,
+          path: cookie.path || '/',
+          expires: cookie.expires && cookie.expires > 0 ? new Date(cookie.expires * 1000) : undefined,
+          httpOnly: cookie.http_only || false,
+          secure: cookie.secure !== false, // Default to secure unless explicitly false
+          sameSite: cookie.same_site || 'lax'
         };
 
-        await this.hostService.setCookie(cookieData);
-        cookiesSet++;
+        console.log(`🍪 [GRPC-SERVICE] Converted cookie data for ${cookie.name}:`, {
+          name: cookieData.name,
+          domain: cookieData.domain,
+          path: cookieData.path,
+          secure: cookieData.secure,
+          httpOnly: cookieData.httpOnly,
+          sameSite: cookieData.sameSite,
+          expires: cookieData.expires,
+          expires_raw_value: cookie.expires // Show the original raw value
+        });
+
+        console.log(`🔄 [GRPC-SERVICE] Calling hostService.setCookie for: ${cookie.name}`);
+        const success = await this.hostService.setCookie(cookieData);
+        console.log(`🔄 [GRPC-SERVICE] setCookie returned: ${success} for cookie: ${cookie.name}`);
+        
+        if (success) {
+          cookiesSet++;
+          console.log(`✅ [GRPC-SERVICE] Successfully set cookie: ${cookie.name}`);
+        } else {
+          failedCookies.push(cookie.name);
+          console.error(`❌ [GRPC-SERVICE] Failed to set cookie: ${cookie.name}`);
+        }
       } catch (error) {
         failedCookies.push(cookie.name);
+        console.error(`❌ [GRPC-SERVICE] Exception setting cookie ${cookie.name}:`, error);
       }
     }
 
-    return {
+    const result = {
       set_cookies_result: {
         cookies_set: cookiesSet,
-        failed_cookies: failedCookies
+        failed_cookies: failedCookies,
+        domains_processed: Array.from(domainsCleared),
+        total_attempted: cmd.cookies.length
       }
     };
+
+    console.log(`🍪 [GRPC-SERVICE] Cookie sync completed:`, {
+      attempted: cmd.cookies.length,
+      successful: cookiesSet,
+      failed: failedCookies.length,
+      domains_cleared: domainsCleared.size,
+      failed_cookies: failedCookies
+    });
+
+    return result;
   }
 
   private async handleValidateUrl(cmd: any): Promise<any> {
@@ -765,6 +842,9 @@ export class GrpcService extends EventEmitter {
           // Setup periodic heartbeat
           this.setupHeartbeat();
           
+          // Setup window event listeners
+          this.setupWindowEventListeners();
+          
           resolve();
         }
       );
@@ -799,6 +879,38 @@ export class GrpcService extends EventEmitter {
 
       this.broadcastEvent(heartbeatEvent);
     }, 30000);
+  }
+
+  private setupWindowEventListeners(): void {
+    console.log(`🎧 [GRPC-SETUP] Setting up window event listeners...`);
+    console.log(`🔧 [GRPC-DEBUG] WindowManager exists:`, !!this.windowManager);
+    console.log(`🔧 [GRPC-DEBUG] WindowManager is EventEmitter:`, this.windowManager instanceof require('events').EventEmitter);
+    
+    // Listen for window closed events from WindowManager
+    this.windowManager.on('window-closed', (event: { windowId: string; displayId: string; totalWindows: number }) => {
+      console.log(`🎯 [GRPC-RECEIVED] Window closed event received:`, event);
+      logger.info(`📺 Window closed event: ${event.windowId} on ${event.displayId}`);
+      
+      // Force refresh HostService to reflect StateManager changes
+      this.hostService.forceRefreshFromSystem();
+      
+      // Broadcast display state change via gRPC
+      this.broadcastEvent({
+        event_id: `dashboard_closed_${Date.now()}`,
+        type: 'DISPLAY_STATE_CHANGED',
+        timestamp: { seconds: Math.floor(Date.now() / 1000), nanos: 0 },
+        display_state_changed: {
+          display_id: event.displayId,
+          status: this.getDisplayStatus(event.displayId)
+        }
+      });
+      
+      console.log(`📡 [GRPC-BROADCAST] Broadcasted dashboard closed event for ${event.displayId}`);
+      logger.info(`📡 Broadcasted dashboard closed event for ${event.displayId}`);
+    });
+    
+    console.log(`✅ [GRPC-SETUP-COMPLETE] Window event listeners setup complete`);
+    logger.info('✅ Window event listeners setup complete');
   }
 
   private calculateRealCpuUsage(): number {
