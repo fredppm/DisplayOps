@@ -14,10 +14,12 @@ export interface Dashboard {
 
 export interface MiniPC {
   id: string;
+  name: string;
   hostname: string; // DNS name (e.g., 'VTEX-B9LH6Z3')
   ipAddress: string; // IP address (e.g., '192.168.1.227')
   port: number;
-  status: HostStatus;
+  metrics: HostMetrics;
+  debugEnabled?: boolean;
   lastHeartbeat: Date;
   lastDiscovered: Date;
   version: string;
@@ -33,7 +35,7 @@ export interface MDNSServiceInfo {
   port: number;
 }
 
-export interface HostStatus {
+export interface HostMetrics {
   online: boolean;
   cpuUsage: number;
   memoryUsage: number;
@@ -89,11 +91,11 @@ export enum CommandType {
 }
 
 export interface OpenDashboardCommand {
-  dashboardId: string;
+  display_id: string;
+  dashboard_id: string;
   url: string;
-  monitorIndex: number;
   fullscreen: boolean;
-  refreshInterval?: number; // in milliseconds
+  refresh_interval_ms?: number;
 }
 
 export interface SyncCookiesCommand {
@@ -128,7 +130,7 @@ export interface ApiResponse<T = any> {
 }
 
 export interface HealthCheckResponse {
-  hostStatus: HostStatus;
+  hostMetrics: HostMetrics;
   displayStatuses: DisplayStatus[];
   systemInfo: {
     uptime: number;

@@ -57,7 +57,7 @@ export default function TabPage({ tab }: TabPageProps) {
   };
 
   const getOverallSystemHealth = () => {
-    const onlineHosts = discoveredHosts.filter(h => h.status.online).length;
+    const onlineHosts = discoveredHosts.filter(h => h.metrics.online).length;
     const totalHosts = discoveredHosts.length;
     
     return {
@@ -184,9 +184,7 @@ export default function TabPage({ tab }: TabPageProps) {
             )}
             
             {tab === 'dashboards' && (
-              <DashboardManager 
-                hosts={discoveredHosts}
-              />
+              <DashboardManager />
             )}
           </div>
         </main>

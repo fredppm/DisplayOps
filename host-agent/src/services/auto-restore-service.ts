@@ -76,7 +76,7 @@ export class AutoRestoreService {
       const windowConfig: WindowConfig = {
         id: `dashboard-${dashboardId}-${displayId}-restored-${Date.now()}`,
         url,
-        monitorIndex,
+        displayId,
         fullscreen: true, // Default to fullscreen for restored dashboards
         refreshInterval
       };

@@ -48,8 +48,7 @@ Web Controller Architecture:
 │   └── System Status Dashboard
 ├── API Routes
 │   ├── /api/discovery/hosts - mDNS discovery
-│   ├── /api/host/[id]/command - Command proxy
-│   └── /api/host/[id]/status - Status proxy
+│   └── /api/host/[id]/command - Command proxy
 └── Services
     └── Discovery Service (mDNS browser)
 ```

@@ -1,4 +1,4 @@
-import { MiniPC, HostStatus } from '@/types/shared-types';
+import { MiniPC, HostMetrics } from '@/types/shared-types';
 import { MDNSDiscoveryService } from './mdns-discovery-service';
 import { GrpcClientService } from './server/grpc-client-service';
 
@@ -138,12 +138,13 @@ export class WindowsDiscoveryService {
         hostname: discoveredHost.host, // DNS name (e.g., 'VTEX-B9LH6Z3')
         ipAddress: primaryIP, // IP address (e.g., '192.168.1.227')
         port: discoveredHost.port,
-        status: {
+        metrics: {
           online: false, // Will be updated via gRPC events
           cpuUsage: 0,
           memoryUsage: 0,
           browserProcesses: 0
         },
+        debugEnabled: false, // Will be updated via gRPC events
         lastHeartbeat: new Date(),
         lastDiscovered: new Date(),
         version: discoveredHost.txt?.version || 'unknown',
@@ -221,10 +222,10 @@ export class WindowsDiscoveryService {
       this.handleHostDisplaysChanged(hostId, displays, changeType);
     });
 
-    // Handle host status changes
+    // Handle host metrics changes
     this.grpcService.on('host-status-changed', ({ hostId, host, status }) => {
-      console.log(`🔄 gRPC: Host ${hostId} status changed`);
-      this.handleHostStatusChanged(hostId, status);
+      console.log(`🔄 gRPC: Host ${hostId} metrics changed`);
+      this.handleHostMetricsChanged(hostId, status);
     });
     
     // Handle heartbeats to update host status
@@ -235,7 +236,7 @@ export class WindowsDiscoveryService {
           memory: hostEvent.payload.hostStatus.memory_usage_percent,
           online: hostEvent.payload.hostStatus.online
         });
-        this.updateHostStatusFromHeartbeat(hostEvent.hostId, hostEvent.payload.hostStatus);
+        this.updateHostMetricsFromHeartbeat(hostEvent.hostId, hostEvent.payload.hostStatus);
       }
     });
   }
@@ -293,22 +294,23 @@ export class WindowsDiscoveryService {
     }
   }
 
-  private updateHostStatusFromHeartbeat(hostId: string, hostStatus: any): void {
+  private updateHostMetricsFromHeartbeat(hostId: string, hostMetrics: any): void {
     const host = this.discoveredHosts.get(hostId);
     if (!host) return;
 
-    // Convert gRPC status format to our internal format
-    const updatedStatus = {
-      online: hostStatus.online || false,
-      cpuUsage: parseFloat(hostStatus.cpu_usage_percent) || 0,
-      memoryUsage: parseFloat(hostStatus.memory_usage_percent) || 0,
-      browserProcesses: parseInt(hostStatus.browser_processes) || 0,
-      lastError: hostStatus.last_error || undefined
+    // Convert gRPC metrics format to our internal format
+    const updatedMetrics = {
+      online: hostMetrics.online || false,
+      cpuUsage: parseFloat(hostMetrics.cpu_usage_percent) || 0,
+      memoryUsage: parseFloat(hostMetrics.memory_usage_percent) || 0,
+      browserProcesses: parseInt(hostMetrics.browser_processes) || 0,
+      lastError: hostMetrics.last_error || undefined
     };
 
     const updatedHost = {
       ...host,
-      status: updatedStatus,
+      metrics: updatedMetrics,
+      debugEnabled: hostMetrics.debug_enabled || false,
       lastHeartbeat: new Date()
     };
 
@@ -320,21 +322,22 @@ export class WindowsDiscoveryService {
     }
   }
 
-  private handleHostStatusChanged(hostId: string, status: any): void {
+  private handleHostMetricsChanged(hostId: string, status: any): void {
     const host = this.discoveredHosts.get(hostId);
     if (!host) return;
 
     const updatedHost = {
       ...host,
-      status: {
-        ...host.status,
+      metrics: {
+        ...host.metrics,
         ...status
       },
+      debugEnabled: status.debug_enabled !== undefined ? status.debug_enabled : host.debugEnabled,
       lastHeartbeat: new Date()
     };
 
     this.discoveredHosts.set(hostId, updatedHost);
-    console.debug(`🔄 gRPC Discovery: Host ${hostId} status updated`);
+    console.debug(`🔄 gRPC Discovery: Host ${hostId} metrics updated`);
   }
 
   // ❌ REMOVED: All HTTP polling methods replaced with gRPC streaming
@@ -366,12 +369,13 @@ export class WindowsDiscoveryService {
       hostname: host.hostname || 'localhost',
       ipAddress: host.ipAddress || '127.0.0.1',
       port: host.port || 8082, // gRPC port
-      status: host.status || {
+      metrics: host.metrics || {
         online: true,
         cpuUsage: 0,
         memoryUsage: 0,
         browserProcesses: 0
       },
+      debugEnabled: host.debugEnabled || false,
       lastHeartbeat: new Date(),
       lastDiscovered: new Date(),
       version: host.version || '1.0.0',

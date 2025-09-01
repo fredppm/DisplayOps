@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { MiniPC, HostStatus } from '@/types/shared-types';
+import { MiniPC, HostMetrics } from '@/types/shared-types';
 
 /**
  * Instant discovery for development
@@ -19,11 +19,11 @@ export class InstantDiscovery {
       if (response.data && response.data.success) {
         console.log('✅ Found localhost host instantly!');
         
-        const hostStatus: HostStatus = {
+        const hostMetrics: HostMetrics = {
           online: true,
-          cpuUsage: response.data.data?.hostStatus?.cpuUsage || 0,
-          memoryUsage: response.data.data?.hostStatus?.memoryUsage || 0,
-          browserProcesses: response.data.data?.hostStatus?.browserProcesses || 0
+          cpuUsage: response.data.data?.hostMetrics?.cpuUsage || 0,
+          memoryUsage: response.data.data?.hostMetrics?.memoryUsage || 0,
+          browserProcesses: response.data.data?.hostMetrics?.browserProcesses || 0
         };
 
         const host: MiniPC = {
@@ -32,11 +32,10 @@ export class InstantDiscovery {
           hostname: '127.0.0.1',
           ipAddress: '127.0.0.1',
           port: 8080,
-          status: hostStatus,
+          metrics: hostMetrics,
           lastHeartbeat: new Date(),
           lastDiscovered: new Date(),
           version: response.data.data?.version || '1.0.0',
-          tvs: [], // Legacy property
           displays: ['display-1', 'display-2'] // Will be updated by discovery service dynamically
         };
 

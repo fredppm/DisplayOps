@@ -471,7 +471,7 @@ export class GrpcService extends EventEmitter {
         try {
           // Find windows for this display
           const windows = this.windowManager.getAllWindows().filter(w => 
-            w.config.monitorIndex === (parseInt(displayId.replace('display-', '')) || 0)
+            w.config.displayId === displayId
           );
 
           for (const window of windows) {

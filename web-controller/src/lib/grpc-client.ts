@@ -370,7 +370,7 @@ export class GrpcHostClient extends EventEmitter {
       };
     } else if (response.health_check_result) {
       result.result = {
-        hostStatus: this.convertGrpcHostStatus(response.health_check_result.host_status),
+        hostMetrics: this.convertGrpcHostMetrics(response.health_check_result.host_status),
         displayStatuses: response.health_check_result.display_statuses?.map((ds: any) => 
           this.convertGrpcDisplayStatus(ds)
         ) || [],
@@ -413,7 +413,7 @@ export class GrpcHostClient extends EventEmitter {
       };
     } else if (event.host_status_changed) {
       hostEvent.payload = {
-        status: this.convertGrpcHostStatus(event.host_status_changed.status)
+        status: this.convertGrpcHostMetrics(event.host_status_changed.status)
       };
     } else if (event.error_event) {
       hostEvent.payload = {
@@ -424,7 +424,7 @@ export class GrpcHostClient extends EventEmitter {
       };
     } else if (event.heartbeat) {
       hostEvent.payload = {
-        hostStatus: this.convertGrpcHostStatus(event.heartbeat.host_status),
+        hostMetrics: this.convertGrpcHostMetrics(event.heartbeat.host_status),
         displayStatuses: event.heartbeat.display_statuses?.map((ds: any) => 
           this.convertGrpcDisplayStatus(ds)
         ) || []
@@ -434,27 +434,28 @@ export class GrpcHostClient extends EventEmitter {
     return hostEvent;
   }
 
-  private convertGrpcHostStatus(grpcStatus: any): any {
+  private convertGrpcHostMetrics(grpcMetrics: any): any {
     return {
-      online: grpcStatus.online,
-      cpuUsage: grpcStatus.cpu_usage_percent, // Updated field name
-      memoryUsage: grpcStatus.memory_usage_percent, // Updated field name
-      memoryUsedBytes: grpcStatus.memory_used_bytes,
-      memoryTotalBytes: grpcStatus.memory_total_bytes,
-      browserProcesses: grpcStatus.browser_processes,
-      lastError: grpcStatus.last_error,
-      lastUpdate: new Date(grpcStatus.last_update.seconds * 1000),
-      systemMetrics: grpcStatus.system_metrics ? {
-        loadAverage1m: grpcStatus.system_metrics.load_average_1m,
-        loadAverage5m: grpcStatus.system_metrics.load_average_5m,
-        loadAverage15m: grpcStatus.system_metrics.load_average_15m,
-        uptimeSeconds: grpcStatus.system_metrics.uptime_seconds,
-        cpuCores: grpcStatus.system_metrics.cpu_cores,
-        cpuModel: grpcStatus.system_metrics.cpu_model,
-        diskUsagePercent: grpcStatus.system_metrics.disk_usage_percent,
-        diskFreeBytes: grpcStatus.system_metrics.disk_free_bytes,
-        diskTotalBytes: grpcStatus.system_metrics.disk_total_bytes,
-        networkConnections: grpcStatus.system_metrics.network_connections
+      online: grpcMetrics.online,
+      cpuUsage: grpcMetrics.cpu_usage_percent, // Updated field name
+      memoryUsage: grpcMetrics.memory_usage_percent, // Updated field name
+      memoryUsedBytes: grpcMetrics.memory_used_bytes,
+      memoryTotalBytes: grpcMetrics.memory_total_bytes,
+      browserProcesses: grpcMetrics.browser_processes,
+      lastError: grpcMetrics.last_error,
+      lastUpdate: new Date(grpcMetrics.last_update.seconds * 1000),
+      debugEnabled: grpcMetrics.debug_enabled || false,
+      systemMetrics: grpcMetrics.system_metrics ? {
+        loadAverage1m: grpcMetrics.system_metrics.load_average_1m,
+        loadAverage5m: grpcMetrics.system_metrics.load_average_5m,
+        loadAverage15m: grpcMetrics.system_metrics.load_average_15m,
+        uptimeSeconds: grpcMetrics.system_metrics.uptime_seconds,
+        cpuCores: grpcMetrics.system_metrics.cpu_cores,
+        cpuModel: grpcMetrics.system_metrics.cpu_model,
+        diskUsagePercent: grpcMetrics.system_metrics.disk_usage_percent,
+        diskFreeBytes: grpcMetrics.system_metrics.disk_free_bytes,
+        diskTotalBytes: grpcMetrics.system_metrics.disk_total_bytes,
+        networkConnections: grpcMetrics.system_metrics.network_connections
       } : null
     };
   }

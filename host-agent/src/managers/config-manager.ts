@@ -172,7 +172,7 @@ export class ConfigManager {
         const existingConfig = this.config.displays.find(d => d.electronDisplayId === display.id);
         
         return {
-          id: existingConfig?.id || `display-${index + 1}`,
+          id: `display-${index + 1}`,
           name: existingConfig?.name || `Display ${index + 1}${display === screen.getPrimaryDisplay() ? ' (Primary)' : ''}`,
           monitorIndex: index,
           electronDisplayId: display.id,

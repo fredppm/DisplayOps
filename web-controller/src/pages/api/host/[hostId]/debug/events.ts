@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { parseHostId } from '@/lib/host-utils';
+import { grpcManager } from '@/lib/server/grpc-manager';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { hostId } = req.query;
@@ -13,51 +13,47 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    // Parse host info directly from hostId (format: agent-IP-PORT)
-    const hostInfo = parseHostId(hostId as string);
+    // 🚀 Use gRPC instead of direct HTTP proxy
+    await grpcManager.initialize();
     
-    if (!hostInfo) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid host ID format'
-      });
+    let result;
+
+    if (req.method === 'GET') {
+      // Parse query parameters for GET requests
+      const options: { limit?: number; since?: string } = {};
+      
+      if (req.query.limit) {
+        options.limit = parseInt(req.query.limit as string);
+      }
+      
+      if (req.query.since) {
+        options.since = req.query.since as string;
+      }
+
+      result = await grpcManager.getDebugEvents(hostId as string, options);
+    } else if (req.method === 'DELETE') {
+      result = await grpcManager.clearDebugEvents(hostId as string);
     }
 
-    // Build URL with query params for GET requests
-    let url = `http://${hostInfo.ipAddress}:${hostInfo.port}/api/debug/events`;
-    if (req.method === 'GET' && req.url?.includes('?')) {
-      const queryString = req.url.split('?')[1];
-      url += `?${queryString}`;
-    }
-
-    // Proxy request directly to host (avoid internal fetch to discovery)
-    const hostResponse = await fetch(url, {
-      method: req.method,
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      signal: AbortSignal.timeout(10000) // 10 second timeout
-    });
-
-    const responseData = await hostResponse.json();
-
-    if (!hostResponse.ok) {
-      return res.status(hostResponse.status).json({
-        success: false,
-        error: responseData.error || `Host returned ${hostResponse.status}`
-      });
-    }
-
-    res.status(200).json(responseData);
+    res.status(200).json(result);
 
   } catch (error) {
-    console.error('Debug events proxy error:', error);
+    console.error('gRPC debug events proxy error:', error);
     
-    if (error instanceof Error && error.message === 'Invalid host ID format') {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid host ID format'
-      });
+    if (error instanceof Error) {
+      if (error.message.includes('Invalid host ID format')) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid host ID format'
+        });
+      }
+      
+      if (error.message.includes('not connected')) {
+        return res.status(503).json({
+          success: false,
+          error: 'Host not available via gRPC'
+        });
+      }
     }
     
     res.status(500).json({

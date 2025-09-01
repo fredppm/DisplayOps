@@ -305,15 +305,6 @@ export class GrpcHostManager extends EventEmitter {
     return this.executeCommand(hostId, command);
   }
 
-  public async validateUrl(hostId: string, url: string, timeoutMs?: number): Promise<CommandResponse> {
-    const command: CommandRequest = {
-      command_id: `validate_${hostId}_${Date.now()}`,
-      type: 'validate_url',
-      payload: { url, timeoutMs }
-    };
-
-    return this.executeCommand(hostId, command);
-  }
 
   public async identifyDisplays(hostId: string, options?: {
     duration?: number;

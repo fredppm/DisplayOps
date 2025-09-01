@@ -1,10 +1,10 @@
-import * as bonjour from 'bonjour';
+const bonjour = require('bonjour');
 import { ConfigManager } from '../managers/config-manager';
 import os from 'os';
 
 export class MDNSService {
-  private bonjourInstance: bonjour.Bonjour;
-  private publishedService: bonjour.Service | null = null;
+  private bonjourInstance: any;
+  private publishedService: any | null = null;
   private isAdvertising: boolean = false;
   private configManager: ConfigManager;
   private updateInterval: NodeJS.Timeout | null = null;
@@ -43,7 +43,7 @@ export class MDNSService {
         console.log(`   Host: ${this.publishedService?.host}`);
       });
 
-      this.publishedService.on('error', (error) => {
+      this.publishedService.on('error', (error: any) => {
         console.error('❌ mDNS service error:', error);
       });
 

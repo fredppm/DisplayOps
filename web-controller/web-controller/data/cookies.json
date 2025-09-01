@@ -11,7 +11,7 @@
           "secure": true,
           "httpOnly": true,
           "sameSite": "lax",
-          "importedAt": "2025-08-31T10:15:57.164Z"
+          "importedAt": "2025-08-31T22:52:29.893Z"
         },
         {
           "name": "cf_clearance",
@@ -21,7 +21,7 @@
           "secure": true,
           "httpOnly": true,
           "sameSite": "none",
-          "importedAt": "2025-08-31T10:15:57.164Z"
+          "importedAt": "2025-08-31T22:52:29.893Z"
         },
         {
           "name": "grafana_session",
@@ -31,7 +31,7 @@
           "secure": true,
           "httpOnly": true,
           "sameSite": "lax",
-          "importedAt": "2025-08-31T10:15:57.165Z"
+          "importedAt": "2025-08-31T22:52:29.893Z"
         },
         {
           "name": "grafana_session_expiry",
@@ -41,10 +41,10 @@
           "secure": true,
           "httpOnly": false,
           "sameSite": "lax",
-          "importedAt": "2025-08-31T10:15:57.165Z"
+          "importedAt": "2025-08-31T22:52:29.893Z"
         }
       ],
-      "lastImport": "2025-08-31T10:15:57.165Z",
+      "lastImport": "2025-08-31T22:52:29.893Z",
       "description": "Cookies for https://grafana.vtex.com"
     },
     "https://healthmonitor.vtex.com/": {
@@ -133,5 +133,5 @@
       "description": "Cookies for https://healthmonitor.vtex.com"
     }
   },
-  "lastUpdated": "2025-08-31T10:15:57.165Z"
+  "lastUpdated": "2025-08-31T22:52:29.893Z"
 }

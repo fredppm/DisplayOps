@@ -7,7 +7,7 @@ import { RefreshManager, RefreshEvent } from '../services/refresh-manager';
 export interface WindowConfig {
   id: string;
   url: string;
-  monitorIndex: number;
+  displayId: string;
   fullscreen?: boolean;
   refreshInterval?: number; // in milliseconds
   width?: number;
@@ -65,7 +65,7 @@ export class WindowManager extends EventEmitter {
 
   public async createWindow(config: WindowConfig): Promise<string> {
     try {
-      console.log(`Creating window: ${config.id} for monitor ${config.monitorIndex}`);
+      console.log(`Creating window: ${config.id} for display ${config.displayId}`);
 
       // Check if window already exists
       if (this.windows.has(config.id)) {
@@ -81,10 +81,10 @@ export class WindowManager extends EventEmitter {
         // Still create the window but log the warning
       }
 
-      // Get target display
-      const targetDisplay = this.getDisplayByIndex(config.monitorIndex);
+      // Get target display by displayId
+      const targetDisplay = this.getDisplayByDisplayId(config.displayId);
       if (!targetDisplay) {
-        throw new Error(`Display ${config.monitorIndex} not found`);
+        throw new Error(`Display ${config.displayId} not found`);
       }
 
       // Calculate window bounds
@@ -405,6 +405,16 @@ export class WindowManager extends EventEmitter {
     return this.displays[index] || this.displays[0]; // Fallback to primary display
   }
 
+  private getDisplayByDisplayId(displayId: string): Display | undefined {
+    // Extract index from displayId like "display-1", "display-2", etc.
+    const match = displayId.match(/display-(\d+)/);
+    if (match) {
+      const index = parseInt(match[1]) - 1; // Convert to 0-based index
+      return this.getDisplayByIndex(index);
+    }
+    return this.displays[0]; // Fallback to primary display
+  }
+
   private calculateWindowBounds(config: WindowConfig, display: Display) {
     const { bounds } = display;
     
@@ -648,7 +658,7 @@ export class WindowManager extends EventEmitter {
       const windowConfig: WindowConfig = {
         id: `dashboard_${config.displayId}_${Date.now()}`,
         url: config.url,
-        monitorIndex: parseInt(config.displayId.replace('display-', '')) || 0,
+        displayId: config.displayId,
         fullscreen: config.fullscreen !== false,
         refreshInterval: config.refreshInterval || 0
       };
@@ -664,7 +674,7 @@ export class WindowManager extends EventEmitter {
     try {
       // Find window for this display
       const window = Array.from(this.windows.values()).find(w => 
-        w.config.monitorIndex === (parseInt(displayId.replace('display-', '')) || 0)
+        w.config.displayId === displayId
       );
 
       if (!window) {
@@ -685,7 +695,7 @@ export class WindowManager extends EventEmitter {
   public async takeScreenshot(displayId: string, options?: { format?: string; quality?: number }): Promise<{ data: Buffer; format: string; width: number; height: number }> {
     // Find window for this display
     const window = Array.from(this.windows.values()).find(w => 
-      w.config.monitorIndex === (parseInt(displayId.replace('display-', '')) || 0)
+      w.config.displayId === displayId
     );
 
     if (!window) {

@@ -1098,7 +1098,7 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
                 <button
                   onClick={() => syncToAllDisplays(domain.id)}
                   className="px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded flex items-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  disabled={getStoredCookiesForDomain(domain.id).length === 0 || hosts.filter(h => h.status.online).length === 0 || syncingDomains.has(domain.id)}
+                  disabled={getStoredCookiesForDomain(domain.id).length === 0 || hosts.filter(h => h.metrics.online).length === 0 || syncingDomains.has(domain.id)}
                 >
                   {syncingDomains.has(domain.id) ? (
                     <RefreshCw className="w-3 h-3 mr-1.5 animate-spin" />

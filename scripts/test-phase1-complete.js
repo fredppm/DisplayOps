@@ -334,24 +334,6 @@ async function runIntegrationTests() {
         
         return response.status === 200;
       }
-    },
-    {
-      name: 'Status Monitoring via Web Controller',
-      test: async () => {
-        // Get discovered hosts first
-        const hostsResponse = await axios.get(`http://localhost:${TEST_CONFIG.webControllerPort}/api/discovery/hosts`);
-        const hosts = hostsResponse.data.data || [];
-        
-        if (hosts.length === 0) return false;
-        
-        const hostId = hosts[0].id;
-        const response = await axios.get(
-          `http://localhost:${TEST_CONFIG.webControllerPort}/api/host/${hostId}/status`,
-          { timeout: TEST_CONFIG.apiTimeout }
-        );
-        
-        return response.status === 200 && response.data.data.hostStatus;
-      }
     }
   ];
 

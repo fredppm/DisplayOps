@@ -1,57 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { MiniPC, Dashboard } from '@/types/shared-types';
+import { Dashboard } from '@/types/shared-types';
 import { 
   Plus, 
-  Monitor, 
   ExternalLink, 
-  Settings, 
-  Play, 
-  Pause,
-  RotateCcw,
-  RefreshCw,
   AlertCircle,
   CheckCircle,
   X,
-  Loader,
   Edit3,
   Trash2,
   Save,
   XCircle
 } from 'lucide-react';
 
-interface DashboardManagerProps {
-  hosts: MiniPC[];
-}
+interface DashboardManagerProps {}
 
-export const DashboardManager: React.FC<DashboardManagerProps> = ({ hosts }) => {
-  const [dashboards, setDashboards] = useState<Dashboard[]>([
-    {
-      id: 'common-dashboard',
-      name: 'Common Dashboard', 
-      url: 'https://grafana.vtex.com/d/d7e7051f-42a2-4798-af93-cf2023dd2e28/home?orgId=1&from=now-3h&to=now&timezone=browser&var-Origin=argocd&refresh=10s',
-      description: 'Common dashboard for all systems',
-      refreshInterval: 300,
-      requiresAuth: true,
-      category: 'Monitoring'
-    },
-    {
-      id: 'health-monitor',
-      name: 'Health Monitor',
-      url: 'https://healthmonitor.vtex.com/',
-      description: 'Health monitor for all systems',
-      refreshInterval: 600,
-      requiresAuth: true,
-      category: 'Business Intelligence'
-    }
-  ]);
-
+export const DashboardManager: React.FC<DashboardManagerProps> = () => {
+  const [dashboards, setDashboards] = useState<Dashboard[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selectedDashboard, setSelectedDashboard] = useState<string | null>(null);
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [assignments, setAssignments] = useState<Record<string, { hostId: string, displayId: string, dashboardId: string }>>({});
-  const [realTimeAssignments, setRealTimeAssignments] = useState<Record<string, { hostId: string, displayId: string, dashboardId: string, url: string, isActive: boolean }>>({});
-  
-  // Loading and notification states
-  const [loadingDeployments, setLoadingDeployments] = useState<Set<string>>(new Set());
   const [notifications, setNotifications] = useState<Array<{
     id: string;
     type: 'success' | 'error' | 'warning' | 'info';
@@ -86,70 +52,110 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ hosts }) => 
     setNotifications(prev => prev.filter(n => n.id !== id));
   };
 
-  // 🚀 MIGRATED: Sync assignments using real-time gRPC/SSE data instead of HTTP polling
-  const syncAssignmentsFromHosts = async () => {
-    console.log('🔄 Syncing dashboard assignments from real-time gRPC data...');
-    const newRealTimeAssignments: Record<string, { hostId: string, displayId: string, dashboardId: string, url: string, isActive: boolean }> = {};
-    
-    for (const host of hosts) {
-      if (!host.status.online) continue;
+  // API functions
+  const fetchDashboards = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/dashboards');
       
-      try {
-        // 🚀 Use displays from real-time gRPC/SSE data (no HTTP fetch needed!)
-        console.log(`📺 Processing host ${host.id} with ${host.displays?.length || 0} displays from gRPC`);
-        
-        if (host.displays && host.displays.length > 0) {
-          // Process each display from the gRPC data
-          for (const displayId of host.displays) {
-            try {
-              // Only need to fetch assignment info if not available in host object
-              // For now, make a targeted request for just this display's assignment
-              const response = await fetch(`/api/host/${host.id}/displays/${displayId}/assignment`);
-              if (response.ok) {
-                const result = await response.json();
-                if (result.success && result.data?.assignedDashboard) {
-                  const assignmentKey = `${host.id}-${displayId}`;
-                  newRealTimeAssignments[assignmentKey] = {
-                    hostId: host.id,
-                    displayId,
-                    dashboardId: result.data.assignedDashboard.dashboardId,
-                    url: result.data.assignedDashboard.url,
-                    isActive: result.data.isActive || false
-                  };
-                }
-              }
-            } catch (error) {
-              console.debug(`Could not get assignment for display ${displayId}:`, error);
-              // Continue processing other displays
-            }
-          }
-        } else {
-          console.debug(`📺 Host ${host.id}: No displays available from gRPC data yet`);
-        }
-      } catch (error) {
-        console.error(`Error syncing assignments from host ${host.id}:`, error);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
+      
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to fetch dashboards');
+      }
+      
+      setDashboards(result.data);
+    } catch (error: any) {
+      console.error('Error fetching dashboards:', error);
+      addNotification('error', 'Load Error', error.message || 'Failed to load dashboards');
+    } finally {
+      setLoading(false);
     }
-    
-    setRealTimeAssignments(newRealTimeAssignments);
-    
-    // Also update the local assignments to match reality
-    const syncedAssignments: Record<string, { hostId: string, displayId: string, dashboardId: string }> = {};
-    Object.entries(newRealTimeAssignments).forEach(([key, assignment]) => {
-      syncedAssignments[key] = {
-        hostId: assignment.hostId,
-        displayId: assignment.displayId,
-        dashboardId: assignment.dashboardId
-      };
-    });
-    setAssignments(syncedAssignments);
   };
 
-  // 🚀 NEW: Auto-sync when hosts change (real-time gRPC updates)
+  const createDashboard = async (dashboardData: Omit<Dashboard, 'id'>) => {
+    try {
+      const response = await fetch('/api/dashboards', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(dashboardData),
+      });
+      
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to create dashboard');
+      }
+      
+      setDashboards(prev => [...prev, result.data]);
+      addNotification('success', 'Dashboard Created', `${result.data.name} has been created`);
+      return result.data;
+    } catch (error: any) {
+      console.error('Error creating dashboard:', error);
+      addNotification('error', 'Creation Error', error.message || 'Failed to create dashboard');
+      throw error;
+    }
+  };
+
+  const updateDashboard = async (id: string, dashboardData: Omit<Dashboard, 'id'>) => {
+    try {
+      const response = await fetch(`/api/dashboards/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(dashboardData),
+      });
+      
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to update dashboard');
+      }
+      
+      setDashboards(prev => prev.map(d => d.id === id ? result.data : d));
+      addNotification('success', 'Dashboard Updated', `${result.data.name} has been updated`);
+      return result.data;
+    } catch (error: any) {
+      console.error('Error updating dashboard:', error);
+      addNotification('error', 'Update Error', error.message || 'Failed to update dashboard');
+      throw error;
+    }
+  };
+
+  const deleteDashboard = async (id: string) => {
+    try {
+      const response = await fetch(`/api/dashboards/${id}`, {
+        method: 'DELETE',
+      });
+      
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to delete dashboard');
+      }
+      
+      setDashboards(prev => prev.filter(d => d.id !== id));
+      addNotification('success', 'Dashboard Deleted', `${result.data.name} has been removed`);
+      return result.data;
+    } catch (error: any) {
+      console.error('Error deleting dashboard:', error);
+      addNotification('error', 'Deletion Error', error.message || 'Failed to delete dashboard');
+      throw error;
+    }
+  };
+
+  // Load dashboards on component mount
   useEffect(() => {
-    console.log('📡 Hosts updated from gRPC/SSE, auto-syncing dashboard assignments...');
-    syncAssignmentsFromHosts();
-  }, [hosts]); // React to real-time host changes
+    fetchDashboards();
+  }, []);
+
 
   // Dashboard management functions
   const startEditingDashboard = (dashboard: Dashboard) => {
@@ -164,7 +170,7 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ hosts }) => 
     addNotification('info', 'Edit Cancelled', 'Dashboard editing cancelled');
   };
 
-  const saveDashboardChanges = () => {
+  const saveDashboardChanges = async () => {
     if (!editForm || !editingDashboard) return;
 
     // Validate required fields
@@ -186,36 +192,47 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ hosts }) => 
       return;
     }
 
-    // Update dashboard in the list
-    setDashboards(prev => prev.map(d => 
-      d.id === editingDashboard ? { ...editForm } : d
-    ));
-
-    addNotification('success', 'Dashboard Updated', `${editForm.name} has been updated successfully`);
-    
-    setEditingDashboard(null);
-    setEditForm(null);
+    try {
+      await updateDashboard(editingDashboard, {
+        name: editForm.name,
+        url: editForm.url,
+        description: editForm.description || '',
+        refreshInterval: editForm.refreshInterval,
+        requiresAuth: editForm.requiresAuth,
+        category: editForm.category
+      });
+      
+      setEditingDashboard(null);
+      setEditForm(null);
+    } catch (error) {
+      // Error handling is done in updateDashboard function
+    }
   };
 
-  const deleteDashboard = (dashboard: Dashboard) => {
-    // Check if dashboard is currently assigned to any display
-    const isAssigned = Object.values(assignments).some(assignment => 
-      assignment.dashboardId === dashboard.id
-    );
-
-    if (isAssigned) {
-      addNotification('warning', 'Cannot Delete Dashboard', 
-        `${dashboard.name} is currently assigned to one or more displays. Remove assignments first.`);
+  const handleDeleteDashboard = async (dashboard: Dashboard) => {
+    if (!confirm(`Are you sure you want to delete "${dashboard.name}"? This action cannot be undone.`)) {
       return;
     }
 
-    setDashboards(prev => prev.filter(d => d.id !== dashboard.id));
-    addNotification('success', 'Dashboard Deleted', `${dashboard.name} has been removed`);
+    try {
+      await deleteDashboard(dashboard.id);
+    } catch (error) {
+      // Error handling is done in deleteDashboard function
+    }
   };
 
-  const addNewDashboard = () => {
-    const newDashboard: Dashboard = {
-      id: `dashboard-${Date.now()}`,
+  // Simple URL validation function
+  const isValidUrl = (url: string): boolean => {
+    try {
+      new URL(url);
+      return url.startsWith('http://') || url.startsWith('https://');
+    } catch {
+      return false;
+    }
+  };
+
+  const addNewDashboard = async () => {
+    const newDashboardData = {
       name: 'New Dashboard',
       url: 'https://example.com',
       description: 'New dashboard description',
@@ -224,187 +241,14 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ hosts }) => 
       category: 'Custom'
     };
 
-    setDashboards(prev => [...prev, newDashboard]);
-    startEditingDashboard(newDashboard);
-    addNotification('success', 'Dashboard Created', 'New dashboard created. Configure it now.');
-  };
-
-  const handleDeployDashboard = async (dashboardId: string, hostId: string, displayId: string) => {
-    const dashboard = dashboards.find(d => d.id === dashboardId);
-    const host = hosts.find(h => h.id === hostId);
-    
-    if (!dashboard || !host) {
-      addNotification('error', 'Deployment Failed', 'Dashboard or host not found');
-      return;
-    }
-
-    const deploymentKey = `${hostId}-${displayId}`;
-    
-    // Set loading state
-    setLoadingDeployments(prev => new Set([...prev, deploymentKey]));
-
     try {
-
-      
-      // ✅ Validate URL via web-controller API
-      addNotification('info', 'Validating URL', `Checking ${dashboard.name} accessibility...`);
-      
-      try {
-        const validateResponse = await fetch(`/api/host/${host.id}/validate-url`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            url: dashboard.url,
-            timeout: 10000
-          })
-        });
-
-        if (validateResponse.ok) {
-          const validateResult = await validateResponse.json();
-          
-          if (!validateResult.success) {
-            addNotification('error', 'URL Validation Failed', validateResult.error || 'Unknown validation error');
-            return;
-          }
-
-          const validation = validateResult.validate_url_result;
-          if (!validation?.is_valid) {
-            addNotification('warning', 'URL Not Reachable', 
-              `The URL ${dashboard.name} is not reachable: ${validation?.error || 'Connection failed'}`);
-            // Continue anyway - the user might want to deploy it
-          }
-        }
-      } catch (error) {
-        // If validation fails, log but continue - URL might still work
-        console.warn(`URL validation failed for ${dashboard.name}:`, error);
-        addNotification('warning', 'Validation Unavailable', 'Could not validate URL, but continuing deployment...');
-      }
-
-      // ✅ Deploy dashboard via web-controller API (which uses gRPC)
-      addNotification('info', 'Deploying Dashboard', `Opening ${dashboard.name} on ${displayId.replace('display-', 'Display ')}...`);
-      
-      const response = await fetch(`/api/host/${host.id}/command`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          type: 'open_dashboard',
-          targetDisplay: displayId,
-          payload: {
-            dashboardId: dashboard.id,
-            url: dashboard.url,
-            monitorIndex: parseInt(displayId.replace('display-', '')) - 1,
-            fullscreen: true,
-            refreshInterval: dashboard.refreshInterval ? dashboard.refreshInterval * 1000 : 300000
-          },
-          timestamp: new Date()
-        })
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        
-        if (result.success) {
-          // Update assignments
-          const assignmentKey = `${hostId}-${displayId}`;
-          setAssignments(prev => ({
-            ...prev,
-            [assignmentKey]: { hostId, displayId, dashboardId }
-          }));
-          
-          addNotification('success', 'Dashboard Deployed Successfully', 
-            `${dashboard.name} is now displaying on ${host.hostname} - ${displayId.replace('display-', 'Display ')}`);
-        } else {
-          addNotification('error', 'Deployment Failed', 
-            result.error || 'Unknown error occurred during deployment');
-        }
-      } else {
-        const errorData = await response.json();
-        addNotification('error', 'Deployment Request Failed', errorData.error || `HTTP ${response.status}`);
-      }
-    } catch (error: any) {
-      let errorMessage = 'Unknown error occurred';
-      
-      if (error.name === 'TypeError' && error.message.includes('fetch')) {
-        errorMessage = `Cannot connect to web controller API`;
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-      
-      addNotification('error', 'Connection Error', errorMessage);
-
-    } finally {
-      // Remove loading state
-      setLoadingDeployments(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(deploymentKey);
-        return newSet;
-      });
+      const newDashboard = await createDashboard(newDashboardData);
+      startEditingDashboard(newDashboard);
+    } catch (error) {
+      // Error handling is done in createDashboard function
     }
   };
 
-  const handleRefreshDashboard = async (hostId: string, displayId: string) => {
-    const host = hosts.find(h => h.id === hostId);
-    if (!host) {
-      addNotification('error', 'Refresh Failed', 'Host not found');
-      return;
-    }
-
-    const assignmentKey = `${hostId}-${displayId}`;
-    const assignment = assignments[assignmentKey];
-    const dashboardName = assignment ? 
-      dashboards.find(d => d.id === assignment.dashboardId)?.name || 'Dashboard' : 
-      'Dashboard';
-
-    try {
-      addNotification('info', 'Refreshing Dashboard', `Refreshing ${dashboardName} on ${displayId.replace('display-', 'Display ')}...`);
-      
-      // ✅ Refresh display via web-controller API (which uses gRPC)
-      const response = await fetch(`/api/host/${host.id}/command`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          type: 'refresh_page',
-          targetDisplay: displayId,
-          timestamp: new Date()
-        })
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        
-        if (result.success) {
-          addNotification('success', 'Dashboard Refreshed', 
-            `${dashboardName} has been refreshed on ${host.hostname} - ${displayId.replace('display-', 'Display ')}`);
-        } else {
-          addNotification('error', 'Refresh Failed', 
-            result.error || 'Unknown error occurred during refresh');
-        }
-      } else {
-        const errorData = await response.json();
-        addNotification('error', 'Refresh Request Failed', errorData.error || `HTTP ${response.status}`);
-      }
-    } catch (error: any) {
-      let errorMessage = 'Unknown error occurred';
-      
-      if (error.name === 'TypeError' && error.message.includes('fetch')) {
-        errorMessage = `Cannot connect to web controller API`;
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-      
-      addNotification('error', 'Connection Error', errorMessage);
-
-    }
-  };
-
-  // ❌ REMOVED: HTTP polling replaced with real-time gRPC/SSE events
-  // The useEffect above now handles real-time sync automatically
 
   return (
     <div className="space-y-6">
@@ -473,12 +317,23 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ hosts }) => 
         </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="max-w-4xl mx-auto">
         {/* Dashboards List */}
         <div className="space-y-4">
           <h3 className="text-lg font-semibold text-gray-900">Available Dashboards</h3>
           
-          {dashboards.map((dashboard) => (
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+              <span className="ml-2 text-gray-600">Loading dashboards...</span>
+            </div>
+          ) : dashboards.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <p className="text-lg">No dashboards configured</p>
+              <p className="text-sm">Click "Add Dashboard" to create your first dashboard</p>
+            </div>
+          ) : (
+            dashboards.map((dashboard) => (
             <div
               key={dashboard.id}
               className={`card hover:shadow-md transition-shadow ${
@@ -615,7 +470,7 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ hosts }) => 
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        deleteDashboard(dashboard);
+                        handleDeleteDashboard(dashboard);
                       }}
                       className="p-1 text-gray-400 hover:text-red-600 transition-colors"
                       title="Delete dashboard"
@@ -680,136 +535,6 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ hosts }) => 
                 </div>
               )}
             </div>
-          ))}
-        </div>
-
-        {/* Display Assignment Grid */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-gray-900">Display Assignments</h3>
-            <button
-              onClick={syncAssignmentsFromHosts}
-              className="flex items-center px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              title="Sync assignments from hosts"
-            >
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Sync Status
-            </button>
-          </div>
-          
-          {hosts.length === 0 ? (
-            <div className="card text-center py-8">
-              <Monitor className="w-8 h-8 text-gray-400 mx-auto mb-3" />
-              <p className="text-gray-500">No hosts available for assignment</p>
-            </div>
-          ) : (
-            hosts.map((host) => (
-              <div key={host.id} className="card">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center">
-                    <Monitor className="w-6 h-6 text-primary-600 mr-3" />
-                    <div>
-                      <h4 className="font-medium text-gray-900">{host.hostname}</h4>
-                      <p className="text-sm text-gray-500">{host.ipAddress}</p>
-                    </div>
-                  </div>
-                  
-                  <span className={host.status.online ? 'status-online' : 'status-offline'}>
-                    {host.status.online ? 'Online' : 'Offline'}
-                  </span>
-                </div>
-
-                <div className="space-y-3">
-                  {host.displays.map((displayId) => {
-                    const assignmentKey = `${host.id}-${displayId}`;
-                    const assignment = assignments[assignmentKey];
-                    const realTimeAssignment = realTimeAssignments[assignmentKey];
-                    const assignedDashboard = assignment 
-                      ? dashboards.find(d => d.id === assignment.dashboardId)
-                      : null;
-
-                    return (
-                      <div 
-                        key={displayId}
-                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
-                      >
-                        <div className="flex items-center">
-                          <div className={`w-3 h-3 rounded mr-3 ${
-                            realTimeAssignment?.isActive 
-                              ? 'bg-green-500' 
-                              : assignedDashboard 
-                                ? 'bg-yellow-500' 
-                                : 'bg-gray-400'
-                          }`}></div>
-                          <div>
-                            <div className="font-medium text-gray-900">
-                              {displayId.replace('display-', 'Display ')}
-                            </div>
-                            {assignedDashboard && (
-                              <div className="text-sm text-gray-600">
-                                {assignedDashboard.name}
-                                {realTimeAssignment && (
-                                  <span className={`ml-2 px-2 py-1 rounded-full text-xs ${
-                                    realTimeAssignment.isActive 
-                                      ? 'bg-green-100 text-green-800' 
-                                      : 'bg-yellow-100 text-yellow-800'
-                                  }`}>
-                                    {realTimeAssignment.isActive ? 'Active' : 'Inactive'}
-                                  </span>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="flex items-center space-x-2">
-                          {/* Dashboard Selection */}
-                          <div className="relative">
-                            <select
-                              value={assignment?.dashboardId || ''}
-                              onChange={(e) => {
-                                if (e.target.value) {
-                                  handleDeployDashboard(e.target.value, host.id, displayId);
-                                }
-                              }}
-                              className="text-sm border border-gray-300 rounded px-2 py-1 pr-8"
-                              disabled={!host.status.online || loadingDeployments.has(`${host.id}-${displayId}`)}
-                            >
-                              <option value="">Select dashboard...</option>
-                              {dashboards.map((dashboard) => (
-                                <option key={dashboard.id} value={dashboard.id}>
-                                  {dashboard.name}
-                                </option>
-                              ))}
-                            </select>
-                            
-                            {/* Loading indicator */}
-                            {loadingDeployments.has(`${host.id}-${displayId}`) && (
-                              <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
-                                <Loader className="w-3 h-3 animate-spin text-gray-500" />
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Control Buttons */}
-                          {assignment && (
-                            <>
-                              <button
-                                onClick={() => handleRefreshDashboard(host.id, displayId)}
-                                className="p-1 text-gray-500 hover:text-gray-700"
-                                title="Refresh dashboard"
-                                disabled={!host.status.online}
-                              >
-                                <RotateCcw className="w-4 h-4" />
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
             ))
           )}
         </div>
