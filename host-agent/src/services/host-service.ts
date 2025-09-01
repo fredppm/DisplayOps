@@ -58,11 +58,7 @@ export class HostService {
     });
     
     // 🔍 LOG: Display status initialization with dashboard data
-    console.log(`🔍 HOSTSERVICE: Inicializados ${displays.length} displays:`);
-    displays.forEach(display => {
-      const status = this.displayStatuses.get(display.id);
-      console.log(`  - Display ${display.id}: active = ${status?.active}, dashboard = ${status?.assignedDashboard?.dashboardId || 'Nenhum'}`);
-    });
+    logger.debug(`Initialized ${displays.length} displays with dashboard states`);
   }
 
   private startHealthChecks(): void {
@@ -296,16 +292,7 @@ export class HostService {
   // gRPC compatibility methods
   public async setCookie(cookieData: any): Promise<boolean> {
     try {
-      console.log(`🍪 [HOST-SERVICE] Setting cookie: ${cookieData.name} for domain ${cookieData.domain}`);
-      console.log(`🍪 [HOST-SERVICE] Cookie data:`, {
-        name: cookieData.name,
-        value: cookieData.value?.substring(0, 50) + (cookieData.value?.length > 50 ? '...' : ''),
-        domain: cookieData.domain,
-        path: cookieData.path,
-        secure: cookieData.secure,
-        httpOnly: cookieData.httpOnly,
-        expires: cookieData.expires
-      });
+      logger.debug(`Setting cookie: ${cookieData.name} for domain ${cookieData.domain}`);
 
       // Use Electron's session API to set cookies
       const { session } = require('electron');
@@ -324,7 +311,7 @@ export class HostService {
         cookieUrl = `https://${cleanDomain}${cookieData.path || '/'}`;
       }
       
-      console.log(`🍪 [HOST-SERVICE] Using URL for cookie: ${cookieUrl}`);
+      logger.debug(`Using URL for cookie: ${cookieUrl}`);
       
       const electronCookie = {
         url: cookieUrl,
@@ -345,20 +332,20 @@ export class HostService {
         }
       });
 
-      console.log(`🍪 [HOST-SERVICE] Setting cookie in Electron session:`, electronCookie);
+      logger.debug(`Setting cookie in Electron session: ${cookieData.name}`);
       
       let cookieSetSuccessfully = false;
       let attemptNumber = 1;
       
       // Attempt 1: Try with full cookie configuration
       try {
-        console.log(`🍪 [HOST-SERVICE] Attempt ${attemptNumber}: Setting cookie with full config`);
+        logger.debug(`Attempt ${attemptNumber}: Setting cookie with full config`);
         await defaultSession.cookies.set(electronCookie);
         cookieSetSuccessfully = true;
-        console.log(`✅ [HOST-SERVICE] Attempt ${attemptNumber} succeeded`);
+        logger.debug(`Cookie set attempt ${attemptNumber} succeeded`);
       } catch (error) {
         attemptNumber++;
-        console.warn(`⚠️ [HOST-SERVICE] Attempt ${attemptNumber - 1} failed:`, error);
+        logger.debug(`Cookie set attempt ${attemptNumber - 1} failed:`, error.message);
         
         // Attempt 2: Try without explicit domain - let Electron infer from URL
         try {
@@ -380,13 +367,13 @@ export class HostService {
             }
           });
           
-          console.log(`🍪 [HOST-SERVICE] Attempt ${attemptNumber}: Trying simplified cookie:`, simplifiedCookie);
+          logger.debug(`Attempt ${attemptNumber}: Trying simplified cookie`);
           await defaultSession.cookies.set(simplifiedCookie);
           cookieSetSuccessfully = true;
-          console.log(`✅ [HOST-SERVICE] Attempt ${attemptNumber} succeeded`);
+          logger.debug(`Cookie set attempt ${attemptNumber} succeeded`);
         } catch (error2) {
           attemptNumber++;
-          console.warn(`⚠️ [HOST-SERVICE] Attempt ${attemptNumber - 1} failed:`, error2);
+          logger.debug(`Cookie set attempt ${attemptNumber - 1} failed:`, error2.message);
           
           // Attempt 3: Try with HTTP URL (non-secure)
           try {
@@ -401,19 +388,19 @@ export class HostService {
               sameSite: 'lax'
             };
             
-            console.log(`🍪 [HOST-SERVICE] Attempt ${attemptNumber}: Trying HTTP cookie:`, httpCookie);
+            logger.debug(`Attempt ${attemptNumber}: Trying HTTP cookie`);
             await defaultSession.cookies.set(httpCookie);
             cookieSetSuccessfully = true;
-            console.log(`✅ [HOST-SERVICE] Attempt ${attemptNumber} succeeded with HTTP`);
+            logger.debug(`Cookie set attempt ${attemptNumber} succeeded with HTTP`);
           } catch (error3) {
-            console.error(`❌ [HOST-SERVICE] All ${attemptNumber} attempts failed. Last error:`, error3);
+            logger.error(`All ${attemptNumber} cookie set attempts failed. Last error:`, error3.message);
             throw error3; // Re-throw the last error
           }
         }
       }
       
       // Verify the cookie was set - try multiple search methods
-      console.log(`🔍 [HOST-SERVICE] Verifying cookie "${cookieData.name}" was set...`);
+      logger.debug(`Verifying cookie "${cookieData.name}" was set`);
       
       // Method 1: Search by name
       let verification = await defaultSession.cookies.get({ name: cookieData.name });
@@ -437,63 +424,39 @@ export class HostService {
           // Method 4: Look for the cookie by name only (ignore domain)
           matchingCookie = verification.find((c: any) => c.name === cookieData.name);
           if (matchingCookie) {
-            console.log(`🔍 [HOST-SERVICE] Found cookie "${cookieData.name}" with different domain:`, {
-              expected_domain: cookieData.domain,
-              actual_domain: matchingCookie.domain,
-              name: matchingCookie.name,
-              path: matchingCookie.path
-            });
+            logger.debug(`Found cookie "${cookieData.name}" with domain mismatch: expected ${cookieData.domain}, got ${matchingCookie.domain}`);
           }
         }
       }
       
       if (matchingCookie) {
-        console.log(`✅ [HOST-SERVICE] Cookie "${cookieData.name}" set and verified successfully`);
-        console.log(`✅ [HOST-SERVICE] Found cookie details:`, {
-          name: matchingCookie.name,
-          domain: matchingCookie.domain,
-          path: matchingCookie.path,
-          secure: matchingCookie.secure,
-          httpOnly: matchingCookie.httpOnly
-        });
+        logger.debug(`Cookie "${cookieData.name}" set and verified successfully`);
         return true;
       } else {
-        console.warn(`⚠️ [HOST-SERVICE] Cookie "${cookieData.name}" was set but not found in verification`);
-        console.warn(`⚠️ [HOST-SERVICE] Expected to find cookie with:`);
-        console.warn(`   - name: ${cookieData.name}`);
-        console.warn(`   - domain: ${cookieData.domain} or .${cookieData.domain}`);
-        console.warn(`   - path: ${cookieData.path}`);
+        logger.warn(`Cookie "${cookieData.name}" was set but not found in verification for domain ${cookieData.domain}`);
         
         // Log all cookies for debugging
         const allCookies = await defaultSession.cookies.get({});
-        console.log(`🔍 [HOST-SERVICE] All cookies in session (${allCookies.length} total):`);
-        allCookies.forEach((c: any) => {
-          console.log(`  - ${c.name} | domain: ${c.domain} | path: ${c.path} | secure: ${c.secure}`);
-        });
+        logger.debug(`Session contains ${allCookies.length} total cookies`);
         
         // Try to understand if the cookie expired immediately
-        console.log(`🔍 [HOST-SERVICE] Cookie expiration check:`);
-        const now = Date.now() / 1000;
-        if (cookieData.expires) {
+        if (cookieData.expires && logger.shouldLog && logger.shouldLog(3)) {
           const expiresTimestamp = Math.floor(cookieData.expires.getTime() / 1000);
-          console.log(`   - Cookie expires at: ${expiresTimestamp} (${new Date(expiresTimestamp * 1000)})`);
-          console.log(`   - Current time: ${Math.floor(now)} (${new Date(now * 1000)})`);
-          console.log(`   - Already expired: ${expiresTimestamp <= now}`);
-        } else {
-          console.log(`   - Cookie has no expiration (session cookie)`);
+          const isExpired = expiresTimestamp <= (Date.now() / 1000);
+          logger.debug(`Cookie expiration check: ${isExpired ? 'expired' : 'valid'}`);
         }
         
         return false;
       }
     } catch (error) {
-      console.error(`❌ [HOST-SERVICE] Failed to set cookie "${cookieData.name}":`, error);
+      logger.error(`Failed to set cookie "${cookieData.name}":`, error.message);
       return false;
     }
   }
 
   public async clearDomainCookies(domain: string): Promise<boolean> {
     try {
-      console.log(`🍪 [HOST-SERVICE] Clearing existing cookies for domain: ${domain}`);
+      logger.debug(`Clearing existing cookies for domain: ${domain}`);
       
       const { session } = require('electron');
       const defaultSession = session.defaultSession;
@@ -511,8 +474,7 @@ export class HostService {
         cookie.domain?.includes(domain)
       );
 
-      console.log(`🍪 [HOST-SERVICE] Found ${domainCookies.length} existing cookies for domain ${domain}:`, 
-        domainCookies.map((c: any) => `${c.name} (${c.domain})`));
+      logger.debug(`Found ${domainCookies.length} existing cookies for domain ${domain}`);
 
       // Remove each cookie
       for (const cookie of domainCookies) {
@@ -521,14 +483,14 @@ export class HostService {
           await defaultSession.cookies.remove(cookieUrl, cookie.name);
           console.log(`🗑️ [HOST-SERVICE] Removed cookie: ${cookie.name} from ${cookie.domain}`);
         } catch (error) {
-          console.warn(`⚠️ [HOST-SERVICE] Failed to remove cookie ${cookie.name}:`, error);
+          logger.warn(`Failed to remove cookie ${cookie.name}:`, error.message);
         }
       }
 
-      console.log(`✅ [HOST-SERVICE] Cleared ${domainCookies.length} cookies for domain ${domain}`);
+      logger.info(`Cleared ${domainCookies.length} cookies for domain ${domain}`);
       return true;
     } catch (error) {
-      console.error(`❌ [HOST-SERVICE] Failed to clear cookies for domain ${domain}:`, error);
+      logger.error(`Failed to clear cookies for domain ${domain}:`, error.message);
       return false;
     }
   }

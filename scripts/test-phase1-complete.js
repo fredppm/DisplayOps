@@ -185,7 +185,7 @@ async function runCommunicationTests() {
       name: 'mDNS Service Discovery',
       test: async () => {
         return new Promise((resolve) => {
-          const browser = bonjour.find({ type: 'officetv' });
+          const browser = bonjour.find({ type: 'officedisplay' });
           let found = false;
           
           const timeout = setTimeout(() => {

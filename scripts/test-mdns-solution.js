@@ -54,7 +54,7 @@ app.get('/api/mdns/info', (req, res) => {
       isAdvertising: true,
       serviceInfo: {
         name: 'OFFICE-PC-001-agent-123',
-        type: '_officetv._tcp.local',
+        type: '_officedisplay._tcp.local',
         port: 8080,
         txt: {
           version: '1.0.0',

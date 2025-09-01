@@ -14,7 +14,7 @@ console.log('🧪 Office TV Management System - Phase 1 Communication Test\n');
 const TEST_CONFIG = {
   discoveryTimeout: 10000, // 10 seconds
   apiTimeout: 5000,        // 5 seconds
-  expectedService: '_officetv._tcp.local'
+  expectedService: '_officedisplay._tcp.local'
 };
 
 let discoveredServices = [];
@@ -37,7 +37,7 @@ async function runTests() {
 
 function testMDNSDiscovery() {
   return new Promise((resolve, reject) => {
-    const browser = bonjour.find({ type: 'officetv' });
+    const browser = bonjour.find({ type: 'officedisplay' });
     let timeout;
 
     browser.on('up', (service) => {

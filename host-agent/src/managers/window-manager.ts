@@ -152,7 +152,7 @@ export class WindowManager extends EventEmitter {
           isActive: true,
           isResponsive: true
         });
-        console.log(`✅ Marked display ${config.displayId} as active in StateManager (window: ${config.id})`);
+        logger.debug(`Marked display ${config.displayId} as active (window: ${config.id})`);
       }
 
       // Emit window created event
@@ -188,7 +188,7 @@ export class WindowManager extends EventEmitter {
           isActive: false,
           windowId: undefined // Clear windowId since window is being closed
         });
-        console.log(`❌ Marked display ${managedWindow.config.displayId} as inactive in StateManager (closed window: ${windowId})`);
+        logger.debug(`Marked display ${managedWindow.config.displayId} as inactive (closed window: ${windowId})`);
       }
       
       // Remove from refresh manager
@@ -488,23 +488,23 @@ export class WindowManager extends EventEmitter {
 
     // Handle window closed
     window.on('closed', () => {
-      console.log(`🔴 [WINDOW-CLOSED] Window ${id} was closed on display ${managedWindow.config.displayId}`);
+      logger.info(`Window ${id} closed on display ${managedWindow.config.displayId}`);
       
       // Update StateManager to mark display as inactive and clear dashboard assignment
       if (this.stateManager) {
         // Clear the assigned dashboard completely when window is closed
         this.stateManager.clearAssignedDashboard(managedWindow.config.displayId);
-        console.log(`🧹 [STATE-CLEARED] Cleared dashboard assignment and marked display ${managedWindow.config.displayId} as inactive (window closed: ${id})`);
+        logger.debug(`Cleared dashboard assignment for display ${managedWindow.config.displayId}`);
       }
       
       this.windows.delete(id);
-      console.log(`📢 [EVENT-EMIT] Emitting 'window-closed' event for ${managedWindow.config.displayId}`);
+      logger.debug(`Emitting 'window-closed' event for ${managedWindow.config.displayId}`);
       this.emit('window-closed', { 
         windowId: id, 
         displayId: managedWindow.config.displayId,
         totalWindows: this.windows.size 
       });
-      console.log(`✅ [EVENT-EMITTED] Event emitted successfully`);
+      logger.debug('Window-closed event emitted successfully');
     });
 
     // Handle unresponsive window
@@ -589,7 +589,7 @@ export class WindowManager extends EventEmitter {
       // Wait a moment for the page to fully load
       setTimeout(async () => {
         const currentUrl = managedWindow.window.webContents.getURL();
-        console.log(`🔍 Checking if dashboard restoration needed for window ${managedWindow.id}, current URL: ${currentUrl}`);
+        logger.debug(`Checking dashboard restoration for window ${managedWindow.id}`);
         
         // Check if we've attempted restoration recently (prevent loops)
         const now = new Date();
@@ -605,7 +605,7 @@ export class WindowManager extends EventEmitter {
         const needsRestore = this.shouldRestoreDashboard(currentUrl, managedWindow);
         
         if (needsRestore) {
-          console.log(`🔄 Dashboard restoration needed for window ${managedWindow.id}`);
+          logger.debug(`Dashboard restoration needed for window ${managedWindow.id}`);
           managedWindow.lastRestoreAttempt = now;
           await this.restoreDashboardForWindow(managedWindow);
         }
@@ -650,20 +650,14 @@ export class WindowManager extends EventEmitter {
     // Only restore if it's a problematic URL AND not a legitimate redirect
     const shouldRestore = hasProblematicUrl && !isLegitimateRedirect;
     
-    console.log(`🔍 Restoration check for ${managedWindow.id}:`, {
-      currentUrl: currentUrl.substring(0, 100) + (currentUrl.length > 100 ? '...' : ''),
-      originalUrl: managedWindow.config.url.substring(0, 100) + (managedWindow.config.url.length > 100 ? '...' : ''),
-      hasProblematicUrl,
-      isLegitimateRedirect,
-      shouldRestore
-    });
+    logger.debug(`Restoration check for ${managedWindow.id}: ${shouldRestore ? 'needed' : 'not needed'}`);
     
     return shouldRestore;
   }
 
   private async restoreDashboardForWindow(managedWindow: ManagedWindow): Promise<void> {
     try {
-      console.log(`🔄 Restoring dashboard for window ${managedWindow.id}...`);
+      logger.debug(`Restoring dashboard for window ${managedWindow.id}`);
       
       // Navigate back to the original URL
       const originalUrl = managedWindow.config.url;
@@ -672,7 +666,7 @@ export class WindowManager extends EventEmitter {
       // Update the last navigation time
       managedWindow.lastNavigation = new Date();
       
-      console.log(`✅ Dashboard restored for window ${managedWindow.id} to ${originalUrl}`);
+      logger.info(`Dashboard restored for window ${managedWindow.id}`);
       
       // Emit an event that can be picked up by other services
       this.emit('dashboard-restored', {
@@ -709,7 +703,7 @@ export class WindowManager extends EventEmitter {
           config.url,
           Math.floor((config.refreshInterval || 300000) / 1000) // Convert ms to seconds
         );
-        console.log(`✅ Saved dashboard deployment for ${config.displayId}: ${config.url}`);
+        logger.debug(`Saved dashboard deployment for ${config.displayId}`);
       }
       
       return { success: true, url: config.url };
@@ -720,7 +714,7 @@ export class WindowManager extends EventEmitter {
 
   public async refreshDisplay(displayId: string): Promise<{ success: boolean; url?: string; error?: string }> {
     try {
-      console.log(`🔄 [WINDOW-MANAGER] Refreshing display: ${displayId}`);
+      logger.debug(`Refreshing display: ${displayId}`);
       
       // Find window for this display
       const window = Array.from(this.windows.values()).find(w => 
@@ -738,14 +732,14 @@ export class WindowManager extends EventEmitter {
         const assignedDashboard = this.stateManager.getAssignedDashboard(displayId);
         if (assignedDashboard && assignedDashboard.url) {
           targetUrl = assignedDashboard.url;
-          console.log(`🔄 [WINDOW-MANAGER] Found assigned dashboard URL: ${targetUrl}`);
+          logger.debug(`Found assigned dashboard URL for ${displayId}`);
         } else {
-          console.log(`🔄 [WINDOW-MANAGER] No assigned dashboard found, using config URL: ${targetUrl}`);
+          logger.debug(`No assigned dashboard found for ${displayId}, using config URL`);
         }
       }
 
       // Navigate to the original URL instead of just reloading
-      console.log(`🔄 [WINDOW-MANAGER] Navigating to dashboard URL: ${targetUrl}`);
+      logger.debug(`Navigating ${displayId} to dashboard URL`);
       const success = await this.navigateWindow(window.id, targetUrl);
       
       return { 

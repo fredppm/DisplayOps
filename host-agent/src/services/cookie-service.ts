@@ -244,7 +244,7 @@ export class CookieService {
         throw new Error('No default Electron session available');
       }
 
-      console.log(`🍪 [COOKIE-INJECT] Starting injection of ${cookies.length} cookies for domain: ${domain}`);
+      logger.info(`Injecting ${cookies.length} cookies for domain: ${domain}`);
 
       // First, let's check existing cookies for comparison
       const existingCookies = await defaultSession.cookies.get({});
@@ -253,24 +253,14 @@ export class CookieService {
         c.domain === `.${domain}` || 
         domain.includes(c.domain?.replace('.', '') || '')
       );
-      console.log(`🍪 [COOKIE-INJECT] Found ${existingForDomain.length} existing cookies for domain ${domain}:`, 
-        existingForDomain.map(c => `${c.name}=${c.value.substring(0, 20)}... (domain: ${c.domain})`));
+      logger.debug(`Found ${existingForDomain.length} existing cookies for domain ${domain}`);
 
       // Inject each cookie
       for (let i = 0; i < cookies.length; i++) {
         const cookie = cookies[i];
         try {
-          console.log(`🍪 [COOKIE-INJECT] Processing cookie ${i + 1}/${cookies.length}: ${cookie.name}`);
-          console.log(`🍪 [COOKIE-INJECT] Original cookie data:`, {
-            name: cookie.name,
-            value: cookie.value.substring(0, 50) + (cookie.value.length > 50 ? '...' : ''),
-            domain: cookie.domain,
-            path: cookie.path,
-            secure: cookie.secure,
-            httpOnly: cookie.httpOnly,
-            expirationDate: cookie.expirationDate,
-            sameSite: cookie.sameSite
-          });
+          logger.debug(`Processing cookie ${i + 1}/${cookies.length}: ${cookie.name}`);
+          logger.debug(`Cookie data: ${cookie.name} for ${cookie.domain || domain}, secure: ${cookie.secure}`);
 
           // Convert our cookie format to Electron's format
           const electronCookie = {
@@ -295,16 +285,16 @@ export class CookieService {
           });
           
           if (fieldsRemoved.length > 0) {
-            console.log(`🍪 [COOKIE-INJECT] Removed undefined fields: ${fieldsRemoved.join(', ')}`);
+            logger.debug(`Removed undefined fields: ${fieldsRemoved.join(', ')}`);
           }
 
-          console.log(`🍪 [COOKIE-INJECT] Final Electron cookie object:`, electronCookie);
+          logger.debug(`Prepared Electron cookie: ${cookie.name}`);
 
           // Attempt injection
           await defaultSession.cookies.set(electronCookie);
           injectedCount++;
           
-          console.log(`✅ [COOKIE-INJECT] Successfully injected cookie: ${cookie.name}`);
+          logger.debug(`Successfully injected cookie: ${cookie.name}`);
           
           // Verify injection by reading it back
           const verificationCookies = await defaultSession.cookies.get({ name: cookie.name });
@@ -314,13 +304,7 @@ export class CookieService {
           );
           
           if (matchingCookie) {
-            console.log(`✅ [COOKIE-INJECT] Verification successful - cookie found in session:`, {
-              name: matchingCookie.name,
-              domain: matchingCookie.domain,
-              path: matchingCookie.path,
-              secure: matchingCookie.secure,
-              httpOnly: matchingCookie.httpOnly
-            });
+            logger.debug(`Cookie verification successful: ${cookie.name}`);
           } else {
             console.warn(`⚠️ [COOKIE-INJECT] Verification failed - cookie ${cookie.name} not found in session after injection`);
           }
@@ -349,12 +333,10 @@ export class CookieService {
         domain.includes(c.domain?.replace('.', '') || '')
       );
       
-      console.log(`🍪 [COOKIE-INJECT] Final summary for ${domain}:`);
-      console.log(`🍪 [COOKIE-INJECT] - Attempted: ${cookies.length}`);
-      console.log(`🍪 [COOKIE-INJECT] - Injected: ${injectedCount}`);
-      console.log(`🍪 [COOKIE-INJECT] - Skipped: ${skippedCount}`);
-      console.log(`🍪 [COOKIE-INJECT] - Final cookies in session: ${finalForDomain.length}`);
-      console.log(`🍪 [COOKIE-INJECT] - Final cookie names:`, finalForDomain.map(c => `${c.name} (${c.domain})`));
+      logger.info(`Cookie injection completed for ${domain}: ${injectedCount}/${cookies.length} injected, ${skippedCount} skipped`);
+      if (injectedCount > 0) {
+        logger.debug(`Final session has ${finalForDomain.length} cookies for domain`);
+      }
 
       return { injectedCount, skippedCount, errors };
 

@@ -1,20 +1,20 @@
-# Office TV Management System
+# Office Display Management System
 
-A comprehensive solution for managing multiple TV displays in office environments. This system allows centralized control of dashboards across multiple mini PCs, with automatic authentication handling and real-time monitoring.
+A comprehensive solution for managing multiple displays in office environments. This system allows centralized control of dashboards across multiple mini PCs, with automatic authentication handling and real-time monitoring.
 
 ## Problem Statement
 
-Managing multiple TVs in an office setting presents several challenges:
-- TVs automatically turn off, losing displayed content
+Managing multiple displays in an office setting presents several challenges:
+- Displays automatically turn off, losing displayed content
 - Authentication sessions expire, requiring manual login on each device
-- Time-consuming process to configure each TV individually via TeamViewer
+- Time-consuming process to configure each display individually via TeamViewer
 - No centralized way to monitor or manage all displays
 
 ## Solution
 
 This system provides:
 - **Automatic Discovery**: Host agents discovered automatically via mDNS
-- **Centralized Web Controller**: Manage all TVs from a single interface
+- **Centralized Web Controller**: Manage all displays from a single interface
 - **Automated Window Control**: Open dashboards in kiosk mode using Electron
 - **Cookie Synchronization**: Share authentication across all devices
 - **Real-time Monitoring**: Track status and health of all displays
@@ -37,7 +37,7 @@ This system provides:
 ### 🌐 Network Discovery
 - **mDNS Auto-Discovery**: Automatically finds all host agents on the network
 - **Real-time Status**: Monitor health and status of all displays
-- **Centralized Control**: Manage all TVs from a single web interface
+- **Centralized Control**: Manage all displays from a single web interface
 
 ## Architecture
 
@@ -48,17 +48,17 @@ This system provides:
 
 ### Network Topology
 ```
-[Web Controller] --REST API--> [Mini PC 1] --> [TV 1, TV 2]
-                            --> [Mini PC 2] --> [TV 3, TV 4]
-                            --> [Mini PC 3] --> [TV 5, TV 6]
-                            --> [Mini PC 4] --> [TV 7, TV 8]
+[Web Controller] --REST API--> [Mini PC 1] --> [Display 1, Display 2]
+                            --> [Mini PC 2] --> [Display 3, Display 4]
+                            --> [Mini PC 3] --> [Display 5, Display 6]
+                            --> [Mini PC 4] --> [Display 7, Display 8]
 ```
 
 ## Prerequisites
 
 ### Hardware
 - Mini PCs with dual HDMI outputs (Dell or equivalent)
-- TVs connected via HDMI
+- Displays connected via HDMI
 - Network connectivity between all devices
 
 ### Software
@@ -163,7 +163,7 @@ This will test mDNS discovery and basic API communication between components.
 2. Go to "Dashboard Management" tab
 3. Click ✏️ to edit existing dashboards or "Add Dashboard" for new ones
 4. Configure dashboard URL, refresh interval, and authentication settings
-5. Assign dashboards to specific TVs and deploy
+5. Assign dashboards to specific displays and deploy
 
 ### Cookie Synchronization
 1. Login to your dashboards on your local machine using a browser
@@ -173,7 +173,7 @@ This will test mDNS discovery and basic API communication between components.
 5. Paste cookies and click "Validate" then "Sync to All TVs"
 
 ### Monitoring and Debugging
-- Real-time status of all TVs and mini PCs through web interface
+- Real-time status of all displays and mini PCs through web interface
 - Health checks and error reporting with visual notifications
 - Debug overlay system: Press `Ctrl+Shift+D` on any mini PC to toggle debug mode
 - Display identification: Use API `/api/displays/identify` to show numbers on each screen
@@ -239,7 +239,7 @@ AGENT_ID=minipc-01
 **Agents not discovered automatically**
 - Check if UDP port 5353 is open in firewall
 - Verify multicast is enabled on network
-- Test mDNS with `dns-sd -B _officetv._tcp` command
+- Test mDNS with `dns-sd -B _officedisplay._tcp` command
 - Check if agents are advertising service correctly
 
 **Agent not responding**

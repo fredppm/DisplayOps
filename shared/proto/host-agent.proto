@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package officetv;
+package officedisplay;
 
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/empty.proto";

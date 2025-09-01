@@ -1,22 +1,22 @@
-# Office TV Management System - Architecture
+# Office Display Management System - Architecture
 
 ## Overview
-A distributed system to manage multiple TVs in an office environment, handling dashboard display, authentication, and monitoring across multiple mini PCs.
+A distributed system to manage multiple displays in an office environment, handling dashboard display, authentication, and monitoring across multiple mini PCs.
 
 ## System Components
 
 ### 1. Web Controller (NextJS)
-- **Purpose**: Central control interface for managing all TVs
+- **Purpose**: Central control interface for managing all displays
 - **Technology**: NextJS with TypeScript
 - **Responsibilities**:
-  - Provide web interface for TV configuration
-  - Manage dashboard assignments per TV
+  - Provide web interface for display configuration
+  - Manage dashboard assignments per display
   - Handle cookie synchronization
   - Monitor host agent status
   - Store configuration in local JSON files
 
 ### 2. Host Agent (Electron)
-- **Purpose**: Desktop application running on each mini PC controlling 2 TVs
+- **Purpose**: Desktop application running on each mini PC controlling 2 displays
 - **Technology**: Electron with TypeScript
 - **Architecture**: Main process + Renderer processes for each display
 - **Responsibilities**:
@@ -31,7 +31,7 @@ A distributed system to manage multiple TVs in an office environment, handling d
 - **Discovery**: mDNS/Bonjour for automatic service discovery
 - **Protocol**: REST API with JSON payloads  
 - **Authentication**: Simple token-based auth
-- **Service Name**: `_officetv._tcp.local`
+- **Service Name**: `_officedisplay._tcp.local`
 - **Commands**:
   - `open_dashboard` - Navigate to specific dashboard
   - `sync_cookies` - Copy authentication cookies
@@ -40,7 +40,7 @@ A distributed system to manage multiple TVs in an office environment, handling d
 
 ## Data Flow
 
-1. **Discovery**: Host agents advertise `_officetv._tcp.local` service on startup
+1. **Discovery**: Host agents advertise `_officedisplay._tcp.local` service on startup
 2. **Registration**: Web controller discovers agents automatically via mDNS
 3. **Configuration**: User configures dashboards via web interface
 4. **Command**: Web controller sends commands to discovered host agents
@@ -53,10 +53,10 @@ A distributed system to manage multiple TVs in an office environment, handling d
 ```
                     mDNS Discovery
                  ◄─────────────────►
-[Web Controller] ◄─ _officetv._tcp.local ─► [Mini PC 1 - Host Agent] --> [TV 1, TV 2]
-       │                                 └► [Mini PC 2 - Host Agent] --> [TV 3, TV 4]
-       │         REST API Commands          [Mini PC 3 - Host Agent] --> [TV 5, TV 6]
-       └──────────────────────────────────► [Mini PC 4 - Host Agent] --> [TV 7, TV 8]
+[Web Controller] ◄─ _officedisplay._tcp.local ─► [Mini PC 1 - Host Agent] --> [Display 1, Display 2]
+       │                                 └► [Mini PC 2 - Host Agent] --> [Display 3, Display 4]
+       │         REST API Commands          [Mini PC 3 - Host Agent] --> [Display 5, Display 6]
+       └──────────────────────────────────► [Mini PC 4 - Host Agent] --> [Display 7, Display 8]
 ```
 
 ## Security Considerations

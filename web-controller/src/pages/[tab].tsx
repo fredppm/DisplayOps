@@ -128,7 +128,7 @@ export default function TabPage({ tab }: TabPageProps) {
               <div className="flex items-center">
                 <img 
                   src={getStatusLogo()} 
-                  alt="Office TV" 
+                  alt="Office Display" 
                   className="w-8 h-8 mr-3"
                   onError={(e) => {
                     const target = e.target as HTMLImageElement;
@@ -137,7 +137,7 @@ export default function TabPage({ tab }: TabPageProps) {
                     }
                   }}
                 />
-                <span className="text-lg font-semibold text-gray-900">Office TV</span>
+                <span className="text-lg font-semibold text-gray-900">Office Display</span>
               </div>
               
               {/* Navigation Menu */}

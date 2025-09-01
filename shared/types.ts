@@ -1,4 +1,4 @@
-// Shared TypeScript types for Office TV Management System
+// Shared TypeScript types for Office Display Management System
 
 export interface Dashboard {
   id: string;
@@ -30,15 +30,15 @@ export interface MiniPC {
   lastHeartbeat: Date;
   lastDiscovered: Date;
   version: string;
-  tvs: string[]; // Display IDs (legacy - deprecated, use displays instead)
+  displays_legacy: string[]; // Display IDs (legacy - deprecated, use displays instead)
   displays: string[]; // Display IDs (e.g., ['display-1', 'display-2', 'display-3'])
   displayStates?: DisplayState[]; // Detailed display states from gRPC heartbeats
   mdnsService?: MDNSServiceInfo;
 }
 
 export interface MDNSServiceInfo {
-  serviceName: string; // "_officetv._tcp.local"
-  instanceName: string; // "Office-TV-Agent-01._officetv._tcp.local"
+  serviceName: string; // "_officedisplay._tcp.local"
+  instanceName: string; // "Office-Display-Agent-01._officedisplay._tcp.local"
   txtRecord: Record<string, string>; // Additional metadata
   addresses: string[]; // IP addresses
   port: number;
@@ -185,30 +185,30 @@ export interface SystemSettings {
 }
 
 // Error Types
-export class OfficetvError extends Error {
+export class OfficeDisplayError extends Error {
   constructor(
     message: string,
     public code: string,
     public details?: any
   ) {
     super(message);
-    this.name = 'OfficetvError';
+    this.name = 'OfficeDisplayError';
   }
 }
 
-export class BrowserError extends OfficetvError {
+export class BrowserError extends OfficeDisplayError {
   constructor(message: string, details?: any) {
     super(message, 'BROWSER_ERROR', details);
   }
 }
 
-export class NetworkError extends OfficetvError {
+export class NetworkError extends OfficeDisplayError {
   constructor(message: string, details?: any) {
     super(message, 'NETWORK_ERROR', details);
   }
 }
 
-export class ConfigurationError extends OfficetvError {
+export class ConfigurationError extends OfficeDisplayError {
   constructor(message: string, details?: any) {
     super(message, 'CONFIG_ERROR', details);
   }

@@ -1,7 +1,7 @@
 {
-  "name": "office-tv-management-system",
+  "name": "office-display-management-system",
   "version": "1.0.0",
-  "description": "Office TV Management System - Complete solution for managing TV displays",
+  "description": "Office Display Management System - Complete solution for managing displays",
   "private": true,
   "workspaces": [
     "host-agent",
@@ -39,12 +39,12 @@
     "sharp": "^0.34.3"
   },
   "keywords": [
-    "office-tv",
+    "office-display",
     "management-system",
     "electron",
     "nextjs",
-    "tv-control",
+    "display-control",
     "mdns-discovery"
   ],
-  "author": "Office TV Management System"
+  "author": "Office Display Management System"
 }

@@ -593,11 +593,11 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
           .filter(display => display.isActive && display.assignedDashboard)
           .map(display => display.id);
         
-        console.log(`🔄 Cookie refresh: Host ${host.hostname} has ${activeDisplays.length} active displays with dashboards:`, activeDisplays);
+        console.debug(`Cookie refresh: Host ${host.hostname} has ${activeDisplays.length} active displays with dashboards:`, activeDisplays);
         
         // Skip if no active displays with dashboards
         if (activeDisplays.length === 0) {
-          console.log(`⏭️ Cookie refresh: Skipping host ${host.hostname} - no active displays with dashboards`);
+          console.debug(`Cookie refresh: Skipping host ${host.hostname} - no active displays with dashboards`);
           return { success: true, host: syncResult.host, refreshedDisplays: 0, totalDisplays: 0 };
         }
         

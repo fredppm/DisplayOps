@@ -47,7 +47,7 @@ const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
 });
 
 const protoDescriptor = grpc.loadPackageDefinition(packageDefinition) as any;
-const officetv = protoDescriptor.officetv;
+const officedisplay = protoDescriptor.officedisplay;
 
 export class GrpcService extends EventEmitter {
   private server: grpc.Server;
@@ -75,7 +75,7 @@ export class GrpcService extends EventEmitter {
   }
 
   private setupServiceHandlers(): void {
-    this.server.addService(officetv.HostAgent.service, {
+    this.server.addService(officedisplay.HostAgent.service, {
       ExecuteCommand: this.executeCommand.bind(this),
       StreamEvents: this.streamEvents.bind(this),
       StreamCommands: this.streamCommands.bind(this),
@@ -192,13 +192,7 @@ export class GrpcService extends EventEmitter {
   private async processCommand(request: any): Promise<any> {
     const startTime = Date.now();
     
-    // 🔍 DEBUG: Log incoming request details
-    console.log(`🔍 HOST DEBUG: Received command request:`, {
-      type: request.type,
-      typeOf: typeof request.type,
-      commandId: request.command_id,
-      fullRequest: request
-    });
+    logger.debug(`Received gRPC command: ${request.type} (${request.command_id})`);
     
     try {
       let result: any = {};
@@ -320,8 +314,7 @@ export class GrpcService extends EventEmitter {
   }
 
   private async handleSetCookies(cmd: any): Promise<any> {
-    console.log(`🍪 [GRPC-SERVICE] Starting cookie sync for ${cmd.cookies.length} cookies`);
-    console.log(`🍪 [GRPC-SERVICE] Domain: ${cmd.domain || 'not specified'}`);
+    logger.info(`Starting cookie sync for ${cmd.cookies.length} cookies on domain: ${cmd.domain || 'default'}`);
     
     let cookiesSet = 0;
     const failedCookies: string[] = [];
@@ -340,13 +333,13 @@ export class GrpcService extends EventEmitter {
     // Clear existing cookies for each domain first
     for (const [domain, cookies] of cookiesByDomain.entries()) {
       if (domain && !domainsCleared.has(domain)) {
-        console.log(`🗑️ [GRPC-SERVICE] Clearing existing cookies for domain: ${domain}`);
+        logger.debug(`Clearing existing cookies for domain: ${domain}`);
         try {
           await this.hostService.clearDomainCookies(domain);
           domainsCleared.add(domain);
-          console.log(`✅ [GRPC-SERVICE] Cleared existing cookies for domain: ${domain}`);
+          logger.debug(`Cleared existing cookies for domain: ${domain}`);
         } catch (error) {
-          console.error(`❌ [GRPC-SERVICE] Failed to clear cookies for domain ${domain}:`, error);
+          logger.error(`Failed to clear cookies for domain ${domain}:`, error);
           // Continue anyway - clearing is optional, setting is more important
         }
       }
@@ -356,18 +349,7 @@ export class GrpcService extends EventEmitter {
     for (let i = 0; i < cmd.cookies.length; i++) {
       const cookie = cmd.cookies[i];
       try {
-        console.log(`🍪 [GRPC-SERVICE] Processing cookie ${i + 1}/${cmd.cookies.length}: ${cookie.name}`);
-        
-        console.log(`🍪 [GRPC-SERVICE] Raw cookie from request:`, {
-          name: cookie.name,
-          value: cookie.value?.substring(0, 50) + '...',
-          domain: cookie.domain,
-          path: cookie.path,
-          expires: cookie.expires,
-          http_only: cookie.http_only,
-          secure: cookie.secure,
-          same_site: cookie.same_site
-        });
+        logger.debug(`Processing cookie ${i + 1}/${cmd.cookies.length}: ${cookie.name}`);
         
         // Convert gRPC cookie format to internal format
         const cookieData = {
@@ -381,31 +363,20 @@ export class GrpcService extends EventEmitter {
           sameSite: cookie.same_site || 'lax'
         };
 
-        console.log(`🍪 [GRPC-SERVICE] Converted cookie data for ${cookie.name}:`, {
-          name: cookieData.name,
-          domain: cookieData.domain,
-          path: cookieData.path,
-          secure: cookieData.secure,
-          httpOnly: cookieData.httpOnly,
-          sameSite: cookieData.sameSite,
-          expires: cookieData.expires,
-          expires_raw_value: cookie.expires // Show the original raw value
-        });
+        logger.debug(`Converted cookie data for ${cookie.name}`, { domain: cookieData.domain, secure: cookieData.secure });
 
-        console.log(`🔄 [GRPC-SERVICE] Calling hostService.setCookie for: ${cookie.name}`);
         const success = await this.hostService.setCookie(cookieData);
-        console.log(`🔄 [GRPC-SERVICE] setCookie returned: ${success} for cookie: ${cookie.name}`);
         
         if (success) {
           cookiesSet++;
-          console.log(`✅ [GRPC-SERVICE] Successfully set cookie: ${cookie.name}`);
+          logger.debug(`Successfully set cookie: ${cookie.name}`);
         } else {
           failedCookies.push(cookie.name);
-          console.error(`❌ [GRPC-SERVICE] Failed to set cookie: ${cookie.name}`);
+          logger.warn(`Failed to set cookie: ${cookie.name}`);
         }
       } catch (error) {
         failedCookies.push(cookie.name);
-        console.error(`❌ [GRPC-SERVICE] Exception setting cookie ${cookie.name}:`, error);
+        logger.error(`Exception setting cookie ${cookie.name}:`, error);
       }
     }
 
@@ -418,13 +389,10 @@ export class GrpcService extends EventEmitter {
       }
     };
 
-    console.log(`🍪 [GRPC-SERVICE] Cookie sync completed:`, {
-      attempted: cmd.cookies.length,
-      successful: cookiesSet,
-      failed: failedCookies.length,
-      domains_cleared: domainsCleared.size,
-      failed_cookies: failedCookies
-    });
+    logger.info(`Cookie sync completed: ${cookiesSet}/${cmd.cookies.length} successful, ${domainsCleared.size} domains processed`);
+    if (failedCookies.length > 0) {
+      logger.warn(`Failed cookies: ${failedCookies.join(', ')}`);
+    }
 
     return result;
   }
@@ -768,18 +736,11 @@ export class GrpcService extends EventEmitter {
     const displays = this.hostService.getDisplayStatuses();
     
     // 🔍 LOG: Verificar dados de display antes da conversão
-    console.log(`🔍 GRPC getDisplayStatuses: ${displays.length} displays encontrados`);
-    displays.forEach((display: any, index: number) => {
-      console.log(`🔍 Display ${index + 1}:`);
-      console.log(`  - ID: ${display.id}`);
-      console.log(`  - Active: ${display.active}`);
-      console.log(`  - assignedDashboard:`, display.assignedDashboard);
-      if (display.assignedDashboard) {
-        console.log(`    - Dashboard ID: ${display.assignedDashboard.dashboardId}`);
-        console.log(`    - URL: ${display.assignedDashboard.url}`);
-        console.log(`    - Refresh: ${display.assignedDashboard.refreshInterval}`);
-      }
-    });
+    logger.debug(`Retrieved ${displays.length} display statuses`);
+    if (logger.shouldLog && logger.shouldLog(3)) { // Only log in DEBUG level
+      const activeDisplays = displays.filter((d: any) => d.active).length;
+      logger.debug(`Display summary: ${activeDisplays}/${displays.length} active displays`);
+    }
     
     return displays.map(display => this.convertDisplayStatus(display));
   }
@@ -882,9 +843,7 @@ export class GrpcService extends EventEmitter {
   }
 
   private setupWindowEventListeners(): void {
-    console.log(`🎧 [GRPC-SETUP] Setting up window event listeners...`);
-    console.log(`🔧 [GRPC-DEBUG] WindowManager exists:`, !!this.windowManager);
-    console.log(`🔧 [GRPC-DEBUG] WindowManager is EventEmitter:`, this.windowManager instanceof require('events').EventEmitter);
+    logger.debug('Setting up window event listeners');
     
     // Listen for window closed events from WindowManager
     this.windowManager.on('window-closed', (event: { windowId: string; displayId: string; totalWindows: number }) => {
@@ -905,11 +864,11 @@ export class GrpcService extends EventEmitter {
         }
       });
       
-      console.log(`📡 [GRPC-BROADCAST] Broadcasted dashboard closed event for ${event.displayId}`);
+      logger.debug(`Broadcasted dashboard closed event for ${event.displayId}`);
       logger.info(`📡 Broadcasted dashboard closed event for ${event.displayId}`);
     });
     
-    console.log(`✅ [GRPC-SETUP-COMPLETE] Window event listeners setup complete`);
+    logger.debug('Window event listeners setup complete');
     logger.info('✅ Window event listeners setup complete');
   }
 
