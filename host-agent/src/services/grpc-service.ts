@@ -192,6 +192,14 @@ export class GrpcService extends EventEmitter {
   private async processCommand(request: any): Promise<any> {
     const startTime = Date.now();
     
+    // 🔍 DEBUG: Log incoming request details
+    console.log(`🔍 HOST DEBUG: Received command request:`, {
+      type: request.type,
+      typeOf: typeof request.type,
+      commandId: request.command_id,
+      fullRequest: request
+    });
+    
     try {
       let result: any = {};
 

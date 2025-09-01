@@ -216,11 +216,13 @@ export const HostsList: React.FC<HostsListProps> = ({ hosts, isDiscovering, disc
       },
       body: JSON.stringify({
         type: 'open_dashboard',
-        display_id: displayId,
-        dashboard_id: dashboard.id,
-        url: dashboard.url,
-        fullscreen: true,
-        refresh_interval_ms: dashboard.refreshInterval ? dashboard.refreshInterval * 1000 : 300000,
+        targetDisplay: displayId,
+        payload: {
+          dashboardId: dashboard.id,
+          url: dashboard.url,
+          fullscreen: true,
+          refreshInterval: dashboard.refreshInterval ? dashboard.refreshInterval * 1000 : 300000
+        },
         timestamp: new Date()
       })
     });

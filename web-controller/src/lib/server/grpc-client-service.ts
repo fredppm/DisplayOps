@@ -868,8 +868,14 @@ export class GrpcClientService extends EventEmitter {
           reject(new Error(`Command ${commandId} timed out after ${elapsed}ms`));
         }, 30000); // 30 second timeout
 
+        // 🔧 FORCE: Ensure type is sent as string, not enum number
+        const stringRequest = {
+          ...request,
+          type: String(request.type) // Force conversion to string
+        };
+        
         // Execute command via gRPC
-        connection.client.ExecuteCommand(request, (error: any, response: any) => {
+        connection.client.ExecuteCommand(stringRequest, (error: any, response: any) => {
           clearTimeout(timeout);
           const elapsed = Date.now() - startTime;
           
@@ -1123,7 +1129,9 @@ export class GrpcClientService extends EventEmitter {
       'IDENTIFY_DISPLAYS': 'identify_displays',
       'TAKE_SCREENSHOT': 'take_screenshot',
       'UPDATE_AGENT': 'update_agent',
-      'RESTART_BROWSER': 'restart_browser'
+      'RESTART_BROWSER': 'restart_browser',
+      'DEBUG_ENABLE': 'debug_enable',
+      'DEBUG_DISABLE': 'debug_disable'
       // Note: HEALTH_CHECK doesn't need payload field (uses empty message)
     };
     
