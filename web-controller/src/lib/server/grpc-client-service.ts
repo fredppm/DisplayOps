@@ -370,13 +370,30 @@ export class GrpcClientService extends EventEmitter {
   // ================================
 
   /**
+   * Wait for a host connection to be established (with timeout)
+   */
+  private async waitForConnection(hostId: string, timeoutMs: number = 5000): Promise<HostConnection> {
+    const startTime = Date.now();
+    
+    while (Date.now() - startTime < timeoutMs) {
+      const connection = this.connections.get(hostId);
+      if (connection && connection.isConnected) {
+        return connection;
+      }
+      
+      // Wait 100ms before checking again
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    
+    throw new Error(`Host ${hostId} is not connected (timeout after ${timeoutMs}ms)`);
+  }
+
+  /**
    * Execute a command on a specific host
    */
   public async executeCommand(hostId: string, commandType: string, payload: any): Promise<any> {
-    const connection = this.connections.get(hostId);
-    if (!connection || !connection.isConnected) {
-      throw new Error(`Host ${hostId} is not connected`);
-    }
+    // Wait for connection to be established (with 5 second timeout)
+    const connection = await this.waitForConnection(hostId, 5000);
 
     const commandId = `cmd_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     

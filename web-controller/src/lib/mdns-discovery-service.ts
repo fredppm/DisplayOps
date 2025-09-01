@@ -1,5 +1,4 @@
-import * as bonjour from 'bonjour';
-import { MiniPC } from '@/types/shared-types';
+import bonjour, { Bonjour, Browser, RemoteService } from 'bonjour';
 
 export interface MDNSDiscoveredHost {
   name: string;
@@ -11,8 +10,8 @@ export interface MDNSDiscoveredHost {
 }
 
 export class MDNSDiscoveryService {
-  private bonjourInstance: bonjour.Bonjour;
-  private browser: bonjour.Browser | null = null;
+  private bonjourInstance: Bonjour;
+  private browser: Browser | null = null;
   private isDiscovering: boolean = false;
   private discoveredServices: Map<string, MDNSDiscoveredHost> = new Map();
   private onHostDiscoveredCallback?: (host: MDNSDiscoveredHost) => void;
@@ -35,11 +34,11 @@ export class MDNSDiscoveryService {
       this.browser = this.bonjourInstance.find({ type: 'officedisplay' });
 
       // Set up event listeners
-      this.browser.on('up', (service: bonjour.Service) => {
+      this.browser.on('up', (service: RemoteService) => {
         this.handleServiceUp(service);
       });
 
-      this.browser.on('down', (service: bonjour.Service) => {
+      this.browser.on('down', (service: RemoteService) => {
         this.handleServiceDown(service);
       });
 
@@ -64,7 +63,7 @@ export class MDNSDiscoveryService {
     this.discoveredServices.clear();
   }
 
-  private handleServiceUp(service: bonjour.Service): void {
+  private handleServiceUp(service: RemoteService): void {
     if (!this.isDiscovering) return;
 
     const agentId = service.txt?.agentId || service.name;
@@ -101,7 +100,7 @@ export class MDNSDiscoveryService {
     }
   }
 
-  private handleServiceDown(service: bonjour.Service): void {
+  private handleServiceDown(service: RemoteService): void {
     if (!this.isDiscovering) return;
 
     const agentId = service.txt?.agentId || service.name;
