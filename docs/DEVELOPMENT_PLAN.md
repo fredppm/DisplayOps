@@ -1,4 +1,4 @@
-# Development Plan - ScreenFleet Management System
+# Development Plan - DisplayOps Management System
 
 ## Development Phases
 

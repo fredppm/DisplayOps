@@ -2,18 +2,18 @@
 
 ## Overview
 
-The ScreenFleet Management System uses mDNS (Multicast DNS) for automatic discovery of host agents across the local network. This eliminates the need for manual IP configuration and enables dynamic network topologies.
+The DisplayOps Management System uses mDNS (Multicast DNS) for automatic discovery of host agents across the local network. This eliminates the need for manual IP configuration and enables dynamic network topologies.
 
 ## Service Specification
 
 ### Service Type
-- **Service Name**: `_screenfleet._tcp.local`
+- **Service Name**: `_displayops._tcp.local`
 - **Protocol**: TCP
 - **Domain**: `.local` (mDNS standard)
 
 ### Service Instance Naming
-- **Pattern**: `{hostname}-{agent-id}._screenfleet._tcp.local`
-- **Example**: `OFFICE-PC-01-agent-001._screenfleet._tcp.local`
+- **Pattern**: `{hostname}-{agent-id}._displayops._tcp.local`
+- **Example**: `OFFICE-PC-01-agent-001._displayops._tcp.local`
 
 ### TXT Record Metadata
 Each service advertises metadata via TXT records:
@@ -45,7 +45,7 @@ const service = bonjour();
 // Advertise service on startup
 const advertisement = service.publish({
   name: `${hostname}-${agentId}`,
-  type: 'screenfleet',
+  type: 'displayops',
   port: 8080,
   txt: {
     version: '1.0.0',
@@ -84,7 +84,7 @@ import bonjour from 'bonjour';
 const browser = bonjour();
 
 // Start browsing for services
-const serviceBrowser = browser.find({ type: 'screenfleet' });
+const serviceBrowser = browser.find({ type: 'displayops' });
 
 serviceBrowser.on('up', (service) => {
   console.log('Found service:', service);

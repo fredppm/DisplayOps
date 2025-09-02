@@ -167,7 +167,7 @@ MDNS_DISCOVERY_TIMEOUT=10000
    nslookup -type=PTR _services._dns-sd._udp.local
    
    # Linux
-   avahi-browse -rt _screenfleet._tcp
+   avahi-browse -rt _displayops._tcp
    ```
 
 2. Verify firewall settings:
@@ -242,7 +242,7 @@ After Phase 1 is working:
 ### Debug Mode
 ```bash
 # Enable verbose logging
-DEBUG=screenfleet:* npm run dev
+DEBUG=displayops:* npm run dev
 ```
 
 ### Getting Help

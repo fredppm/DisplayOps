@@ -28,7 +28,7 @@ export class InstantDiscovery {
 
         const host: MiniPC = {
           id: 'agent-127-0-0-1-8080',
-          name: 'ScreenFleet Host',
+          name: 'DisplayOps Host',
           hostname: '127.0.0.1',
           ipAddress: '127.0.0.1',
           port: 8080,

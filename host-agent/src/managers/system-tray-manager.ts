@@ -196,7 +196,7 @@ export class SystemTrayManager {
     
     if (!this.tray) {
       this.tray = new Tray(resizedIcon);
-      this.tray.setToolTip('ScreenFleet Host Agent - VTEX');
+      this.tray.setToolTip('DisplayOps Host Agent - VTEX');
       
       // Configure for Windows system tray behavior
       if (process.platform === 'win32') {
@@ -226,7 +226,7 @@ export class SystemTrayManager {
         // Show a simple status notification
         if (this.tray) {
           this.tray.displayBalloon({
-            title: 'ScreenFleet Host Agent',
+            title: 'DisplayOps Host Agent',
             content: `Status: ${this.isConnected ? 'Online' : 'Offline'} | ${this.totalDisplays} displays | ${this.activeWindows} windows`,
             iconType: 'info'
           });
@@ -389,7 +389,7 @@ export class SystemTrayManager {
 
     // Update tooltip
     const statusText = status.connected ? 'Online' : 'Offline';
-    const tooltip = `ScreenFleet Host Agent - ${statusText}\n${status.totalDisplays} displays, ${status.activeWindows} active windows`;
+    const tooltip = `DisplayOps Host Agent - ${statusText}\n${status.totalDisplays} displays, ${status.activeWindows} active windows`;
     
     if (this.tray) {
       this.tray.setToolTip(tooltip);
@@ -404,7 +404,7 @@ export class SystemTrayManager {
 
     const contextMenu = Menu.buildFromTemplate([
       {
-        label: `ScreenFleet Host Agent`,
+        label: `DisplayOps Host Agent`,
         enabled: false
       },
       {

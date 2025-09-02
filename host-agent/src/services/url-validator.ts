@@ -11,7 +11,7 @@ export interface URLValidationResult {
 
 export class URLValidator {
   private static readonly DEFAULT_TIMEOUT = 10000; // 10 seconds
-  private static readonly USER_AGENT = 'ScreenFleet-Agent/1.0.0';
+  private static readonly USER_AGENT = 'DisplayOps-Agent/1.0.0';
 
   /**
    * Validates if a URL is properly formatted

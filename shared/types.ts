@@ -1,4 +1,4 @@
-// Shared TypeScript types for ScreenFleet Management System
+// Shared TypeScript types for DisplayOps Management System
 
 export interface Dashboard {
   id: string;
@@ -37,8 +37,8 @@ export interface MiniPC {
 }
 
 export interface MDNSServiceInfo {
-  serviceName: string; // "_screenfleet._tcp.local"
-  instanceName: string; // "ScreenFleet-Agent-01._screenfleet._tcp.local"
+  serviceName: string; // "_displayops._tcp.local"
+  instanceName: string; // "DisplayOps-Agent-01._displayops._tcp.local"
   txtRecord: Record<string, string>; // Additional metadata
   addresses: string[]; // IP addresses
   port: number;
@@ -185,30 +185,30 @@ export interface SystemSettings {
 }
 
 // Error Types
-export class ScreenFleetError extends Error {
+export class DisplayOpsError extends Error {
   constructor(
     message: string,
     public code: string,
     public details?: any
   ) {
     super(message);
-    this.name = 'ScreenFleetError';
+    this.name = 'DisplayOpsError';
   }
 }
 
-export class BrowserError extends ScreenFleetError {
+export class BrowserError extends DisplayOpsError {
   constructor(message: string, details?: any) {
     super(message, 'BROWSER_ERROR', details);
   }
 }
 
-export class NetworkError extends ScreenFleetError {
+export class NetworkError extends DisplayOpsError {
   constructor(message: string, details?: any) {
     super(message, 'NETWORK_ERROR', details);
   }
 }
 
-export class ConfigurationError extends ScreenFleetError {
+export class ConfigurationError extends DisplayOpsError {
   constructor(message: string, details?: any) {
     super(message, 'CONFIG_ERROR', details);
   }

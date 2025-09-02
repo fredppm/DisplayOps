@@ -20,7 +20,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Set headers for zip download
     res.setHeader('Content-Type', 'application/zip');
-    res.setHeader('Content-Disposition', 'attachment; filename="screenfleet-extension.zip"');
+    res.setHeader('Content-Disposition', 'attachment; filename="displayops-extension.zip"');
 
     // Create zip archive
     const archive = archiver('zip', {

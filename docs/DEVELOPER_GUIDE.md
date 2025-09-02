@@ -1,8 +1,8 @@
-# Developer Guide - ScreenFleet Management System
+# Developer Guide - DisplayOps Management System
 
 ## Architecture Overview
 
-O ScreenFleet Management System consiste em uma arquitetura distribuída com componentes especializados:
+O DisplayOps Management System consiste em uma arquitetura distribuída com componentes especializados:
 
 - **Web Controller** (NextJS): Interface centralizada de gerenciamento
 - **Host Agent** (Electron): Aplicação desktop executada em cada mini PC

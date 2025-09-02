@@ -1,7 +1,7 @@
 {
-  "name": "screenfleet-management-system",
+  "name": "displayops-management-system",
   "version": "1.0.0",
-  "description": "ScreenFleet Management System - Complete solution for managing displays",
+  "description": "DisplayOps Management System - Complete solution for managing displays",
   "private": true,
   "workspaces": [
     "host-agent",
@@ -39,12 +39,12 @@
     "sharp": "^0.34.3"
   },
   "keywords": [
-    "screenfleet",
+    "displayops",
     "management-system",
     "electron",
     "nextjs",
     "display-control",
     "mdns-discovery"
   ],
-  "author": "ScreenFleet Management System"
+  "author": "DisplayOps Management System"
 }

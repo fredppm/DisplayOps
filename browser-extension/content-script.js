@@ -1,4 +1,4 @@
-// ScreenFleet Extension - Content Script
+// DisplayOps Extension - Content Script
 // Detects login events and dashboard patterns
 
 (function() {
@@ -93,7 +93,7 @@
   function initialize() {
     if (!checkExtensionContext()) return;
     
-    console.log('ScreenFleet content script initialized for:', window.location.hostname);
+    console.log('DisplayOps content script initialized for:', window.location.hostname);
     
     // Check if this is a dashboard domain
     if (isDashboardDomain()) {

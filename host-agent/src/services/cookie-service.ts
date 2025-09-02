@@ -1,5 +1,6 @@
 import { session } from 'electron';
 import { URLValidator } from './url-validator';
+import { logger } from '../utils/logger';
 
 export interface CookieData {
   name: string;

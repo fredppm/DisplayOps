@@ -1,7 +1,7 @@
 {
-  "name": "screenfleet-host-agent",
+  "name": "displayops-host-agent",
   "version": "1.0.0",
-  "description": "Host agent for ScreenFleet Management System - runs on mini PCs to control displays",
+  "description": "Host agent for DisplayOps Management System - runs on mini PCs to control displays",
   "main": "dist/host-agent/src/main.js",
   "scripts": {
     "dev": "npm run copy-assets && concurrently --names \"TSC,ELECTRON\" --prefix-colors \"magenta,cyan\" \"npm run dev:tsc\" \"npm run dev:electron\"",
@@ -17,8 +17,8 @@
     "lint:fix": "eslint src --ext .ts,.tsx --fix"
   },
   "build": {
-    "appId": "com.screenfleet.host-agent",
-    "productName": "ScreenFleet Host Agent",
+    "appId": "com.displayops.host-agent",
+    "productName": "DisplayOps Host Agent",
     "directories": {
       "output": "release"
     },
@@ -41,7 +41,7 @@
     "office-automation",
     "display-control"
   ],
-  "author": "ScreenFleet Management System",
+  "author": "DisplayOps Management System",
   "license": "UNLICENSED",
   "devDependencies": {
     "@types/node": "^20.10.5",
@@ -62,6 +62,6 @@
     "@types/bonjour": "^3.5.13",
     "bonjour": "^3.5.0",
     "electron-updater": "^6.1.7",
-    "screenfleet-management-system": "file:.."
+    "displayops-management-system": "file:.."
   }
 }

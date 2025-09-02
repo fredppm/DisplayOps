@@ -13,13 +13,15 @@ import { ConfigManager } from '../managers/config-manager';
 import { StateManager } from './state-manager';
 
 // Load protobuf definition - check multiple possible paths
-let PROTO_PATH: string;
+let PROTO_PATH: string | undefined;
 
 // Try different paths depending on if it's built or in development
 const possiblePaths = [
-  join(__dirname, '..', '..', 'shared', 'proto', 'host-agent.proto'), // Built version
-  join(__dirname, '..', '..', '..', 'shared', 'proto', 'host-agent.proto'), // Development version
-  join(process.cwd(), 'shared', 'proto', 'host-agent.proto'), // Alternative path
+  join(__dirname, '..', '..', '..', 'shared', 'proto', 'host-agent.proto'), // Dist/built version (host-agent/dist/host-agent/src/services -> ../../../shared/proto)
+  join(__dirname, '..', '..', 'shared', 'proto', 'host-agent.proto'), // Alternative built version
+  join(__dirname, '..', '..', '..', '..', 'shared', 'proto', 'host-agent.proto'), // Development version
+  join(process.cwd(), 'shared', 'proto', 'host-agent.proto'), // CWD relative path
+  join(process.cwd(), 'host-agent', 'dist', 'shared', 'proto', 'host-agent.proto'), // Explicit dist path
   join(process.cwd(), '..', 'shared', 'proto', 'host-agent.proto') // Parent directory
 ];
 
@@ -34,7 +36,7 @@ for (const path of possiblePaths) {
   }
 }
 
-if (!PROTO_PATH!) {
+if (!PROTO_PATH) {
   throw new Error(`Proto file not found. Tried paths: ${possiblePaths.join(', ')}`);
 }
 
@@ -47,7 +49,21 @@ const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
 });
 
 const protoDescriptor = grpc.loadPackageDefinition(packageDefinition) as any;
-const screenfleet = protoDescriptor.screenfleet;
+console.log('Proto descriptor keys:', Object.keys(protoDescriptor));
+
+const displayops = protoDescriptor.displayops;
+
+if (!displayops) {
+  console.error('displayops package not found. Available packages:', Object.keys(protoDescriptor));
+  throw new Error('Failed to load displayops package from proto definition');
+}
+
+console.log('displayops keys:', Object.keys(displayops));
+
+if (!displayops.HostAgent) {
+  console.error('HostAgent service not found. Available services:', Object.keys(displayops));
+  throw new Error('HostAgent service not found in displayops package');
+}
 
 export class GrpcService extends EventEmitter {
   private server: grpc.Server;
@@ -75,7 +91,7 @@ export class GrpcService extends EventEmitter {
   }
 
   private setupServiceHandlers(): void {
-    this.server.addService(screenfleet.HostAgent.service, {
+    this.server.addService(displayops.HostAgent.service, {
       ExecuteCommand: this.executeCommand.bind(this),
       StreamEvents: this.streamEvents.bind(this),
       StreamCommands: this.streamCommands.bind(this),
@@ -737,10 +753,9 @@ export class GrpcService extends EventEmitter {
     
     // 🔍 LOG: Verificar dados de display antes da conversão
     logger.debug(`Retrieved ${displays.length} display statuses`);
-    if (logger.shouldLog && logger.shouldLog(3)) { // Only log in DEBUG level
-      const activeDisplays = displays.filter((d: any) => d.active).length;
-      logger.debug(`Display summary: ${activeDisplays}/${displays.length} active displays`);
-    }
+    // Log display summary
+    const activeDisplays = displays.filter((d: any) => d.active).length;
+    logger.debug(`Display summary: ${activeDisplays}/${displays.length} active displays`);
     
     return displays.map(display => this.convertDisplayStatus(display));
   }

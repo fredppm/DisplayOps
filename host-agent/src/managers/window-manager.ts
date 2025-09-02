@@ -4,6 +4,7 @@ import { EventEmitter } from 'events';
 import { URLValidator, URLValidationResult } from '../services/url-validator';
 import { RefreshManager, RefreshEvent } from '../services/refresh-manager';
 import { StateManager } from '../services/state-manager';
+import { logger } from '../utils/logger';
 
 export interface WindowConfig {
   id: string;

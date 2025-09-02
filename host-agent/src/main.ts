@@ -177,7 +177,7 @@ class HostAgent {
   private setupElectron(): void {
     // Configure app settings for system tray behavior
     if (process.platform === 'win32') {
-      app.setAppUserModelId('com.screenfleet.host-agent');
+      app.setAppUserModelId('com.displayops.host-agent');
       
       // Configure app to continue running in background
       app.commandLine.appendSwitch('--disable-background-timer-throttling');
@@ -595,7 +595,7 @@ class HostAgent {
   }
 
   public start(): void {
-    logger.system('Starting ScreenFleet Host Agent...');
+    logger.system('Starting DisplayOps Host Agent...');
     logger.info(`Agent ID: ${this.configManager.getAgentId()}`);
     logger.info(`Version: ${this.configManager.getVersion()}`);
     logger.info('Debug Mode: Press Ctrl+Shift+D to toggle debug overlay');

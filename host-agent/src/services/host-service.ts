@@ -346,7 +346,7 @@ export class HostService {
         logger.debug(`Cookie set attempt ${attemptNumber} succeeded`);
       } catch (error) {
         attemptNumber++;
-        logger.debug(`Cookie set attempt ${attemptNumber - 1} failed:`, error.message);
+        logger.debug(`Cookie set attempt ${attemptNumber - 1} failed:`, error instanceof Error ? error.message : String(error));
         
         // Attempt 2: Try without explicit domain - let Electron infer from URL
         try {
@@ -374,7 +374,7 @@ export class HostService {
           logger.debug(`Cookie set attempt ${attemptNumber} succeeded`);
         } catch (error2) {
           attemptNumber++;
-          logger.debug(`Cookie set attempt ${attemptNumber - 1} failed:`, error2.message);
+          logger.debug(`Cookie set attempt ${attemptNumber - 1} failed:`, error2 instanceof Error ? error2.message : String(error2));
           
           // Attempt 3: Try with HTTP URL (non-secure)
           try {
@@ -394,7 +394,7 @@ export class HostService {
             cookieSetSuccessfully = true;
             logger.debug(`Cookie set attempt ${attemptNumber} succeeded with HTTP`);
           } catch (error3) {
-            logger.error(`All ${attemptNumber} cookie set attempts failed. Last error:`, error3.message);
+            logger.error(`All ${attemptNumber} cookie set attempts failed. Last error:`, error3 instanceof Error ? error3.message : String(error3));
             throw error3; // Re-throw the last error
           }
         }
@@ -441,7 +441,7 @@ export class HostService {
         logger.debug(`Session contains ${allCookies.length} total cookies`);
         
         // Try to understand if the cookie expired immediately
-        if (cookieData.expires && logger.shouldLog && logger.shouldLog(3)) {
+        if (cookieData.expires) {
           const expiresTimestamp = Math.floor(cookieData.expires.getTime() / 1000);
           const isExpired = expiresTimestamp <= (Date.now() / 1000);
           logger.debug(`Cookie expiration check: ${isExpired ? 'expired' : 'valid'}`);
@@ -450,7 +450,7 @@ export class HostService {
         return false;
       }
     } catch (error) {
-      logger.error(`Failed to set cookie "${cookieData.name}":`, error.message);
+      logger.error(`Failed to set cookie "${cookieData.name}":`, error instanceof Error ? error.message : String(error));
       return false;
     }
   }
@@ -484,14 +484,14 @@ export class HostService {
           await defaultSession.cookies.remove(cookieUrl, cookie.name);
           console.log(`🗑️ [HOST-SERVICE] Removed cookie: ${cookie.name} from ${cookie.domain}`);
         } catch (error) {
-          logger.warn(`Failed to remove cookie ${cookie.name}:`, error.message);
+          logger.warn(`Failed to remove cookie ${cookie.name}:`, error instanceof Error ? error.message : String(error));
         }
       }
 
       logger.info(`Cleared ${domainCookies.length} cookies for domain ${domain}`);
       return true;
     } catch (error) {
-      logger.error(`Failed to clear cookies for domain ${domain}:`, error.message);
+      logger.error(`Failed to clear cookies for domain ${domain}:`, error instanceof Error ? error.message : String(error));
       return false;
     }
   }

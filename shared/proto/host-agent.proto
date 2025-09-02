@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package screenfleet;
+package displayops;
 
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/empty.proto";

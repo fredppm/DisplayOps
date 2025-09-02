@@ -1,8 +1,8 @@
-# ScreenFleet Management System - API Reference
+# DisplayOps Management System - API Reference
 
 ## Overview
 
-The ScreenFleet Management System consists of three main components:
+The DisplayOps Management System consists of three main components:
 - **Web Controller**: NextJS-based management interface
 - **Host Agent**: Electron-based agent running on display devices
 - **Browser Extension**: Chrome extension for authentication sync
@@ -109,7 +109,7 @@ Execute commands on remote host agents via gRPC.
 #### Extension Download
 **Endpoint**: `GET /api/extension/download`
 
-Downloads the ScreenFleet browser extension as a zip file.
+Downloads the DisplayOps browser extension as a zip file.
 
 ### Application Lifecycle
 
@@ -180,14 +180,14 @@ Sync detected authentication cookies from browser sessions.
 - **Auto-Detection**: Identifies dashboard domains (Grafana, Tableau, etc.)
 - **Login Monitoring**: Detects successful authentication events
 - **Cookie Extraction**: Extracts relevant authentication cookies
-- **Auto-Sync**: Automatically syncs to discovered ScreenFleet systems
+- **Auto-Sync**: Automatically syncs to discovered DisplayOps systems
 
 ## Network Architecture
 
 ### Service Discovery
 
 Uses mDNS (Multicast DNS) for automatic host discovery:
-- **Service Type**: `_screenfleet._tcp.local`
+- **Service Type**: `_displayops._tcp.local`
 - **Port**: UDP 5353
 - **TXT Records**: Host metadata (displays, version, capabilities)
 
@@ -225,8 +225,8 @@ gRPC connections implement circuit breakers with:
 1. User logs into dashboard via browser
 2. Browser extension detects successful login
 3. Extension extracts authentication cookies
-4. Extension syncs cookies to discovered ScreenFleet hosts
-4. Extension syncs cookies to discovered ScreenFleet hosts
+4. Extension syncs cookies to discovered DisplayOps hosts
+4. Extension syncs cookies to discovered DisplayOps hosts
 5. Host agents store cookies for dashboard authentication
 6. Dashboards deployed with pre-authenticated sessions
 
