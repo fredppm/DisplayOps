@@ -1,8 +1,8 @@
-# Developer Guide - Office TV Management System
+# Developer Guide - ScreenFleet Management System
 
 ## Architecture Overview
 
-O Office TV Management System consiste em uma arquitetura distribuída com componentes especializados:
+O ScreenFleet Management System consiste em uma arquitetura distribuída com componentes especializados:
 
 - **Web Controller** (NextJS): Interface centralizada de gerenciamento
 - **Host Agent** (Electron): Aplicação desktop executada em cada mini PC

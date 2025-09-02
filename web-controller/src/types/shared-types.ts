@@ -1,4 +1,4 @@
-// Shared TypeScript types for Office TV Management System
+// Shared TypeScript types for ScreenFleet Management System
 // Local copy from shared directory for Next.js compatibility
 
 export interface Dashboard {
@@ -29,8 +29,8 @@ export interface MiniPC {
 }
 
 export interface MDNSServiceInfo {
-  serviceName: string; // "_officetv._tcp.local"
-  instanceName: string; // "Office-TV-Agent-01._officetv._tcp.local"
+  serviceName: string; // "_screenfleet._tcp.local"
+  instanceName: string; // "ScreenFleet-Agent-01._screenfleet._tcp.local"
   txtRecord: Record<string, string>; // Additional metadata
   addresses: string[]; // IP addresses
   port: number;
@@ -170,30 +170,30 @@ export interface SystemSettings {
 }
 
 // Error Types
-export class OfficetvError extends Error {
+export class ScreenFleetError extends Error {
   constructor(
     message: string,
     public code: string,
     public details?: any
   ) {
     super(message);
-    this.name = 'OfficetvError';
+    this.name = 'ScreenFleetError';
   }
 }
 
-export class BrowserError extends OfficetvError {
+export class BrowserError extends ScreenFleetError {
   constructor(message: string, details?: any) {
     super(message, 'BROWSER_ERROR', details);
   }
 }
 
-export class NetworkError extends OfficetvError {
+export class NetworkError extends ScreenFleetError {
   constructor(message: string, details?: any) {
     super(message, 'NETWORK_ERROR', details);
   }
 }
 
-export class ConfigurationError extends OfficetvError {
+export class ConfigurationError extends ScreenFleetError {
   constructor(message: string, details?: any) {
     super(message, 'CONFIG_ERROR', details);
   }

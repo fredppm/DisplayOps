@@ -590,8 +590,8 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
 
         // Only refresh displays that have active dashboards
         const activeDisplays = (host.displayStates || [])
-          .filter(display => display.isActive && display.assignedDashboard)
-          .map(display => display.id);
+          .filter((display: any) => display.isActive && display.assignedDashboard)
+          .map((display: any) => display.id);
         
         console.debug(`Cookie refresh: Host ${host.hostname} has ${activeDisplays.length} active displays with dashboards:`, activeDisplays);
         

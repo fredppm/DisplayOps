@@ -1,535 +1,233 @@
-# API Reference - Office TV Management System
+# ScreenFleet Management System - API Reference
 
-## Host Agent API (Port 8080)
+## Overview
 
-### Base URL
-```
-http://localhost:8080
-```
+The ScreenFleet Management System consists of three main components:
+- **Web Controller**: NextJS-based management interface
+- **Host Agent**: Electron-based agent running on display devices
+- **Browser Extension**: Chrome extension for authentication sync
 
-## System APIs
+This document provides a comprehensive reference of all active APIs and integrations.
 
-### Health Check
-**GET** `/health`
+## Web Controller APIs
 
-Simple health check endpoint.
+### Host Management
 
-**Response:**
-```json
-{
-  "status": "ok",
-  "timestamp": "2025-01-XX..."
-}
-```
+#### Execute Host Command
+**Endpoint**: `POST /api/host/{hostId}/command`
 
-### System Status
-**GET** `/api/status`
+Execute commands on remote host agents via gRPC.
 
-Get comprehensive system status.
+**Supported Commands**:
+- `REFRESH_PAGE` - Refresh current dashboard
+- `identify_displays` - Show display identification overlay
+- `open_dashboard` - Deploy dashboard to specific display
+- `SYNC_COOKIES` - Synchronize authentication cookies
 
-**Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "agent_id": "office-tv-agent",
-    "uptime": 3600,
-    "displays": 2,
-    "activeWindows": 1,
-    "mdnsStatus": "active",
-    "version": "1.0.0"
-  },
-  "timestamp": "2025-01-XX..."
-}
-```
-
-## Cookie Management APIs
-
-### Import Cookies
-**POST** `/api/cookies/import`
-
-Import cookies for a specific domain.
-
-**Request Body:**
-```json
-{
-  "domain": "https://grafana.company.com",
-  "cookies": "session_id=abc123; auth_token=xyz789"
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "domain": "https://grafana.company.com",
-    "cookiesImported": 2,
-    "status": "imported"
-  },
-  "timestamp": "2025-01-XX..."
-}
-```
-
-### Cookie Status
-**GET** `/api/cookies/status`
-
-Get status of all imported cookies.
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "domains": [
-      {
-        "domain": "https://grafana.company.com",
-        "cookieCount": 2,
-        "lastSync": "2025-01-XX...",
-        "status": "valid"
-      }
-    ],
-    "totalDomains": 1
-  },
-  "timestamp": "2025-01-XX..."
-}
-```
-
-### Refresh Cookies
-**POST** `/api/cookies/refresh`
-
-Re-sync all cookies to active windows.
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "message": "Cookies refreshed successfully",
-    "domainsProcessed": 1,
-    "windowsUpdated": 2
-  },
-  "timestamp": "2025-01-XX..."
-}
-```
-
-### Validate Domain Cookies
-**POST** `/api/cookies/validate/:domain`
-
-Validate cookies for a specific domain.
-
-**URL Parameters:**
-- `domain`: URL-encoded domain (e.g., `https%3A%2F%2Fgrafana.company.com`)
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "domain": "https://grafana.company.com",
-    "valid": true,
-    "cookieCount": 2,
-    "lastValidated": "2025-01-XX..."
-  },
-  "timestamp": "2025-01-XX..."
-}
-```
-
-### Delete Domain Cookies
-**DELETE** `/api/cookies/:domain`
-
-Clear cookies for a specific domain.
-
-**URL Parameters:**
-- `domain`: URL-encoded domain
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "domain": "https://grafana.company.com",
-    "message": "Cookies cleared successfully"
-  },
-  "timestamp": "2025-01-XX..."
-}
-```
-
-## Debug System APIs
-
-### Enable Debug Mode
-**POST** `/api/debug/enable`
-
-Activate debug mode and overlay.
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "enabled": true,
-    "overlayVisible": true,
-    "message": "Debug mode enabled"
-  },
-  "timestamp": "2025-01-XX..."
-}
-```
-
-### Disable Debug Mode
-**POST** `/api/debug/disable`
-
-Deactivate debug mode.
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "enabled": false,
-    "overlayVisible": false,
-    "message": "Debug mode disabled"
-  },
-  "timestamp": "2025-01-XX..."
-}
-```
-
-### Debug Status
-**GET** `/api/debug/status`
-
-Get debug system status and metrics.
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "enabled": true,
-    "metrics": {
-      "cpu": 15,
-      "memory": 45,
-      "uptime": 3600,
-      "activeWindows": 2,
-      "apiRequestsPerMinute": 12,
-      "mdnsStatus": "active"
-    },
-    "overlayVisible": true
-  },
-  "timestamp": "2025-01-XX..."
-}
-```
-
-### Get Debug Events
-**GET** `/api/debug/events`
-
-Retrieve debug events with optional filtering.
-
-**Query Parameters:**
-- `limit` (optional): Number of events to return (default: 50, max: 100)
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "events": [
-      {
-        "timestamp": "2025-01-XX 14:32:15",
-        "type": "api_request",
-        "category": "API",
-        "message": "POST /api/command",
-        "data": { "body": {...} },
-        "duration": 150
-      }
-    ],
-    "totalEvents": 25,
-    "returned": 25
-  },
-  "timestamp": "2025-01-XX..."
-}
-```
-
-### Clear Debug Events
-**DELETE** `/api/debug/events`
-
-Clear all stored debug events.
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "message": "Debug events cleared",
-    "eventsCleared": 25
-  },
-  "timestamp": "2025-01-XX..."
-}
-```
-
-## Display Management APIs
-
-### Identify Displays
-**POST** `/api/displays/identify`
-
-Show identification numbers on all displays.
-
-**Request Body (optional):**
-```json
-{
-  "duration": 5,
-  "fontSize": 200,
-  "backgroundColor": "rgba(0, 0, 0, 0.8)"
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "message": "Identifying 2 displays for 5 seconds",
-    "displays": [
-      {
-        "displayId": 1,
-        "bounds": {
-          "x": 0,
-          "y": 0,
-          "width": 1920,
-          "height": 1080
-        }
-      }
-    ],
-    "options": {
-      "duration": 5,
-      "fontSize": 200,
-      "backgroundColor": "rgba(0, 0, 0, 0.8)"
-    }
-  },
-  "timestamp": "2025-01-XX..."
-}
-```
-
-## Window Management APIs
-
-### List Windows
-**GET** `/api/windows`
-
-Get list of all managed windows.
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "windows": [
-      {
-        "id": "dashboard-1",
-        "url": "https://grafana.company.com/d/main",
-        "display": 1,
-        "status": "active",
-        "created": "2025-01-XX..."
-      }
-    ],
-    "totalWindows": 1
-  },
-  "timestamp": "2025-01-XX..."
-}
-```
-
-### Create Window
-**POST** `/api/windows/create`
-
-Create a new dashboard window.
-
-**Request Body:**
-```json
-{
-  "url": "https://grafana.company.com/d/main",
-  "display": 1,
-  "windowId": "dashboard-1"
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "windowId": "dashboard-1",
-    "url": "https://grafana.company.com/d/main",
-    "display": 1,
-    "status": "created"
-  },
-  "timestamp": "2025-01-XX..."
-}
-```
-
-## Command System API
-
-### Execute Command
-**POST** `/api/command`
-
-Execute unified commands through the command system.
-
-**Request Body:**
+**Request Body**:
 ```json
 {
   "type": "open_dashboard",
-  "targetDisplay": "1",
-  "payload": {
-    "url": "https://grafana.company.com/d/main",
-    "windowId": "dashboard-1"
-  },
-  "timestamp": "2025-01-XX..."
+  "display_id": "display-1",
+  "dashboard_id": "dash-123",
+  "url": "https://example.com/dashboard",
+  "fullscreen": true
 }
 ```
 
-### Available Command Types
+#### Debug Management
+**Endpoints**:
+- `POST /api/host/{hostId}/debug/toggle` - Enable/disable debug mode
+- `GET /api/host/{hostId}/debug/events?limit=1000` - Download debug logs
+- `DELETE /api/host/{hostId}/debug/events` - Clear debug logs
 
-#### open_dashboard
-Open a dashboard on a specific display.
+#### Display Management
+**Endpoints**:
+- `GET /api/host/{hostId}/windows` - Get active browser windows
+- `DELETE /api/host/{hostId}/display/{displayId}/remove-dashboard` - Remove dashboard
 
-**Payload:**
+### Discovery System
+
+#### Host Discovery
+**Endpoints**:
+- `GET /api/discovery/events` - **Server-Sent Events stream** for real-time host discovery
+- `GET /api/discovery/hosts` - HTTP fallback for host list
+
+**SSE Event Types**:
+- `host_discovered` - New host found on network
+- `host_updated` - Host information changed
+- `host_lost` - Host no longer reachable
+
+### Dashboard Management
+
+#### Dashboard CRUD Operations
+**Endpoints**:
+- `GET /api/dashboards` - List all dashboards
+- `POST /api/dashboards` - Create new dashboard
+- `PUT /api/dashboards/{id}` - Update existing dashboard
+- `DELETE /api/dashboards/{id}` - Delete dashboard
+
+**Dashboard Schema**:
 ```json
 {
-  "url": "https://grafana.company.com/d/main",
-  "windowId": "dashboard-1"
+  "id": "string",
+  "name": "string", 
+  "url": "string",
+  "refresh_interval_ms": "number",
+  "fullscreen": "boolean"
 }
 ```
 
-#### close_window
-Close a specific window.
+### Authentication & Cookies
 
-**Payload:**
+#### Cookie Management
+**Endpoints**:
+- `GET /api/cookies/status` - Get cookie storage overview
+- `GET /api/cookies/domain/{domain}` - Get cookies for specific domain
+- `POST /api/cookies/add` - Add individual cookie
+- `POST /api/cookies/remove` - Remove specific cookie
+- `POST /api/cookies/import` - Import structured cookies
+- `POST /api/cookies/import-devtools` - Import DevTools format cookies
+- `DELETE /api/cookies/domain` - Remove entire domain
+
+**Cookie Schema**:
 ```json
 {
-  "windowId": "dashboard-1"
+  "name": "string",
+  "value": "string", 
+  "domain": "string",
+  "path": "string",
+  "expires": "number",
+  "httpOnly": "boolean",
+  "secure": "boolean",
+  "sameSite": "string"
 }
 ```
 
-#### identify_displays
-Identify all displays.
+### Extension System
 
-**Payload:**
-```json
-{
-  "duration": 5,
-  "fontSize": 200
-}
-```
+#### Extension Download
+**Endpoint**: `GET /api/extension/download`
 
-#### sync_cookies
-Sync cookies to all windows.
+Downloads the ScreenFleet browser extension as a zip file.
 
-**Payload:**
-```json
-{
-  "domain": "https://grafana.company.com"
-}
-```
+### Application Lifecycle
 
-**Response Format:**
-```json
-{
-  "success": true,
-  "data": {
-    "commandId": "cmd-123",
-    "type": "open_dashboard",
-    "status": "executed",
-    "result": { /* command-specific result */ }
-  },
-  "timestamp": "2025-01-XX..."
-}
-```
+#### System Management
+**Endpoints**:
+- `POST /api/auto-init` - Initialize application state
+- `POST /api/dashboard-closed` - Notify dashboard closure (via sendBeacon)
 
-## Error Responses
+## gRPC Service Reference
 
-All APIs use consistent error response format:
+### Host Agent Service
 
-```json
-{
-  "success": false,
-  "error": "Error message describing what went wrong",
-  "code": "ERROR_CODE",
-  "timestamp": "2025-01-XX..."
-}
-```
+The host agent exposes a gRPC service on port 8082 with the following methods:
 
-### Common Error Codes
+#### ExecuteCommand
+Execute single commands on the host agent.
 
-- `INVALID_REQUEST` - Malformed request body or parameters
-- `SERVICE_UNAVAILABLE` - Required service not available
-- `DISPLAY_NOT_FOUND` - Specified display doesn't exist
-- `WINDOW_NOT_FOUND` - Specified window doesn't exist
-- `COOKIE_PARSE_ERROR` - Invalid cookie format
-- `DEBUG_NOT_AVAILABLE` - Debug system not initialized
+**Command Types**:
+| Command | Purpose |
+|---------|---------|
+| `OPEN_DASHBOARD` | Deploy dashboard to display |
+| `REFRESH_DASHBOARD` | Refresh current dashboard |
+| `SET_COOKIES` | Sync authentication cookies |
+| `HEALTH_CHECK` | Get system status |
+| `IDENTIFY_DISPLAYS` | Show display identification |
+| `TAKE_SCREENSHOT` | Capture display screenshot |
+| `RESTART_DASHBOARD` | Restart dashboard process |
+| `DEBUG_ENABLE` | Enable debug mode |
+| `DEBUG_DISABLE` | Disable debug mode |
+| `REMOVE_DASHBOARD` | Remove dashboard from display |
 
-## Rate Limiting
+#### StreamEvents
+Server streaming for real-time events.
 
-APIs have the following rate limits:
-- General APIs: 100 requests/minute
-- Debug APIs: 200 requests/minute
-- Cookie APIs: 50 requests/minute
+**Event Types**:
+| Event | Description |
+|-------|-------------|
+| `HEARTBEAT` | System status updates (every 30s) |
+| `DISPLAY_STATE_CHANGED` | Display status changes |
+| `HOST_STATUS_CHANGED` | Host system status updates |
 
-## Authentication
+#### HealthCheck
+Unary RPC for health status checking.
 
-Currently, the host agent API does not require authentication as it runs on localhost. In production environments, consider implementing:
-- API key authentication
-- IP whitelisting
-- TLS encryption
+**Response includes**:
+- Host system status (CPU, memory, uptime)
+- Display states and assignments
+- System information
 
-## WebSocket API (Future)
+## Browser Extension Integration
 
-Real-time updates will be available via WebSocket connection:
+### Extension APIs
 
-```javascript
-const ws = new WebSocket('ws://localhost:8080/ws');
+The browser extension communicates with host agents via HTTP:
 
-ws.on('message', (data) => {
-  const event = JSON.parse(data);
-  console.log('Real-time event:', event);
-});
-```
+#### Connection Health
+**Endpoint**: `GET /api/cookies/status`
 
-## SDK Examples
+Check connection status and cookie storage health.
 
-### Node.js
-```javascript
-const axios = require('axios');
+#### Cookie Sync
+**Endpoint**: `POST /api/cookies/import`
 
-class OfficeTVAPI {
-  constructor(baseURL = 'http://localhost:8080') {
-    this.client = axios.create({ baseURL });
-  }
+Sync detected authentication cookies from browser sessions.
 
-  async identifyDisplays(options = {}) {
-    const response = await this.client.post('/api/displays/identify', options);
-    return response.data;
-  }
+### Extension Features
 
-  async syncCookies(domain, cookies) {
-    const response = await this.client.post('/api/cookies/import', {
-      domain, cookies
-    });
-    return response.data;
-  }
+- **Auto-Detection**: Identifies dashboard domains (Grafana, Tableau, etc.)
+- **Login Monitoring**: Detects successful authentication events
+- **Cookie Extraction**: Extracts relevant authentication cookies
+- **Auto-Sync**: Automatically syncs to discovered ScreenFleet systems
 
-  async enableDebug() {
-    const response = await this.client.post('/api/debug/enable');
-    return response.data;
-  }
-}
-```
+## Network Architecture
 
-### PowerShell
-```powershell
-# Identify displays
-$response = Invoke-RestMethod -Uri "http://localhost:8080/api/displays/identify" -Method POST
+### Service Discovery
 
-# Import cookies
-$body = @{
-  domain = "https://grafana.company.com"
-  cookies = "session=abc123; token=xyz789"
-} | ConvertTo-Json
+Uses mDNS (Multicast DNS) for automatic host discovery:
+- **Service Type**: `_screenfleet._tcp.local`
+- **Port**: UDP 5353
+- **TXT Records**: Host metadata (displays, version, capabilities)
 
-$response = Invoke-RestMethod -Uri "http://localhost:8080/api/cookies/import" -Method POST -Body $body -ContentType "application/json"
-```
+### Communication Protocols
+
+- **Web Controller ↔ Host Agent**: gRPC (port 8082)
+- **Browser Extension ↔ Host Agent**: HTTP APIs (port 8080)
+- **Host Discovery**: mDNS (UDP 5353)
+- **Web Interface**: HTTP/WebSocket (NextJS default ports)
+
+### Real-Time Updates
+
+- **Primary**: Server-Sent Events for host discovery
+- **Secondary**: gRPC streaming for host events
+- **Fallback**: HTTP polling when connections fail
+
+## Error Handling
+
+### Circuit Breaker Pattern
+
+gRPC connections implement circuit breakers with:
+- Connection timeouts
+- Automatic retry with exponential backoff
+- Graceful fallback to cached data
+
+### Resilience Features
+
+- **Connection Recovery**: Automatic reconnection on network changes
+- **Cached Data**: Local caching for offline operation
+- **Timeout Handling**: Configurable timeouts for all operations
+- **Error Reporting**: Structured error responses with proper HTTP codes
+
+## Authentication Flow
+
+1. User logs into dashboard via browser
+2. Browser extension detects successful login
+3. Extension extracts authentication cookies
+4. Extension syncs cookies to discovered ScreenFleet hosts
+4. Extension syncs cookies to discovered ScreenFleet hosts
+5. Host agents store cookies for dashboard authentication
+6. Dashboards deployed with pre-authenticated sessions
+
+This architecture provides seamless authentication across all display devices without manual credential management.

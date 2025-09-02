@@ -22,16 +22,16 @@ export class MDNSDiscoveryService {
   }
 
   public startDiscovery(): void {
-    console.log('🔍 Starting mDNS discovery for Office Display hosts...');
-    console.log('📡 Looking for service type: _officedisplay._tcp.local');
+    console.log('🔍 Starting mDNS discovery for ScreenFleet hosts...');
+    console.log('📡 Looking for service type: _screenfleet._tcp.local');
     
     try {
       this.stopDiscovery();
 
       this.isDiscovering = true;
       
-      // Create browser for office display services
-      this.browser = this.bonjourInstance.find({ type: 'officedisplay' });
+      // Create browser for ScreenFleet services
+      this.browser = this.bonjourInstance.find({ type: 'screenfleet' });
 
       // Set up event listeners
       this.browser.on('up', (service: RemoteService) => {
@@ -42,7 +42,7 @@ export class MDNSDiscoveryService {
         this.handleServiceDown(service);
       });
 
-      console.log('✅ mDNS discovery started for _officedisplay._tcp.local services');
+      console.log('✅ mDNS discovery started for _screenfleet._tcp.local services');
 
     } catch (error) {
       console.error('❌ Failed to start mDNS discovery:', error);
@@ -74,7 +74,7 @@ export class MDNSDiscoveryService {
       return;
     }
     
-    console.log('✅ mDNS Office Display service discovered:', {
+    console.log('✅ mDNS ScreenFleet service discovered:', {
       name: service.name,
       host: service.host,
       port: service.port,
@@ -89,7 +89,7 @@ export class MDNSDiscoveryService {
       port: service.port || 8082,
       addresses: service.addresses || [],
       txt: service.txt || {},
-      fqdn: service.fqdn || `${service.name}._officedisplay._tcp.local`
+      fqdn: service.fqdn || `${service.name}._screenfleet._tcp.local`
     };
 
     this.discoveredServices.set(serviceKey, discoveredHost);
@@ -107,7 +107,7 @@ export class MDNSDiscoveryService {
     const serviceKey = agentId;
     
     if (this.discoveredServices.has(serviceKey)) {
-      console.log('👋 mDNS Office Display service removed:', service.name);
+      console.log('👋 mDNS ScreenFleet service removed:', service.name);
       
       this.discoveredServices.delete(serviceKey);
       

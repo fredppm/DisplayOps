@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package officedisplay;
+package screenfleet;
 
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/empty.proto";
@@ -212,22 +212,14 @@ message HostEvent {
   oneof payload {
     DisplayStateChangedEvent display_state_changed = 10;
     HostStatusChangedEvent host_status_changed = 11;
-    ErrorEvent error_event = 12;
     HeartbeatEvent heartbeat = 13;
-    DisplaysChangedEvent displays_changed = 14;
-    HostOnlineEvent host_online = 15;
-    HostOfflineEvent host_offline = 16;
   }
 }
 
 enum EventType {
   DISPLAY_STATE_CHANGED = 0;
   HOST_STATUS_CHANGED = 1;
-  ERROR_EVENT = 2;
   HEARTBEAT = 3;
-  DISPLAYS_CHANGED = 4;
-  HOST_ONLINE = 5;
-  HOST_OFFLINE = 6;
 }
 
 message DisplayStateChangedEvent {
@@ -239,31 +231,9 @@ message HostStatusChangedEvent {
   HostStatus status = 1;
 }
 
-message ErrorEvent {
-  string component = 1;
-  string error_message = 2;
-  string error_code = 3;
-  string display_id = 4; // optional, if error is display-specific
-}
-
 message HeartbeatEvent {
   HostStatus host_status = 1;
   repeated DisplayStatus display_statuses = 2;
-}
-
-message DisplaysChangedEvent {
-  repeated DisplayInfo displays = 1;
-  string change_type = 2; // "added", "removed", "modified", "reordered"
-  DisplayInfo changed_display = 3; // specific display that changed
-}
-
-message HostOnlineEvent {
-  HostStatus host_status = 1;
-  SystemInfo system_info = 2;
-}
-
-message HostOfflineEvent {
-  string reason = 1; // "shutdown", "error", "restart"
 }
 
 message DisplayInfo {

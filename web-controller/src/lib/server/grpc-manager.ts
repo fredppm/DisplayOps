@@ -68,7 +68,7 @@ class GrpcManagerSingleton {
       if (ipAddress && port) {
         const host: MiniPC = {
           id: hostId,
-          name: 'Office Display Host',
+          name: 'ScreenFleet Host',
           hostname: ipAddress,
           ipAddress: ipAddress,
           port: port,
@@ -170,7 +170,7 @@ class GrpcManagerSingleton {
     
     const host: MiniPC = {
       id: hostId,
-      name: 'Office Display Host',
+      name: 'ScreenFleet Host',
       hostname: ipAddress,
       ipAddress: ipAddress,
       port: port,

@@ -32,8 +32,8 @@ Sistema completo de **gerenciamento de cookies** para autenticação automática
 5. **Selecione todos os cookies** (Ctrl+A)
 6. **Copie** (Ctrl+C)
 
-### **Passo 3: Importar no Office TV**
-1. **Abra a interface** Office TV (http://localhost:3000)
+### **Passo 3: Importar no ScreenFleet**
+1. **Abra a interface** ScreenFleet (http://localhost:3000)
 2. **Vá para a aba "🍪 Cookies"**
 3. **Encontre o domínio** ou adicione um novo
 4. **Cole os cookies** na área de texto
@@ -151,7 +151,7 @@ auth_token=xyz123...
       grafana_sess=MTIzNDU2Nzg5MC4xMjM0NTY3ODkw...
       ```
 
-3. **Importar no Office TV:**
+3. **Importar no ScreenFleet:**
    ```
    1. Aba "🍪 Cookies"
    2. Domínio: https://grafana.company.com

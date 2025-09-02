@@ -1,4 +1,4 @@
-# Office Display Management System
+# ScreenFleet Management System
 
 A comprehensive solution for managing multiple displays in office environments. This system allows centralized control of dashboards across multiple mini PCs, with automatic authentication handling and real-time monitoring.
 
@@ -239,7 +239,7 @@ AGENT_ID=minipc-01
 **Agents not discovered automatically**
 - Check if UDP port 5353 is open in firewall
 - Verify multicast is enabled on network
-- Test mDNS with `dns-sd -B _officedisplay._tcp` command
+- Test mDNS with `dns-sd -B _screenfleet._tcp` command
 - Check if agents are advertising service correctly
 
 **Agent not responding**

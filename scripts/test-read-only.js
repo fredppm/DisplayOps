@@ -10,7 +10,7 @@ const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
 
-console.log('🔍 Office TV Management System - 100% Read-Only Validation\n');
+console.log('🔍 ScreenFleet Management System - 100% Read-Only Validation\n');
 console.log('⚡ This test makes ZERO changes to your system\n');
 
 const READ_ONLY_TESTS = [

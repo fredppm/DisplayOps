@@ -1,7 +1,7 @@
 {
-  "name": "office-display-management-system",
+  "name": "screenfleet-management-system",
   "version": "1.0.0",
-  "description": "Office Display Management System - Complete solution for managing displays",
+  "description": "ScreenFleet Management System - Complete solution for managing displays",
   "private": true,
   "workspaces": [
     "host-agent",
@@ -39,12 +39,12 @@
     "sharp": "^0.34.3"
   },
   "keywords": [
-    "office-display",
+    "screenfleet",
     "management-system",
     "electron",
     "nextjs",
     "display-control",
     "mdns-discovery"
   ],
-  "author": "Office Display Management System"
+  "author": "ScreenFleet Management System"
 }

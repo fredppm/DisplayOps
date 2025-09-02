@@ -15,7 +15,7 @@ const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
 });
 
 const protoDescriptor = grpc.loadPackageDefinition(packageDefinition) as any;
-const officedisplay = protoDescriptor.officedisplay;
+const screenfleet = protoDescriptor.screenfleet;
 
 export interface GrpcClientConfig {
   host: string;
@@ -63,7 +63,7 @@ export class GrpcHostClient extends EventEmitter {
 
   private setupClient(): void {
     const address = `${this.config.host}:${this.config.port}`;
-    this.client = new officedisplay.HostAgent(
+    this.client = new screenfleet.HostAgent(
       address,
       grpc.credentials.createInsecure()
     );

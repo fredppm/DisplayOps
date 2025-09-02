@@ -1,4 +1,4 @@
-# Office Display Management System - Architecture
+# ScreenFleet Management System - Architecture
 
 ## Overview
 A distributed system to manage multiple displays in an office environment, handling dashboard display, authentication, and monitoring across multiple mini PCs.
@@ -31,7 +31,7 @@ A distributed system to manage multiple displays in an office environment, handl
 - **Discovery**: mDNS/Bonjour for automatic service discovery
 - **Protocol**: REST API with JSON payloads  
 - **Authentication**: Simple token-based auth
-- **Service Name**: `_officedisplay._tcp.local`
+- **Service Name**: `_screenfleet._tcp.local`
 - **Commands**:
   - `open_dashboard` - Navigate to specific dashboard
   - `sync_cookies` - Copy authentication cookies
@@ -40,7 +40,7 @@ A distributed system to manage multiple displays in an office environment, handl
 
 ## Data Flow
 
-1. **Discovery**: Host agents advertise `_officedisplay._tcp.local` service on startup
+1. **Discovery**: Host agents advertise `_screenfleet._tcp.local` service on startup
 2. **Registration**: Web controller discovers agents automatically via mDNS
 3. **Configuration**: User configures dashboards via web interface
 4. **Command**: Web controller sends commands to discovered host agents
@@ -53,7 +53,7 @@ A distributed system to manage multiple displays in an office environment, handl
 ```
                     mDNS Discovery
                  ◄─────────────────►
-[Web Controller] ◄─ _officedisplay._tcp.local ─► [Mini PC 1 - Host Agent] --> [Display 1, Display 2]
+[Web Controller] ◄─ _screenfleet._tcp.local ─► [Mini PC 1 - Host Agent] --> [Display 1, Display 2]
        │                                 └► [Mini PC 2 - Host Agent] --> [Display 3, Display 4]
        │         REST API Commands          [Mini PC 3 - Host Agent] --> [Display 5, Display 6]
        └──────────────────────────────────► [Mini PC 4 - Host Agent] --> [Display 7, Display 8]

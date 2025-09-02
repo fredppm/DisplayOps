@@ -177,7 +177,7 @@ class HostAgent {
   private setupElectron(): void {
     // Configure app settings for system tray behavior
     if (process.platform === 'win32') {
-      app.setAppUserModelId('com.vtex.office-display.host-agent');
+      app.setAppUserModelId('com.screenfleet.host-agent');
       
       // Configure app to continue running in background
       app.commandLine.appendSwitch('--disable-background-timer-throttling');
@@ -303,9 +303,6 @@ class HostAgent {
       return this.debugService.clearEvents();
     });
 
-    ipcMain.handle('debug:export-events', async (event, format) => {
-      return this.debugService.exportEvents(format);
-    });
 
     ipcMain.handle('debug:get-state', async () => {
       return {
@@ -598,7 +595,7 @@ class HostAgent {
   }
 
   public start(): void {
-    logger.system('Starting Office TV Host Agent...');
+    logger.system('Starting ScreenFleet Host Agent...');
     logger.info(`Agent ID: ${this.configManager.getAgentId()}`);
     logger.info(`Version: ${this.configManager.getVersion()}`);
     logger.info('Debug Mode: Press Ctrl+Shift+D to toggle debug overlay');

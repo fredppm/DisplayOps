@@ -47,7 +47,7 @@ const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
 });
 
 const protoDescriptor = grpc.loadPackageDefinition(packageDefinition) as any;
-const officedisplay = protoDescriptor.officedisplay;
+const screenfleet = protoDescriptor.screenfleet;
 
 export class GrpcService extends EventEmitter {
   private server: grpc.Server;
@@ -75,7 +75,7 @@ export class GrpcService extends EventEmitter {
   }
 
   private setupServiceHandlers(): void {
-    this.server.addService(officedisplay.HostAgent.service, {
+    this.server.addService(screenfleet.HostAgent.service, {
       ExecuteCommand: this.executeCommand.bind(this),
       StreamEvents: this.streamEvents.bind(this),
       StreamCommands: this.streamCommands.bind(this),

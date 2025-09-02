@@ -278,37 +278,4 @@ export class DebugService extends EventEmitter {
     }
   }
 
-  public getEventStats(): { [key: string]: number } {
-    const stats: { [key: string]: number } = {};
-    
-    this.events.forEach(event => {
-      const key = `${event.type}_${event.category}`;
-      stats[key] = (stats[key] || 0) + 1;
-    });
-
-    return stats;
-  }
-
-  public exportEvents(format: 'json' | 'csv' = 'json'): string {
-    if (format === 'json') {
-      return JSON.stringify(this.events, null, 2);
-    }
-
-    // CSV format
-    const headers = ['timestamp', 'type', 'category', 'message', 'duration'];
-    const csvRows = [headers.join(',')];
-
-    this.events.forEach(event => {
-      const row = [
-        event.timestamp.toISOString(),
-        event.type,
-        event.category,
-        `"${event.message}"`,
-        event.duration || ''
-      ];
-      csvRows.push(row.join(','));
-    });
-
-    return csvRows.join('\n');
-  }
 }

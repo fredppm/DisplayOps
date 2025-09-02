@@ -9,7 +9,7 @@ const path = require('path');
 const sharp = require('sharp');
 
 const ROOT = path.resolve(__dirname, '..');
-const ICONS_DIR = path.join(ROOT, 'office-display-extension', 'icons');
+const ICONS_DIR = path.join(ROOT, 'browser-extension', 'icons');
 const TRAY_ASSETS_DIR = path.join(ROOT, 'host-agent', 'assets');
 const WEB_PUBLIC_DIR = path.join(ROOT, 'web-controller', 'public');
 const LOCAL_VTEX_SVG = path.join(__dirname, 'vtex-icon.svg');

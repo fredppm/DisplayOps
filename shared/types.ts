@@ -1,4 +1,4 @@
-// Shared TypeScript types for Office Display Management System
+// Shared TypeScript types for ScreenFleet Management System
 
 export interface Dashboard {
   id: string;
@@ -37,8 +37,8 @@ export interface MiniPC {
 }
 
 export interface MDNSServiceInfo {
-  serviceName: string; // "_officedisplay._tcp.local"
-  instanceName: string; // "Office-Display-Agent-01._officedisplay._tcp.local"
+  serviceName: string; // "_screenfleet._tcp.local"
+  instanceName: string; // "ScreenFleet-Agent-01._screenfleet._tcp.local"
   txtRecord: Record<string, string>; // Additional metadata
   addresses: string[]; // IP addresses
   port: number;
@@ -185,30 +185,30 @@ export interface SystemSettings {
 }
 
 // Error Types
-export class OfficeDisplayError extends Error {
+export class ScreenFleetError extends Error {
   constructor(
     message: string,
     public code: string,
     public details?: any
   ) {
     super(message);
-    this.name = 'OfficeDisplayError';
+    this.name = 'ScreenFleetError';
   }
 }
 
-export class BrowserError extends OfficeDisplayError {
+export class BrowserError extends ScreenFleetError {
   constructor(message: string, details?: any) {
     super(message, 'BROWSER_ERROR', details);
   }
 }
 
-export class NetworkError extends OfficeDisplayError {
+export class NetworkError extends ScreenFleetError {
   constructor(message: string, details?: any) {
     super(message, 'NETWORK_ERROR', details);
   }
 }
 
-export class ConfigurationError extends OfficeDisplayError {
+export class ConfigurationError extends ScreenFleetError {
   constructor(message: string, details?: any) {
     super(message, 'CONFIG_ERROR', details);
   }

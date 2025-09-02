@@ -32,7 +32,7 @@ export class MDNSService {
       // Publish the service using bonjour
       this.publishedService = this.bonjourInstance.publish({
         name: serviceName,
-        type: 'officedisplay', // Will become _officedisplay._tcp.local
+        type: 'screenfleet',
         port: 8082, // gRPC port
         txt: this.getTxtRecord()
       });
@@ -141,7 +141,7 @@ export class MDNSService {
       
       this.publishedService = this.bonjourInstance.publish({
         name: serviceName,
-        type: 'officedisplay',
+        type: 'screenfleet',
         port: 8082,
         txt: this.getTxtRecord()
       });
@@ -169,7 +169,7 @@ export class MDNSService {
     
     return {
       name: `${config.hostname}-${config.agentId}`,
-      type: '_officedisplay._tcp.local',
+      type: '_screenfleet._tcp.local',
       port: 8082, // gRPC port
       txt: this.getTxtRecord(),
       addresses: this.getLocalAddresses(),

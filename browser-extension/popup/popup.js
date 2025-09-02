@@ -1,4 +1,4 @@
-// Office Display Extension Popup Script
+// ScreenFleet Extension Popup Script
 
 document.addEventListener('DOMContentLoaded', async () => {
   await initializePopup();
@@ -345,7 +345,7 @@ async function handleTest() {
     } else {
       testButton.className = 'test-button error';  
       buttonText.textContent = 'Failed';
-      showMessage('Failed to connect to Office Display', 'error');
+      showMessage('Failed to connect to ScreenFleet', 'error');
     }
     
     // Reset button after 2 seconds

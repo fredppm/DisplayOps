@@ -4,7 +4,7 @@
 
 ### Infrastructure
 - **Express Server Integration**: Fully integrated Express.js server within Electron host agent
-- **mDNS Service Advertising**: Host agents automatically advertise `_officetv._tcp.local` service
+- **mDNS Service Advertising**: Host agents automatically advertise `_screenfleet._tcp.local` service
 - **mDNS Discovery Service**: Web controller automatically discovers host agents on network
 - **REST API Endpoints**: Complete API for command handling, status checks, and health monitoring
 - **Command Dispatch System**: Reliable command routing from web controller to host agents
@@ -103,7 +103,7 @@ Web Controller Architecture:
 - **Node.js Applications**: Proper firewall exemptions
 
 ### Discovery Protocol
-- **Service Type**: `_officetv._tcp.local`
+- **Service Type**: `_screenfleet._tcp.local`
 - **Instance Naming**: `{hostname}-{agentId}`
 - **TXT Records**: Version, platform, display info
 - **Address Resolution**: IPv4 with fallback mechanisms

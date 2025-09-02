@@ -79,10 +79,10 @@ export default function TabPage({ tab }: TabPageProps) {
 
   const getPageTitle = (tab: TabType) => {
     switch (tab) {
-      case 'hosts': return 'Host Agents - Office Display Management';
-      case 'authorization': return 'Authorization - Office Display Management';
-      case 'dashboards': return 'Dashboards - Office Display Management';
-      default: return 'Office Display Management System';
+      case 'hosts': return 'Host Agents - ScreenFleet Management';
+      case 'authorization': return 'Authorization - ScreenFleet Management';
+      case 'dashboards': return 'Dashboards - ScreenFleet Management';
+      default: return 'ScreenFleet Management System';
     }
   };
 
@@ -112,7 +112,7 @@ export default function TabPage({ tab }: TabPageProps) {
     <NotificationProvider>
       <Head>
         <title>{getPageTitle(tab)}</title>
-        <meta name="description" content="Centralized management for office display devices" />
+        <meta name="description" content="Centralized management for ScreenFleet display devices" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/favicon.ico" />
       </Head>
@@ -128,7 +128,7 @@ export default function TabPage({ tab }: TabPageProps) {
               <div className="flex items-center">
                 <img 
                   src={getStatusLogo()} 
-                  alt="Office Display" 
+                  alt="ScreenFleet" 
                   className="w-8 h-8 mr-3"
                   onError={(e) => {
                     const target = e.target as HTMLImageElement;
@@ -137,7 +137,7 @@ export default function TabPage({ tab }: TabPageProps) {
                     }
                   }}
                 />
-                <span className="text-lg font-semibold text-gray-900">Office Display</span>
+                <span className="text-lg font-semibold text-gray-900">ScreenFleet</span>
               </div>
               
               {/* Navigation Menu */}

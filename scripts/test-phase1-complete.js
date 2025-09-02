@@ -32,7 +32,7 @@ let testResults = {
 let webControllerProcess = null;
 let hostAgentProcess = null;
 
-console.log('🧪 Office TV Management System - Complete Phase 1 Testing Suite\n');
+console.log('🧪 ScreenFleet Management System - Complete Phase 1 Testing Suite\n');
 console.log('This will thoroughly test all Phase 1 functionality...\n');
 
 async function runCompleteTestSuite() {
@@ -185,7 +185,7 @@ async function runCommunicationTests() {
       name: 'mDNS Service Discovery',
       test: async () => {
         return new Promise((resolve) => {
-          const browser = bonjour.find({ type: 'officedisplay' });
+          const browser = bonjour.find({ type: 'screenfleet' });
           let found = false;
           
           const timeout = setTimeout(() => {
@@ -252,7 +252,7 @@ async function runWebInterfaceTests() {
         const response = await axios.get(`http://localhost:${TEST_CONFIG.webControllerPort}`, {
           timeout: TEST_CONFIG.apiTimeout
         });
-        return response.status === 200 && response.data.includes('Office TV Management');
+        return response.status === 200 && response.data.includes('ScreenFleet Management');
       }
     },
     {

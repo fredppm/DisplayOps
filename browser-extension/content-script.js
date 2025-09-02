@@ -1,4 +1,4 @@
-// Office Display Extension - Content Script
+// ScreenFleet Extension - Content Script
 // Detects login events and dashboard patterns
 
 (function() {
@@ -93,7 +93,7 @@
   function initialize() {
     if (!checkExtensionContext()) return;
     
-    console.log('Office Display content script initialized for:', window.location.hostname);
+    console.log('ScreenFleet content script initialized for:', window.location.hostname);
     
     // Check if this is a dashboard domain
     if (isDashboardDomain()) {

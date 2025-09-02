@@ -6,7 +6,6 @@ contextBridge.exposeInMainWorld('debugAPI', {
   getEvents: () => ipcRenderer.invoke('debug:get-events'),
   getMetrics: () => ipcRenderer.invoke('debug:get-metrics'),
   clearEvents: () => ipcRenderer.invoke('debug:clear-events'),
-  exportEvents: (format) => ipcRenderer.invoke('debug:export-events', format),
   
   // State management
   getState: () => ipcRenderer.invoke('debug:get-state'),

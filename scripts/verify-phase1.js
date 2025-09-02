@@ -8,7 +8,7 @@
 const fs = require('fs');
 const path = require('path');
 
-console.log('🔍 Office TV Management System - Phase 1 Verification\n');
+console.log('🔍 ScreenFleet Management System - Phase 1 Verification\n');
 
 const checks = [
   {

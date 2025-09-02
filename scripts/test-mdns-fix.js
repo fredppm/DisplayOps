@@ -82,7 +82,7 @@ async function testMDNSServiceStability() {
   const serviceEvents = [];
   
   return new Promise((resolve) => {
-    const browser = bonjour.find({ type: '_officedisplay._tcp' });
+    const browser = bonjour.find({ type: '_screenfleet._tcp' });
     
     browser.on('up', (service) => {
       const serviceKey = `${service.name}-${service.port}`;

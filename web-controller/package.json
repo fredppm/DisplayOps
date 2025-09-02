@@ -1,7 +1,7 @@
 {
-  "name": "office-display-web-controller",
+  "name": "screenfleet-web-controller",
   "version": "1.0.0",
-  "description": "Web controller for Office Display Management System - centralized management interface",
+  "description": "Web controller for ScreenFleet Management System - centralized management interface",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -22,7 +22,7 @@
     "date-fns": "^2.30.0",
     "lucide-react": "^0.294.0",
     "next": "^14.0.4",
-    "office-display-management-system": "file:..",
+    "screenfleet-management-system": "file:..",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "tailwindcss": "^3.3.6"
@@ -47,6 +47,6 @@
     "mdns-discovery",
     "dashboard-control"
   ],
-  "author": "Office Display Management System",
+  "author": "ScreenFleet Management System",
   "license": "UNLICENSED"
 }

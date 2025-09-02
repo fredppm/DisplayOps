@@ -1,4 +1,4 @@
-// Office Display Credentials Sync - Background Service Worker
+// ScreenFleet Credentials Sync - Background Service Worker
 
 // Enhanced logging system
 const Logger = {
@@ -140,19 +140,19 @@ let currentState = {
 
 // Initialize extension
 chrome.runtime.onInstalled.addListener(async () => {
-  Logger.info('EXTENSION', 'Office Display Extension installed');
+  Logger.info('EXTENSION', 'ScreenFleet Extension installed');
   await initializeExtension();
 });
 
 chrome.runtime.onStartup.addListener(async () => {
-  Logger.info('EXTENSION', 'Office Display Extension starting up');
+  Logger.info('EXTENSION', 'ScreenFleet Extension starting up');
   await initializeExtension();
 });
 
 // Initialize extension state with enhanced persistence
 async function initializeExtension() {
   try {
-    Logger.info('INIT', 'Initializing Office Display Extension...');
+    Logger.info('INIT', 'Initializing ScreenFleet Extension...');
     
     // Load comprehensive stored state
     const stored = await chrome.storage.local.get([
@@ -206,7 +206,7 @@ async function initializeConnection(storedEndpoint = null) {
   let endpoint = storedEndpoint;
   
   if (!endpoint || !(await testConnection(endpoint))) {
-    Logger.info('CONNECTION', 'Auto-detecting Office Display endpoint...');
+    Logger.info('CONNECTION', 'Auto-detecting ScreenFleet endpoint...');
     currentState.connectionState = CONNECTION_STATES.CONNECTING;
     endpoint = await autoDetectOfficeDisplay();
   }
@@ -238,7 +238,7 @@ async function initializeConnection(storedEndpoint = null) {
 
 // Auto-detect Office Display endpoint with improved timeout handling
 async function autoDetectOfficeDisplay() {
-  console.log('🔍 Auto-detecting Office Display endpoint...');
+  console.log('🔍 Auto-detecting ScreenFleet endpoint...');
   
   for (const endpoint of DEFAULT_ENDPOINTS) {
     try {
@@ -249,7 +249,7 @@ async function autoDetectOfficeDisplay() {
       });
       
       if (response.ok) {
-        console.log(`✅ Found Office Display at: ${endpoint}`);
+        console.log(`✅ Found ScreenFleet at: ${endpoint}`);
         await persistConnectionState(endpoint);
         return endpoint;
       } else {
@@ -260,7 +260,7 @@ async function autoDetectOfficeDisplay() {
     }
   }
   
-  console.log('❌ No Office Display endpoint found');
+  console.log('❌ No ScreenFleet endpoint found');
   return null;
 }
 
@@ -528,10 +528,10 @@ function updateIcon(state) {
   };
   
   const titles = {
-    [ICON_STATES.IDLE]: 'Office Display - Waiting for credentials',
-    [ICON_STATES.READY]: 'Office Display - Credentials ready for sync',
-    [ICON_STATES.SYNCED]: 'Office Display - Recently synced', 
-    [ICON_STATES.ERROR]: 'Office Display - Sync error'
+    [ICON_STATES.IDLE]: 'ScreenFleet - Waiting for credentials',
+    [ICON_STATES.READY]: 'ScreenFleet - Credentials ready for sync',
+    [ICON_STATES.SYNCED]: 'ScreenFleet - Recently synced', 
+    [ICON_STATES.ERROR]: 'ScreenFleet - Sync error'
   };
   
   chrome.action.setIcon({ path: iconPath });
@@ -541,7 +541,7 @@ function updateIcon(state) {
 // Sync credentials to Office Display
 async function syncCredentials(domain) {
   if (!currentState.officeDisplay) {
-    throw new Error('Office Display endpoint not configured');
+    throw new Error('ScreenFleet endpoint not configured');
   }
   
   // Check connection before syncing
@@ -550,7 +550,7 @@ async function syncCredentials(domain) {
     await checkConnectionHealth();
     
     if (currentState.connectionState !== CONNECTION_STATES.CONNECTED) {
-      throw new Error('Cannot connect to Office Display. Please check if the service is running.');
+      throw new Error('Cannot connect to ScreenFleet. Please check if the service is running.');
     }
   }
   
@@ -616,7 +616,7 @@ async function syncCredentials(domain) {
     const result = await response.json();
     
     if (!result.success) {
-      throw new Error(result.error || 'Unknown error from Office Display');
+      throw new Error(result.error || 'Unknown error from ScreenFleet');
     }
     
     // Update domain status with comprehensive sync results

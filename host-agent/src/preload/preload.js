@@ -24,7 +24,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 });
 
 // Log when preload script is loaded
-console.log('Office TV Host Agent preload script loaded');
+console.log('ScreenFleet Host Agent preload script loaded');
 
 // Add error handling for the renderer process
 window.addEventListener('error', (event) => {

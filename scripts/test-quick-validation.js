@@ -9,7 +9,7 @@ const axios = require('axios');
 const { exec } = require('child_process');
 const fs = require('fs');
 
-console.log('⚡ Office TV Management System - Quick Phase 1 Validation\n');
+console.log('⚡ ScreenFleet Management System - Quick Phase 1 Validation\n');
 
 const QUICK_TESTS = [
   {

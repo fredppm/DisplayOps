@@ -6,11 +6,11 @@ export type HostDiscoveredCallback = (host: MiniPC) => void;
 export type HostRemovedCallback = (hostId: string) => void;
 
 /**
- * 🚀 Modern gRPC-enabled discovery service for Office Display hosts
+ * 🚀 Modern gRPC-enabled discovery service for ScreenFleet hosts
  * 
  * NEW Features:
  * - Real-time gRPC streaming events (NO MORE POLLING!)
- * - Automatic host discovery via mDNS (_officedisplay._tcp.local)
+ * - Automatic host discovery via mDNS (_screenfleet._tcp.local)
  * - Instant display change notifications via gRPC streams
  * - Automatic reconnection handling
  * 
@@ -114,7 +114,7 @@ export class WindowsDiscoveryService {
           port: 8082, // gRPC port
           addresses: ['127.0.0.1'],
           txt: { agentId: 'localhost-agent' },
-          fqdn: 'localhost._officedisplay._tcp.local'
+          fqdn: 'localhost._screenfleet._tcp.local'
         };
         this.connectToDiscoveredHost(localhostHost);
       }
@@ -150,7 +150,7 @@ export class WindowsDiscoveryService {
         version: discoveredHost.txt?.version || 'unknown',
         displays: discoveredHost.txt?.displays?.split(',') || [],
         mdnsService: {
-          serviceName: '_officedisplay._tcp.local',
+          serviceName: '_screenfleet._tcp.local',
           instanceName: discoveredHost.name,
           txtRecord: discoveredHost.txt,
           addresses: discoveredHost.addresses,

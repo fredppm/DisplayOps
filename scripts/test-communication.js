@@ -8,13 +8,13 @@
 const bonjour = require('bonjour-service')();
 const axios = require('axios');
 
-console.log('🧪 Office TV Management System - Phase 1 Communication Test\n');
+console.log('🧪 ScreenFleet Management System - Phase 1 Communication Test\n');
 
 // Test Configuration
 const TEST_CONFIG = {
   discoveryTimeout: 10000, // 10 seconds
   apiTimeout: 5000,        // 5 seconds
-  expectedService: '_officedisplay._tcp.local'
+  expectedService: '_screenfleet._tcp.local'
 };
 
 let discoveredServices = [];
@@ -37,7 +37,7 @@ async function runTests() {
 
 function testMDNSDiscovery() {
   return new Promise((resolve, reject) => {
-    const browser = bonjour.find({ type: 'officedisplay' });
+    const browser = bonjour.find({ type: 'screenfleet' });
     let timeout;
 
     browser.on('up', (service) => {
@@ -66,7 +66,7 @@ function testMDNSDiscovery() {
       browser.stop();
       
       if (discoveredServices.length === 0) {
-        reject(new Error('No Office TV services discovered. Make sure host agents are running.'));
+        reject(new Error('No ScreenFleet services discovered. Make sure host agents are running.'));
       } else {
         console.log(`🎉 Discovery complete! Found ${discoveredServices.length} service(s)\n`);
         resolve();

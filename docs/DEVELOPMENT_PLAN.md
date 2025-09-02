@@ -1,4 +1,4 @@
-# Development Plan - Office TV Management System
+# Development Plan - ScreenFleet Management System
 
 ## Development Phases
 

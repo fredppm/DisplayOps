@@ -9,7 +9,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const extensionPath = path.join(process.cwd(), '../office-display-extension');
+    const extensionPath = path.join(process.cwd(), '../browser-extension');
     
     if (!fs.existsSync(extensionPath)) {
       return res.status(404).json({
@@ -20,7 +20,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Set headers for zip download
     res.setHeader('Content-Type', 'application/zip');
-    res.setHeader('Content-Disposition', 'attachment; filename="office-display-extension.zip"');
+    res.setHeader('Content-Disposition', 'attachment; filename="screenfleet-extension.zip"');
 
     // Create zip archive
     const archive = archiver('zip', {

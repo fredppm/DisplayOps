@@ -356,7 +356,7 @@ export const HostsList: React.FC<HostsListProps> = ({ hosts, isDiscovering, disc
               Searching for hosts...
             </h3>
             <p className="text-gray-500 mb-4">
-              Scanning network for available Office TV agents
+              Scanning network for available ScreenFleet agents
             </p>
             <div className="flex items-center justify-center space-x-1">
               <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>

@@ -1,6 +1,7 @@
 import { ConfigManager } from '../managers/config-manager';
 import { HealthCheckResponse, HostStatus, DisplayStatus, ApiResponse } from '../../../shared/types';
 import { StateManager } from './state-manager';
+import { logger } from '../utils/logger';
 import os from 'os';
 
 export class HostService {
