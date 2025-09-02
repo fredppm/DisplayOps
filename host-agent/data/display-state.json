@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "lastUpdated": "2025-09-01T20:46:49.035Z",
+  "lastUpdated": "2025-09-02T19:24:36.750Z",
   "displays": {
     "display-1": {
       "displayId": "display-1",
@@ -11,16 +11,23 @@
     },
     "display-3": {
       "displayId": "display-3",
-      "isActive": false,
-      "lastRefresh": "2025-09-01T17:48:28.316Z",
-      "isResponsive": true
+      "isActive": true,
+      "lastRefresh": "2025-09-02T19:23:18.518Z",
+      "isResponsive": true,
+      "windowId": "dashboard_display-3_1756840995295",
+      "assignedDashboard": {
+        "dashboardId": "common-dashboard",
+        "url": "https://grafana.vtex.com/d/d7e7051f-42a2-4798-af93-cf2023dd2e28/home?orgId=1&from=now-3h&to=now&timezone=browser&var-Origin=argocd&refresh=10s",
+        "refreshInterval": 300,
+        "deployedAt": "2025-09-02T19:23:18.518Z"
+      }
     },
     "display-2": {
       "displayId": "display-2",
       "isActive": false,
-      "lastRefresh": "2025-09-01T18:01:21.974Z",
+      "lastRefresh": "2025-09-02T19:24:35.733Z",
       "isResponsive": true,
-      "windowId": "dashboard-common-dashboard-display-2-restored-1756749677269"
+      "windowId": "dashboard_display-2_1756840928059"
     }
   }
 }

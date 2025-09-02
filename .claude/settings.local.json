@@ -19,7 +19,9 @@
       "WebFetch(domain:github.com)",
       "WebFetch(domain:www.npmjs.com)",
       "Bash(node:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Read(C:\\Users\\Mourao\\AppData\\Roaming\\displayops-host-agent/**)",
+      "Bash(npm run build:*)"
     ],
     "deny": [],
     "ask": []

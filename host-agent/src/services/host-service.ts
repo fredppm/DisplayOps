@@ -36,7 +36,10 @@ export class HostService {
   private initializeDisplayStatuses(): void {
     const displays = this.configManager.getDisplays();
     
-    displays.forEach(display => {
+    // Clear existing display statuses before initializing
+    this.displayStatuses.clear();
+    
+    displays.forEach((display) => {
       // Get dashboard data and current state from StateManager
       const assignedDashboard = this.stateManager.getAssignedDashboard(display.id);
       const currentState = this.stateManager.getDisplayState(display.id);
@@ -59,7 +62,13 @@ export class HostService {
     });
     
     // 🔍 LOG: Display status initialization with dashboard data
-    logger.debug(`Initialized ${displays.length} displays with dashboard states`);
+    logger.debug(`Initialized ${displays.length} displays with dashboard states, Map contains ${this.displayStatuses.size} displays`);
+    
+    // 🚨 IMPORTANT: Alert if there's a mismatch
+    if (displays.length !== this.displayStatuses.size) {
+      console.error(`🚨 DISPLAY MISMATCH! ConfigManager has ${displays.length} displays but displayStatuses Map only has ${this.displayStatuses.size} displays!`);
+      console.error('Available display IDs:', Array.from(this.displayStatuses.keys()));
+    }
   }
 
   private startHealthChecks(): void {

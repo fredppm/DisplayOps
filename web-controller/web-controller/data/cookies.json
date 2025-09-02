@@ -51,7 +51,7 @@
           "secure": true,
           "httpOnly": true,
           "sameSite": "lax",
-          "importedAt": "2025-09-01T20:32:23.020Z"
+          "importedAt": "2025-09-02T19:22:54.896Z"
         },
         {
           "name": "__Secure-next-auth.callback-url",
@@ -61,23 +61,23 @@
           "secure": true,
           "httpOnly": true,
           "sameSite": "lax",
-          "importedAt": "2025-09-01T20:32:23.020Z"
+          "importedAt": "2025-09-02T19:22:54.896Z"
         },
         {
           "name": "__Secure-next-auth.session-token",
-          "value": "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0..YnD_3tLgGp5bNP7S.DGFLUR4GUBTiSf_qrkdltZIq8za4HZSM5UhHCIvq-zh_-cdZPkoS6yriOZv-4tZOoY97vICScdlJRfYS7p-PIVmdnoh29SYmvETKiH_Z7V7FHrUvriVCB63WAlmmNbEkuJlygW6RPv-2oFJbEylHaplHN7TVWHDodzyhRQv26c4y3cZXCsd8BN4RlZChJWIrhEZNB8Xje3hDCxXqEbTlU4QUSRQzgA9W1qhiPI00fp9hh-cvj2-_Bh160AHcH54w40priyrHgtfeToCqSk-awpks6GEChGcl2IhOIOyYWF1ubo5Y5eBOHuaQbTDzioxg-XR4MazgNlQ-UID7M263X9zGlRtohCN-HbhmmScIwnOSQ-3JT_l9C3H3xbrgDPL3O32RfDpf4gStcHk0FqgeaxgYMtsWViqK65823qKQtCKFGEGyQyJGCTuu9nsUitnFRWSStDk0xF51iYhIuGmAWQJ3CftMnehvxW646IlILIyLuorwMpoxsQJOE_POcwnA3DpZ0cmXvHIWNs0AzpwVOzs1Ww6S-z3Z4xaxO5IMRJwxRRYn1XavyZ34f2PCQc52ZmuxpxXOkRVxy3bLiOzmFpdHkzkOPGg9NwTCSxVASlxcVb_klkcgHpRzEpLOTq7FcZ4s3lkQZdvtSSx3qT4H8fVM2DswSEWNd07Q30UQVS_iuUSaO2xinYttd5-v0mfR7wcSt5h8Bka5PEzzAcDlJfTBBkyD1tEAoeZUcncJhHd2la_lKhSqjmSZQAsaGktgGKzOp0qebYlvkpcMh1g9UBUmGHDysqdwrpK7EpXfi4JHN0P-Umog1iJW6RYR0oqZfhdwH9ltaWZVoBHZvhaMG5JoixRw7alBKWwzk3xPTVY6jHxVP2awxK9RwNkDG0OQEi5Y_kc7UHHSDYo_3UfHfhMOmO_i_A08Tt4hNtfV487VK0nYbsfNcK1hjAoR2hGauQ.LEtEVFMSyYmWq9g2gOqdRA",
+          "value": "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0..DzLHCIHBi1kO9oCf.dWDC3OI38c_DxZeVC9FhInPRWl7uYAs4Hd1wtL62XdJnIk3lM4jNcaSivpWFKP3NUo9EmQd4n4XKyJaBXVkUl66SwUGQsOGk001-MPIKIhQ9hYZZqSmL9R9f3FFiFPVUZzA8XFr4pyPocRv0yz1UDOO1dMqRbVxcG0rhxX2DWWTRGP_dPYLPr026NiF-VxWnbglQ_8xBnDN1jO5T7YYrxKJ8AvnnbHC_m2RVNzkNnNvmJsq9zyhmMTWPVw5IivnBFDM-EteQh-uYwg8qwu0m3P_flfbqGdBa2ARDChzRzvWd8fMJF0H4hlYyty9LzrTeCOXenCuvsGQI_uKc89P51dyBpmO8c1J-3hgtQC3zVBaTR42c7sKkBry9gam0x9yN20oLZyff7fmyQ2jkxIXh1JQ5Zdku9nzd9y5mTrDoDf-xHWEQ-FwAL1YMGKWdsYiA9Y1-PBe9qRGJSH6MXuJ5EPtiEbZLk7pEBsJYvPn-PmsVAnEb-IW7S-FIzQGQX6npEM5rxNkvojmuFUZAUp87352jbgOTBJOIl-YUi_gkBJhEYVkOJfpzto_KEne-SCoVtHw4XoHAmMQk_YblvkevIJcuSGWVT2EOceX6JdVr5-d6r0UTLNSKVkDOYp9yKVZbeXJOdH0uYvHnnPSp3KdVpI4Xpa_MPRCvo77sHNz6I_Imtvhc1-eRj6wkEOkzsAq89UKskQq29Qr-pGpAbtBvj1h4-1E4ylYalp3jr4XL7bQVkL7VFFsXiBX7EdtsAtAZBMClURuJ0JKIvinM4ve_T2rQshmkbjHXiDPYPleaU2yOmZsK2O2aEFxk44lO8ZxIycix8_yI6HKc0wijnHmTCme6HYxjJL87okUC1818ca094pJjS-0wDuukDiNMf0TNeKo7PRe8d-v4FCoN7gtFqIMQJabpKiyr_VnYtVTQCoHPB2oQlWLucYPLrQa3x_UeAA.9JlfX-oUczkclAToLmYm1A",
           "domain": "healthmonitor.vtex.com",
           "path": "/",
           "secure": true,
           "httpOnly": true,
           "sameSite": "lax",
-          "expirationDate": 1759326685.932846,
-          "importedAt": "2025-09-01T20:32:23.020Z"
+          "expirationDate": 1759432932.447143,
+          "importedAt": "2025-09-02T19:22:54.897Z"
         }
       ],
-      "lastImport": "2025-09-01T20:32:23.020Z",
+      "lastImport": "2025-09-02T19:22:54.897Z",
       "description": "Cookies for https://healthmonitor.vtex.com"
     }
   },
-  "lastUpdated": "2025-09-01T20:32:46.833Z"
+  "lastUpdated": "2025-09-02T19:22:54.897Z"
 }
