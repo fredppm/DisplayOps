@@ -135,6 +135,7 @@ export class WindowsDiscoveryService {
       
       const host: MiniPC = {
         id: hostId,
+        name: discoveredHost.host, // Use hostname as name
         hostname: discoveredHost.host, // DNS name (e.g., 'VTEX-B9LH6Z3')
         ipAddress: primaryIP, // IP address (e.g., '192.168.1.227')
         port: discoveredHost.port,
@@ -470,7 +471,6 @@ export class WindowsDiscoveryService {
       lastHeartbeat: new Date(),
       lastDiscovered: new Date(),
       version: host.version || '1.0.0',
-      tvs: [], // Legacy property
       displays: host.displays || [] // Will be populated by gRPC events
     };
 

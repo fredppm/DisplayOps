@@ -137,13 +137,16 @@ class SSESingleton {
         }
       }, SSE_CONFIG.CONNECTION_TIMEOUT);
       
+      // Store original onopen handler
+      const originalOnOpen = this.eventSource.onopen;
+      
       // Clear timeout on successful connection
-      this.eventSource.onopen = (originalOnOpen => {
-        return (event) => {
-          clearTimeout(timeoutId);
-          if (originalOnOpen) originalOnOpen(event);
-        };
-      })(this.eventSource.onopen);
+      this.eventSource.onopen = (event) => {
+        clearTimeout(timeoutId);
+        if (originalOnOpen && this.eventSource) {
+          originalOnOpen.call(this.eventSource, event);
+        }
+      };
     });
   }
   

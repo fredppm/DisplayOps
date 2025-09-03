@@ -137,7 +137,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         const distributionPromises = hosts.map(async (host) => {
           try {
-            const response = await proxyToHost(host, '/api/cookies/inject', {
+            const response = await proxyToHost(host.id, '/api/cookies/inject', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -147,13 +147,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               })
             });
 
-            if (response.success) {
+            const responseData = await response.json();
+            if (response.ok && responseData.success) {
               hostDistributionResults.hostsSuccess++;
               console.log(`✅ Successfully distributed cookies to ${host.hostname || host.ipAddress}`);
             } else {
               hostDistributionResults.hostsFailed++;
-              hostDistributionResults.errors.push(`${host.hostname}: ${response.error}`);
-              console.error(`❌ Failed to distribute to ${host.hostname}: ${response.error}`);
+              hostDistributionResults.errors.push(`${host.hostname}: ${responseData.error || 'Unknown error'}`);
+              console.error(`❌ Failed to distribute to ${host.hostname}: ${responseData.error || 'Unknown error'}`);
             }
           } catch (error) {
             hostDistributionResults.hostsFailed++;

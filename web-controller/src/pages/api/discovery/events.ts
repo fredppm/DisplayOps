@@ -30,7 +30,7 @@ const broadcastToClients = (event: string, data: any) => {
 
     try {
       client.response.write(message);
-      client.response.flush?.(); // Force flush the buffer
+      (client.response as any).flush?.(); // Force flush the buffer
       client.lastSuccessfulWrite = new Date(); // Track successful broadcast writes
     } catch (error) {
       console.log(`❌ Client ${clientId} disconnected during broadcast`);
@@ -68,7 +68,7 @@ const sendHeartbeat = () => {
 
     try {
       client.response.write(`event: heartbeat\ndata: ${JSON.stringify({ timestamp: now, clientId })}\n\n`);
-      client.response.flush?.();
+      (client.response as any).flush?.();
       client.lastHeartbeat = now;
       client.lastSuccessfulWrite = now; // Track successful writes
     } catch (error) {
@@ -127,7 +127,7 @@ export default async function handler(
     
     // Ensure the connection is established
     res.write(': SSE connection established\n\n');
-    res.flush?.();
+    (res as any).flush?.();
 
     // Generate unique client ID
     const clientId = `client_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -179,7 +179,7 @@ export default async function handler(
       };
       const initialMessage = `event: hosts_update\ndata: ${JSON.stringify(initialData)}\n\n`;
       res.write(initialMessage);
-      res.flush?.();
+      (res as any).flush?.();
     } else {
       // Send empty data to establish connection
       const emptyData = {
@@ -190,7 +190,7 @@ export default async function handler(
       };
       const emptyMessage = `event: hosts_update\ndata: ${JSON.stringify(emptyData)}\n\n`;
       res.write(emptyMessage);
-      res.flush?.();
+      (res as any).flush?.();
     }
 
     // Handle client disconnect
@@ -213,7 +213,7 @@ export default async function handler(
     setTimeout(() => {
       try {
         res.write(`event: heartbeat\ndata: ${JSON.stringify({ timestamp: new Date(), clientId, message: 'connection_established' })}\n\n`);
-        res.flush?.();
+        (res as any).flush?.();
       } catch (error) {
         console.error(`❌ Failed to send initial heartbeat to ${clientId}`);
         cleanup();

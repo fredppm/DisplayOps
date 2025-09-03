@@ -601,7 +601,7 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
           return { success: true, host: syncResult.host, refreshedDisplays: 0, totalDisplays: 0 };
         }
         
-        const displayRefreshPromises = activeDisplays.map(async (displayId) => {
+        const displayRefreshPromises = activeDisplays.map(async (displayId: string) => {
           try {
             const response = await fetch(`/api/host/${host.id}/command`, {
               method: 'POST',

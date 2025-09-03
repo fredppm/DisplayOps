@@ -135,10 +135,10 @@ export const DashboardSelectorModal: React.FC<DashboardSelectorModalProps> = ({
                         {dashboard.name}
                       </div>
                       <div className="text-sm text-gray-500 mt-1">
-                        {dashboard.type && (
+                        {dashboard.category && (
                           <span className="inline-flex items-center">
                             <LayoutDashboard className="w-3 h-3 mr-1" />
-                            {dashboard.type}
+                            {dashboard.category}
                           </span>
                         )}
                       </div>

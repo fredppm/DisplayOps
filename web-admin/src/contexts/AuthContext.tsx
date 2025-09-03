@@ -20,8 +20,6 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-// Global cache to prevent duplicate concurrent requests
-let authCheckPromise: Promise<any> | null = null;
 
 export function useAuth() {
   const context = useContext(AuthContext);
@@ -34,72 +32,29 @@ export function useAuth() {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [authCheckCalled, setAuthCheckCalled] = useState(false);
-  const mountedRef = useRef(true);
   const router = useRouter();
 
   useEffect(() => {
-    if (!authCheckCalled) {
-      checkAuth();
-    }
-
-    // Cleanup function to handle React Strict Mode unmounting
-    return () => {
-      mountedRef.current = false;
-    };
-  }, [authCheckCalled]);
+    checkAuth();
+  }, []);
 
   const checkAuth = async () => {
-    if (authCheckCalled || !mountedRef.current) return;
-    setAuthCheckCalled(true);
-    
-    // Use global promise cache to prevent duplicate concurrent requests
-    if (authCheckPromise) {
-      try {
-        const result = await authCheckPromise;
-        if (mountedRef.current) {
-          setUser(result);
-          setIsLoading(false);
-        }
-        return;
-      } catch (error) {
-        // If cached promise failed, continue with new request
-      }
-    }
-
-    // Create new auth check promise
-    authCheckPromise = (async () => {
-      try {
-        const response = await fetch('/api/auth/me', {
-          credentials: 'include'
-        });
-        if (response.ok) {
-          const data = await response.json();
-          return data.user;
-        } else {
-          return null;
-        }
-      } catch (error) {
-        console.error('Auth check failed:', error);
-        return null;
-      }
-    })();
-
     try {
-      const result = await authCheckPromise;
-      if (mountedRef.current) {
-        setUser(result);
-      }
-    } catch (error) {
-      if (mountedRef.current) {
+      const response = await fetch('/api/auth/me', {
+        credentials: 'include'
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setUser(data.user);
+      } else {
         setUser(null);
       }
+    } catch (error) {
+      console.error('Auth check failed:', error);
+      setUser(null);
     } finally {
-      // Clear the promise cache after completion
-      authCheckPromise = null;
-      if (mountedRef.current) {
-        setIsLoading(false);
-      }
+      setIsLoading(false);
     }
   };
 

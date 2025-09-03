@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Head from 'next/head';
+import Link from 'next/link';
+import { useRouter } from 'next/router';
 import { usePermissions } from '@/hooks/usePermissions';
-import { useAuth } from '@/contexts/AuthContext';
 import { getRoleInfo as getRoleDisplay, Role } from '@/lib/permissions';
-import { User, Mail, Shield, MapPin, Calendar, AlertCircle, CheckCircle, XCircle, Edit2, Trash2 } from 'lucide-react';
+import { User, Mail, Shield, MapPin, Calendar, AlertCircle, CheckCircle, XCircle, ChevronRight, Plus } from 'lucide-react';
 import Layout from '@/components/Layout';
 import ProtectedRoute from '@/components/ProtectedRoute';
 
@@ -18,16 +19,14 @@ interface User {
 }
 
 export default function UsersPage() {
-  const { user } = useAuth();
-  const { canManageUsers, getRoleInfo } = usePermissions();
+  const { getRoleInfo } = usePermissions();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [editingUser, setEditingUser] = useState<User | null>(null);
   const hasInitializedRef = useRef(false);
 
-  // Form state
+  // Form state for creating new users
   const [formData, setFormData] = useState({
     email: '',
     name: '',
@@ -85,69 +84,9 @@ export default function UsersPage() {
     }
   };
 
-  const handleUpdateUser = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingUser) return;
-
-    try {
-      const response = await fetch(`/api/users/${editingUser.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
-      });
-
-      if (response.ok) {
-        setEditingUser(null);
-        setFormData({ email: '', name: '', password: '', role: 'viewer', sites: [] });
-        loadUsers();
-      } else {
-        const error = await response.json();
-        console.error('Failed to update user:', error.error);
-      }
-    } catch (error) {
-      console.error('Network error');
-    }
-  };
-
-  const handleDeleteUser = async (userId: string) => {
-    if (!confirm('Are you sure you want to delete this user?')) return;
-
-    try {
-      const response = await fetch(`/api/users/${userId}`, {
-        method: 'DELETE'
-      });
-
-      if (response.ok) {
-        loadUsers();
-      } else {
-        const error = await response.json();
-        console.error('Failed to delete user:', error.error);
-      }
-    } catch (error) {
-      console.error('Network error');
-    }
-  };
-
-  const startEdit = (user: User) => {
-    setEditingUser(user);
-    setFormData({
-      email: user.email,
-      name: user.name,
-      password: '',
-      role: user.role,
-      sites: user.sites
-    });
-  };
 
   const availableSites = ['rio', 'nyc', 'sp']; // This should come from sites API
 
-  if (!canManageUsers()) {
-    return (
-      <ProtectedRoute adminOnly>
-        <div>Access denied</div>
-      </ProtectedRoute>
-    );
-  }
 
   if (loading) {
     return (
@@ -179,7 +118,7 @@ export default function UsersPage() {
                     disabled
                     className="inline-flex items-center rounded-md bg-blue-400 px-3 py-2 text-sm font-medium text-white shadow-sm cursor-not-allowed"
                   >
-                    <User className="-ml-0.5 mr-1.5 h-4 w-4" />
+                    <Plus className="-ml-0.5 mr-1.5 h-4 w-4" />
                     Create User
                   </button>
                 </div>
@@ -206,52 +145,50 @@ export default function UsersPage() {
               </div>
             </div>
 
-            {/* Users Grid Skeleton */}
-            <div className="bg-white shadow rounded-lg">
-              <div className="px-6 py-4 border-b">
-                <div className="animate-pulse h-5 bg-gray-200 rounded w-32"></div>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sites</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Last Login</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {[1, 2, 3, 4, 5].map((i) => (
-                      <tr key={i} className="animate-pulse">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="h-4 bg-gray-200 rounded w-24"></div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="h-4 bg-gray-200 rounded w-32"></div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="h-6 bg-gray-200 rounded-full w-20"></div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="h-4 bg-gray-200 rounded w-16"></div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="h-4 bg-gray-200 rounded w-20"></div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex space-x-2">
-                            <div className="h-4 bg-gray-200 rounded w-12"></div>
-                            <div className="h-4 bg-gray-200 rounded w-12"></div>
+            {/* Users List Skeleton */}
+            <div className="bg-white shadow overflow-hidden sm:rounded-md border border-gray-300">
+              <ul role="list" className="divide-y divide-gray-200">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <li key={i}>
+                    <div className="px-6 py-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center min-w-0 flex-1">
+                          <div className="flex-shrink-0">
+                            <div className="h-10 w-10 bg-gray-200 rounded-full animate-pulse"></div>
                           </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                          <div className="min-w-0 flex-1 px-4">
+                            <div className="animate-pulse">
+                              <div className="flex items-center space-x-2 mb-2">
+                                <div className="h-4 bg-gray-200 rounded w-32"></div>
+                                <div className="h-5 bg-gray-200 rounded w-16"></div>
+                              </div>
+                              <div className="flex items-center">
+                                <div className="h-4 w-4 bg-gray-200 rounded mr-2"></div>
+                                <div className="h-3 bg-gray-200 rounded w-48"></div>
+                              </div>
+                            </div>
+                            <div className="mt-2">
+                              <div className="flex items-center space-x-6 animate-pulse">
+                                <div className="flex items-center">
+                                  <div className="h-4 w-4 bg-gray-200 rounded mr-2"></div>
+                                  <div className="h-3 bg-gray-200 rounded w-24"></div>
+                                </div>
+                                <div className="flex items-center">
+                                  <div className="h-4 w-4 bg-gray-200 rounded mr-2"></div>
+                                  <div className="h-3 bg-gray-200 rounded w-32"></div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex-shrink-0 ml-4">
+                          <div className="h-5 w-5 bg-gray-200 rounded animate-pulse"></div>
+                        </div>
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
             </div>
           </div>
         </Layout>
@@ -438,78 +375,9 @@ export default function UsersPage() {
             </div>
           )}
 
-          {/* Edit User Form */}
-          {editingUser && (
-            <div className="bg-white p-6 rounded-lg shadow">
-              <h2 className="text-lg font-semibold mb-4">Edit User: {editingUser.name}</h2>
-              <form onSubmit={handleUpdateUser} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Email</label>
-                    <input
-                      type="email"
-                      value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Name</label>
-                    <input
-                      type="text"
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Password (leave blank to keep current)</label>
-                    <input
-                      type="password"
-                      value={formData.password}
-                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                      className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Role</label>
-                    <select
-                      value={formData.role}
-                      onChange={(e) => setFormData({ ...formData, role: e.target.value as any })}
-                      className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
-                      disabled={editingUser.id === user?.id}
-                    >
-                      <option value="viewer">Viewer</option>
-                      <option value="site-manager">Site Manager</option>
-                      <option value="admin">Admin</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="flex space-x-2">
-                  <button
-                    type="submit"
-                    className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
-                  >
-                    Update User
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setEditingUser(null)}
-                    className="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </form>
-            </div>
-          )}
 
           {/* Users List */}
-          <div className="bg-white shadow rounded-lg">
-            <div className="px-6 py-4 border-b">
-              <h2 className="text-lg font-semibold">Users ({users.length})</h2>
-            </div>
+          <div className="bg-white shadow overflow-hidden sm:rounded-md border border-gray-300">
             {users.length === 0 ? (
               <div className="text-center py-12">
                 <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-gray-100">
@@ -524,90 +392,67 @@ export default function UsersPage() {
                     onClick={() => setShowCreateForm(true)}
                     className="inline-flex items-center rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-500"
                   >
-                    <User className="-ml-0.5 mr-1.5 h-4 w-4" />
+                    <Plus className="-ml-0.5 mr-1.5 h-4 w-4" />
                     Create User
                   </button>
                 </div>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sites</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Last Login</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {users.map((u) => {
-                      const roleInfo = getRoleDisplay(u.role as Role);
-                      return (
-                        <tr key={u.id} className="hover:bg-gray-50 transition-colors">
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center space-x-3">
-                              <div className="flex-shrink-0">
-                                <div className="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center">
-                                  <User className="h-4 w-4 text-gray-600" />
+              <ul role="list" className="divide-y divide-gray-200">
+                {users.map((u) => (
+                  <li key={u.id} className="relative">
+                    <Link href={`/admin/users/${u.id}`} className="absolute inset-0 focus:outline-none">
+                      <span className="sr-only">View {u.name}</span>
+                    </Link>
+                    <div className="px-6 py-4 hover:bg-gray-50 transition-colors">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center min-w-0 flex-1">
+                          <div className="flex-shrink-0">
+                            <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
+                              <User className="h-5 w-5 text-gray-600" />
+                            </div>
+                          </div>
+                          <div className="min-w-0 flex-1 px-4">
+                            <div>
+                              <div className="flex items-center space-x-2">
+                                <p className="text-sm font-medium text-gray-900 truncate">
+                                  {u.name}
+                                </p>
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700">
+                                  {u.role.replace('-', ' ')}
+                                </span>
+                              </div>
+                              <div className="flex items-center mt-1">
+                                <Mail className="flex-shrink-0 mr-1.5 h-4 w-4 text-gray-400" />
+                                <p className="text-sm text-gray-500 truncate">{u.email}</p>
+                              </div>
+                            </div>
+                            <div className="mt-2">
+                              <div className="flex items-center text-sm text-gray-500 space-x-6">
+                                <div className="flex items-center">
+                                  <MapPin className="flex-shrink-0 mr-1.5 h-4 w-4 text-gray-400" />
+                                  <span className="truncate">
+                                    {u.sites.includes('*') ? 'All Sites' : u.sites.join(', ') || 'No access'}
+                                  </span>
+                                </div>
+                                <div className="flex items-center">
+                                  <Calendar className="flex-shrink-0 mr-1.5 h-4 w-4 text-gray-400" />
+                                  <span>
+                                    Last login: {u.lastLogin ? new Date(u.lastLogin).toLocaleDateString() : 'Never'}
+                                  </span>
                                 </div>
                               </div>
-                              <div className="font-medium text-gray-900">{u.name}</div>
                             </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center space-x-2">
-                              <Mail className="h-4 w-4 text-gray-400" />
-                              <span className="text-gray-600">{u.email}</span>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-${roleInfo?.color || 'gray'}-100 text-${roleInfo?.color || 'gray'}-800`}>
-                              {roleInfo?.icon} {roleInfo?.name}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center space-x-2">
-                              <MapPin className="h-4 w-4 text-gray-400" />
-                              <span className="text-gray-600">
-                                {u.sites.includes('*') ? 'All Sites' : u.sites.join(', ') || 'None'}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center space-x-2">
-                              <Calendar className="h-4 w-4 text-gray-400" />
-                              <span className="text-gray-600">
-                                {u.lastLogin ? new Date(u.lastLogin).toLocaleDateString() : 'Never'}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
-                            <button
-                              onClick={() => startEdit(u)}
-                              className="inline-flex items-center px-2 py-1 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded transition-colors"
-                            >
-                              <Edit2 className="h-3 w-3 mr-1" />
-                              Edit
-                            </button>
-                            {u.id !== user?.id && (
-                              <button
-                                onClick={() => handleDeleteUser(u.id)}
-                                className="inline-flex items-center px-2 py-1 text-red-600 hover:text-red-900 hover:bg-red-50 rounded transition-colors"
-                              >
-                                <Trash2 className="h-3 w-3 mr-1" />
-                                Delete
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                          </div>
+                        </div>
+                        <div className="flex-shrink-0 ml-4">
+                          <ChevronRight className="h-5 w-5 text-gray-400" />
+                        </div>
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
             )}
           </div>
         </div>
