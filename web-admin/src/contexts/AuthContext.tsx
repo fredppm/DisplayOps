@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/router';
 
 export interface AuthUser {
@@ -20,6 +20,9 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+// Global cache to prevent duplicate concurrent requests
+let authCheckPromise: Promise<any> | null = null;
+
 export function useAuth() {
   const context = useContext(AuthContext);
   if (!context) {
@@ -31,28 +34,72 @@ export function useAuth() {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [authCheckCalled, setAuthCheckCalled] = useState(false);
+  const mountedRef = useRef(true);
   const router = useRouter();
 
   useEffect(() => {
-    checkAuth();
-  }, []);
+    if (!authCheckCalled) {
+      checkAuth();
+    }
+
+    // Cleanup function to handle React Strict Mode unmounting
+    return () => {
+      mountedRef.current = false;
+    };
+  }, [authCheckCalled]);
 
   const checkAuth = async () => {
+    if (authCheckCalled || !mountedRef.current) return;
+    setAuthCheckCalled(true);
+    
+    // Use global promise cache to prevent duplicate concurrent requests
+    if (authCheckPromise) {
+      try {
+        const result = await authCheckPromise;
+        if (mountedRef.current) {
+          setUser(result);
+          setIsLoading(false);
+        }
+        return;
+      } catch (error) {
+        // If cached promise failed, continue with new request
+      }
+    }
+
+    // Create new auth check promise
+    authCheckPromise = (async () => {
+      try {
+        const response = await fetch('/api/auth/me', {
+          credentials: 'include'
+        });
+        if (response.ok) {
+          const data = await response.json();
+          return data.user;
+        } else {
+          return null;
+        }
+      } catch (error) {
+        console.error('Auth check failed:', error);
+        return null;
+      }
+    })();
+
     try {
-      const response = await fetch('/api/auth/me', {
-        credentials: 'include'
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setUser(data.user);
-      } else {
-        setUser(null);
+      const result = await authCheckPromise;
+      if (mountedRef.current) {
+        setUser(result);
       }
     } catch (error) {
-      console.error('Auth check failed:', error);
-      setUser(null);
+      if (mountedRef.current) {
+        setUser(null);
+      }
     } finally {
-      setIsLoading(false);
+      // Clear the promise cache after completion
+      authCheckPromise = null;
+      if (mountedRef.current) {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -84,8 +131,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
-      setUser(null);
-      router.push('/login');
+      if (mountedRef.current) {
+        setUser(null);
+        setAuthCheckCalled(false);
+        router.push('/login');
+      }
     }
   };
 

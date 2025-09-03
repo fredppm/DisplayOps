@@ -9,7 +9,7 @@ interface Controller {
   name: string;
   localNetwork: string;
   mdnsService: string;
-  webAdminUrl: string;
+  controllerUrl: string;
   status: 'online' | 'offline' | 'error';
   lastSync: string;
   version: string;

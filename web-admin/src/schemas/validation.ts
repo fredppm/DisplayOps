@@ -30,7 +30,7 @@ export const ControllerSchema = z.object({
   name: z.string().min(1, 'Controller name is required').max(100, 'Controller name is too long'),
   localNetwork: z.string().regex(/^(\d{1,3}\.){3}\d{1,3}\/\d{1,2}$/, 'Invalid network format (use CIDR notation)'),
   mdnsService: z.string().min(1, 'mDNS service is required'),
-  webAdminUrl: z.string().url('Invalid URL format'),
+  controllerUrl: z.string().url('Invalid URL format'),
   status: z.enum(['online', 'offline', 'error']),
   lastSync: z.string().datetime(),
   version: z.string().min(1, 'Version is required'),
@@ -41,14 +41,14 @@ export const CreateControllerSchema = z.object({
   name: z.string().min(1, 'Controller name is required').max(100, 'Controller name is too long'),
   localNetwork: z.string().regex(/^(\d{1,3}\.){3}\d{1,3}\/\d{1,2}$/, 'Invalid network format (use CIDR notation)'),
   mdnsService: z.string().min(1, 'mDNS service is required').default('_displayops._tcp.local'),
-  webAdminUrl: z.string().url('Invalid URL format').optional(),
+  controllerUrl: z.string().url('Invalid URL format').optional(),
 });
 
 export const UpdateControllerSchema = z.object({
   name: z.string().min(1, 'Controller name is required').max(100, 'Controller name is too long').optional(),
   localNetwork: z.string().regex(/^(\d{1,3}\.){3}\d{1,3}\/\d{1,2}$/, 'Invalid network format (use CIDR notation)').optional(),
   mdnsService: z.string().min(1, 'mDNS service is required').optional(),
-  webAdminUrl: z.string().url('Invalid URL format').optional(),
+  controllerUrl: z.string().url('Invalid URL format').optional(),
 });
 
 // Auto-register controller schema
@@ -60,7 +60,7 @@ export const AutoRegisterControllerSchema = z.object({
   version: z.string().min(1, 'Version is required').default('1.0.0'),
   siteId: z.string().min(1, 'Site ID is required').optional(), // Optional for auto-registration
   mdnsService: z.string().min(1, 'mDNS service is required').default('_displayops._tcp.local'),
-  webAdminUrl: z.string().url('Invalid URL format').optional(),
+  controllerUrl: z.string().url('Invalid URL format').optional(),
 });
 
 // Multi-site dashboard schema

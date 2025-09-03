@@ -1,27 +1,62 @@
-import React from 'react';
-import { NextPage, GetServerSideProps } from 'next';
+import { useState, useEffect, useRef } from 'react';
+import { NextPage } from 'next';
 import Link from 'next/link';
 import Layout from '@/components/Layout';
-import { getControllers } from '@/lib/api-server';
-import { Server, Network, Clock, AlertCircle, CheckCircle, XCircle, Plus } from 'lucide-react';
+import { Server, Network, Clock, AlertCircle, CheckCircle, XCircle, Plus, Wifi, WifiOff } from 'lucide-react';
+import { useToastContext } from '@/contexts/ToastContext';
+import { usePendingToasts } from '@/hooks/usePendingToasts';
 
 interface Controller {
   id: string;
-  siteId: string;
   name: string;
   localNetwork: string;
   mdnsService: string;
-  webAdminUrl: string;
+  controllerUrl: string;
   status: 'online' | 'offline' | 'error';
   lastSync: string;
   version: string;
 }
 
-interface ControllersPageProps {
-  initialControllers: Controller[];
-}
+// Removido ControllersPageProps - não precisamos mais de props SSR
 
-const ControllersPage: NextPage<ControllersPageProps> = ({ initialControllers }) => {
+const ControllersPage: NextPage = () => {
+  const toast = useToastContext();
+  usePendingToasts(); // Hook para consumir toasts do Zustand
+  
+  const [controllers, setControllers] = useState<Controller[]>([]);
+  const [loading, setLoading] = useState(true); // Inicia como loading
+  const [error, setError] = useState<string | null>(null);
+  const hasInitializedRef = useRef(false);
+
+  // Fetch controllers on component mount (CSR) - com proteção contra duplas chamadas
+  useEffect(() => {
+    if (!hasInitializedRef.current) {
+      hasInitializedRef.current = true;
+      fetchControllers();
+    }
+  }, []);
+
+  const fetchControllers = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/controllers');
+      const data = await response.json();
+      
+      console.log('Controllers API Response:', data); // Debug: ver o que a API está retornando
+      
+      if (data.success) {
+        console.log('Controllers data:', data.data); // Debug: ver os controllers
+        setControllers(data.data || []);
+      } else {
+        setError(data.error || 'Failed to fetch controllers');
+      }
+    } catch (err: any) {
+      console.error('Fetch error:', err); // Debug: ver erros
+      setError('Network error: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'online':
@@ -34,168 +69,259 @@ const ControllersPage: NextPage<ControllersPageProps> = ({ initialControllers })
         return <AlertCircle className="h-5 w-5 text-gray-400" />;
     }
   };
-  return (
-    <Layout>
-      <div className="container mx-auto p-4">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 flex items-center">
-                <Server className="h-8 w-8 text-blue-600 mr-3" />
-                Controllers Management
-              </h1>
-              <p className="mt-2 text-gray-600">
-                Manage DisplayOps controllers across all sites
-              </p>
-            </div>
-            <Link
-              href="/controllers/new"
-              className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-            >
-              <Plus className="h-5 w-5 mr-2" />
-              Add Controller
-            </Link>
-          </div>
-        </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <Server className="h-6 w-6 text-blue-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Total Controllers</p>
-                <p className="text-2xl font-bold text-gray-900">{initialControllers.length}</p>
-              </div>
-            </div>
-          </div>
+  const formatLastSync = (dateString: string) => {
+    try {
+      return new Date(dateString).toLocaleString();
+    } catch {
+      return dateString;
+    }
+  };
 
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-green-100 rounded-lg">
-                <CheckCircle className="h-6 w-6 text-green-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Online</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {initialControllers.filter(c => c.status === 'online').length}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-red-100 rounded-lg">
-                <XCircle className="h-6 w-6 text-red-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Offline</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {initialControllers.filter(c => c.status === 'offline').length}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Controllers Grid */}
-        {initialControllers.length === 0 ? (
-          <div className="bg-white rounded-lg shadow p-12 text-center">
-            <Server className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">No Controllers Found</h3>
-            <p className="text-gray-600 mb-6">
-              Get started by adding your first controller to manage displays.
-            </p>
-            <Link
-              href="/controllers/new"
-              className="inline-flex items-center px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-            >
-              <Plus className="h-5 w-5 mr-2" />
-              Add Your First Controller
-            </Link>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {initialControllers.map((controller) => (
-              <Link
-                key={controller.id}
-                href={`/controllers/${controller.id}`}
-                className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow p-6 block"
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center">
-                    {getStatusIcon(controller.status)}
-                    <h3 className="ml-2 text-lg font-semibold text-gray-900">
-                      {controller.name}
-                    </h3>
-                  </div>
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                    controller.status === 'online'
-                      ? 'bg-green-100 text-green-800'
-                      : controller.status === 'offline'
-                      ? 'bg-red-100 text-red-800'
-                      : 'bg-yellow-100 text-yellow-800'
-                  }`}>
-                    {controller.status.charAt(0).toUpperCase() + controller.status.slice(1)}
+  if (loading) {
+    return (
+      <Layout>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          {/* Header Real - Fora do skeleton */}
+          <div className="pb-6">
+            <div className="flex items-center justify-between">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center mb-2">
+                  <h1 className="text-2xl font-bold leading-7 text-gray-900 sm:truncate sm:text-3xl sm:tracking-tight">
+                    Controllers Management
+                  </h1>
+                  <span className="ml-3 inline-flex items-center rounded-full bg-gray-50 px-2.5 py-0.5 text-xs font-medium text-gray-400 ring-1 ring-inset ring-gray-200">
+                    Loading...
                   </span>
                 </div>
+                <p className="text-sm text-gray-500 max-w-2xl">
+                  Monitor and manage your DisplayOps controllers.
+                </p>
+              </div>
+              <div className="ml-6 flex flex-shrink-0">
+                <span className="inline-flex items-center rounded-md bg-gray-50 px-3 py-2 text-sm font-medium text-gray-600">
+                  Controllers automatically register themselves
+                </span>
+              </div>
+            </div>
+          </div>
 
-                <div className="space-y-3">
-                  <div className="flex items-center text-gray-600">
-                    <Network className="h-4 w-4 mr-2" />
-                    <span className="text-sm">{controller.localNetwork}</span>
+          {/* Stats Skeleton */}
+          <div className="mb-6">
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 px-6 py-4">
+              <div className="animate-pulse flex items-center space-x-8">
+                <div className="flex items-center space-x-2">
+                  <div className="h-4 w-4 bg-gray-200 rounded"></div>
+                  <div className="h-4 bg-gray-200 rounded w-16"></div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div className="h-4 w-4 bg-gray-200 rounded"></div>
+                  <div className="h-4 bg-gray-200 rounded w-20"></div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div className="h-4 w-4 bg-gray-200 rounded"></div>
+                  <div className="h-4 bg-gray-200 rounded w-18"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Controllers Grid Skeleton */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <div
+                key={i}
+                className="relative rounded-lg border border-gray-300 bg-white px-6 py-5 shadow-sm"
+              >
+                <div className="animate-pulse">
+                  <div className="flex justify-between items-start mb-3">
+                    <div className="flex items-center space-x-3">
+                      <div className="h-5 w-5 bg-gray-200 rounded-full"></div>
+                      <div className="h-4 bg-gray-200 rounded w-24"></div>
+                    </div>
+                    <div className="h-6 bg-gray-200 rounded-full w-16"></div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-2">
+                      <div className="h-4 w-4 bg-gray-200 rounded"></div>
+                      <div className="h-3 bg-gray-200 rounded w-20"></div>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <div className="h-4 w-4 bg-gray-200 rounded"></div>
+                      <div className="h-3 bg-gray-200 rounded w-16"></div>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <div className="h-4 w-4 bg-gray-200 rounded"></div>
+                      <div className="h-3 bg-gray-200 rounded w-12"></div>
+                    </div>
                   </div>
 
-                  <div className="flex items-center text-gray-600">
-                    <Server className="h-4 w-4 mr-2" />
-                    <span className="text-sm font-mono">{controller.mdnsService}</span>
-                  </div>
-
-                  <div className="flex items-center text-gray-600">
-                    <Clock className="h-4 w-4 mr-2" />
-                    <span className="text-sm">
-                      Last sync: {new Date(controller.lastSync).toLocaleString()}
-                    </span>
+                  <div className="mt-4 pt-3 border-t border-gray-100">
+                    <div className="flex justify-between">
+                      <div className="h-3 bg-gray-200 rounded w-16"></div>
+                      <div className="h-3 bg-gray-200 rounded w-16"></div>
+                    </div>
                   </div>
                 </div>
-
-                <div className="mt-4 pt-4 border-t border-gray-200">
-                  <div className="flex justify-between text-xs text-gray-500">
-                    <span>Version {controller.version}</span>
-                    <span>Site: {controller.siteId}</span>
-                  </div>
-                </div>
-              </Link>
+              </div>
             ))}
           </div>
-        )}
+        </div>
+      </Layout>
+    );
+  }
+
+  if (error) {
+    return (
+      <Layout>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+            <div className="flex items-center">
+              <XCircle className="h-6 w-6 text-red-500 mr-2" />
+              <h3 className="text-lg font-medium text-red-800">Error Loading Controllers</h3>
+            </div>
+            <p className="mt-2 text-red-700">{error}</p>
+            <button
+              onClick={fetchControllers}
+              className="mt-4 px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg transition-colors"
+            >
+              Try Again
+            </button>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  return (
+    <Layout>
+      {/* Container with proper padding */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Page Header with Actions */}
+        <div className="pb-6">
+          <div className="flex items-center justify-between">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center mb-2">
+                <h1 className="text-2xl font-bold leading-7 text-gray-900 sm:truncate sm:text-3xl sm:tracking-tight">
+                  Controllers Management
+                </h1>
+                <span className="ml-3 inline-flex items-center rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-600/20">
+                  {controllers.length} {controllers.length === 1 ? 'controller' : 'controllers'}
+                </span>
+              </div>
+              <p className="text-sm text-gray-500 max-w-2xl">
+                Monitor and manage your DisplayOps controllers.
+              </p>
+            </div>
+            <div className="ml-6 flex flex-shrink-0">
+              <span className="inline-flex items-center rounded-md bg-gray-50 px-3 py-2 text-sm font-medium text-gray-600">
+                Controllers automatically register themselves
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Quick Stats - Compact */}
+        <div className="mb-6">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 px-6 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-8">
+                <div className="flex items-center space-x-2">
+                  <Server className="h-4 w-4 text-gray-400" />
+                  <span className="text-sm text-gray-600">Total: <span className="font-semibold text-gray-900">{controllers.length}</span></span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <CheckCircle className="h-4 w-4 text-green-500" />
+                  <span className="text-sm text-gray-600">Online: <span className="font-semibold text-green-700">{controllers.filter(c => c.status === 'online').length}</span></span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <XCircle className="h-4 w-4 text-red-500" />
+                  <span className="text-sm text-gray-600">Offline: <span className="font-semibold text-red-700">{controllers.filter(c => c.status === 'offline').length}</span></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Controllers List */}
+        <div>
+          {controllers.length === 0 ? (
+            <div className="text-center bg-white shadow-sm ring-1 ring-gray-200 rounded-lg py-12">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-gray-100">
+                <Server className="h-6 w-6 text-gray-600" />
+              </div>
+              <h3 className="mt-4 text-sm font-semibold text-gray-900">No Controllers Found</h3>
+              <div className="mt-2 text-sm max-w-sm mx-auto text-center">
+                <p className="text-gray-500 mb-2">
+                  Controllers automatically register themselves.
+                </p>
+                <p className="text-gray-400 text-xs">
+                  Make sure your DisplayOps controllers are running.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {controllers.map((controller) => (
+                <div
+                  key={controller.id}
+                  className="relative rounded-lg border border-gray-300 bg-white px-6 py-5 shadow-sm hover:shadow-md transition-shadow focus-within:ring-2 focus-within:ring-indigo-500 focus-within:ring-offset-2"
+                >
+                  <div className="flex justify-between items-start mb-3">
+                    <div className="flex items-center space-x-3">
+                      <div className="flex-shrink-0">
+                        {getStatusIcon(controller.status)}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <Link href={`/controllers/${controller.id}`} className="focus:outline-none">
+                          <span className="absolute inset-0" aria-hidden="true" />
+                          <p className="text-sm font-medium text-gray-900 truncate">{controller.name}</p>
+                        </Link>
+                      </div>
+                    </div>
+                    <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ring-1 ring-inset ${
+                      controller.status === 'online'
+                        ? 'bg-green-50 text-green-700 ring-green-600/20'
+                        : controller.status === 'offline'
+                        ? 'bg-red-50 text-red-700 ring-red-600/20'
+                        : 'bg-yellow-50 text-yellow-800 ring-yellow-600/20'
+                    }`}>
+                      {controller.status === 'online' ? 'Online' : controller.status === 'offline' ? 'Offline' : 'Error'}
+                    </span>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center text-sm text-gray-500">
+                      <Network className="mr-1.5 h-4 w-4 flex-shrink-0 text-gray-400" />
+                      <span className="truncate">{controller.localNetwork}</span>
+                    </div>
+                    <div className="flex items-center text-sm text-gray-500">
+                      <Wifi className="mr-1.5 h-4 w-4 flex-shrink-0 text-gray-400" />
+                      <span className="truncate font-mono text-xs">{controller.mdnsService}</span>
+                    </div>
+                    <div className="flex items-center text-sm text-gray-500">
+                      <Clock className="mr-1.5 h-4 w-4 flex-shrink-0 text-gray-400" />
+                      <span className="truncate">Last sync: {formatLastSync(controller.lastSync)}</span>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 pt-3 border-t border-gray-100">
+                    <div className="flex justify-between text-xs text-gray-400">
+                      <span>Version {controller.version}</span>
+                      <span>ID: {controller.id.substring(0, 8)}...</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </Layout>
   );
 };
 
-export const getServerSideProps: GetServerSideProps = async () => {
-  try {
-    const controllersData = await getControllers();
-    
-    return {
-      props: {
-        initialControllers: controllersData.controllers,
-      },
-    };
-  } catch (error) {
-    console.error('Error fetching controllers:', error);
-    
-    return {
-      props: {
-        initialControllers: [],
-      },
-    };
-  }
-};
+// Removido getServerSideProps - agora é CSR puro
 
 export default ControllersPage;

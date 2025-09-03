@@ -5,7 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 
 const LoginPage = () => {
   const [email, setEmail] = useState('admin@displayops.com');
-  const [password, setPassword] = useState('admin');
+  const [password, setPassword] = useState('admin123');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const { login } = useAuth();
@@ -94,13 +94,13 @@ const LoginPage = () => {
             <p className="mb-3 font-medium">Test Credentials:</p>
             <div className="space-y-2">
               <div className="bg-red-50 border border-red-200 rounded p-2">
-                <p><strong>👑 Admin:</strong> admin@displayops.com / admin</p>
+                <p><strong>👑 Admin:</strong> admin@displayops.com / admin123</p>
               </div>
               <div className="bg-blue-50 border border-blue-200 rounded p-2">
-                <p><strong>👨‍💼 Site Manager (Rio):</strong> manager.rio@displayops.com / manager</p>
+                <p><strong>👨‍💼 Site Manager (Rio):</strong> manager.rio@displayops.com / manager123</p>
               </div>
               <div className="bg-green-50 border border-green-200 rounded p-2">
-                <p><strong>👁️ Viewer:</strong> viewer@displayops.com / viewer</p>
+                <p><strong>👁️ Viewer:</strong> viewer@displayops.com / viewer123</p>
               </div>
             </div>
           </div>

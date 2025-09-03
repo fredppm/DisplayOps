@@ -1,34 +1,8 @@
 import { NextApiResponse } from 'next';
-import fs from 'fs/promises';
-import path from 'path';
 import { Site, UpdateSiteRequest, ApiResponse } from '@/types/multi-site-types';
 import { UpdateSiteSchema } from '@/schemas/validation';
 import { withPermission, ProtectedApiRequest } from '@/lib/api-protection';
-
-const SITES_FILE = path.join(process.cwd(), 'data', 'sites.json');
-
-interface SitesData {
-  sites: Site[];
-}
-
-async function readSitesData(): Promise<SitesData> {
-  try {
-    const data = await fs.readFile(SITES_FILE, 'utf-8');
-    return JSON.parse(data);
-  } catch (error) {
-    console.error('Error reading sites data:', error);
-    return { sites: [] };
-  }
-}
-
-async function writeSitesData(data: SitesData): Promise<void> {
-  try {
-    await fs.writeFile(SITES_FILE, JSON.stringify(data, null, 2), 'utf-8');
-  } catch (error) {
-    console.error('Error writing sites data:', error);
-    throw new Error('Failed to write sites data');
-  }
-}
+import { sitesRepository, controllersRepository } from '@/lib/repositories';
 
 async function handler(req: ProtectedApiRequest, res: NextApiResponse<ApiResponse<Site>>) {
   const { id } = req.query;
@@ -148,13 +122,41 @@ async function handler(req: ProtectedApiRequest, res: NextApiResponse<ApiRespons
 
       const site = data.sites[siteIndex];
 
-      // Check if site has controllers before deleting
-      if (site.controllers && site.controllers.length > 0) {
-        return res.status(400).json({
-          success: false,
-          error: 'Cannot delete site with associated controllers. Remove controllers first.',
-          timestamp: new Date().toISOString()
+      // Handle orphaned hosts before deleting site
+      try {
+        const HOSTS_FILE = path.join(process.cwd(), 'data', 'hosts.json');
+        let hostsData = { hosts: [] as any[] };
+        
+        try {
+          const hostsContent = await fs.readFile(HOSTS_FILE, 'utf-8');
+          hostsData = JSON.parse(hostsContent);
+        } catch (hostsError) {
+          console.log('No hosts file found or error reading hosts:', hostsError);
+        }
+
+        // Update hosts to remove site association
+        let orphanedCount = 0;
+        hostsData.hosts = hostsData.hosts.map(host => {
+          if (host.siteId === id) {
+            orphanedCount++;
+            return { ...host, siteId: undefined };
+          }
+          return host;
         });
+
+        // Write updated hosts data if any changes were made
+        if (orphanedCount > 0) {
+          try {
+            await fs.writeFile(HOSTS_FILE, JSON.stringify(hostsData, null, 2), 'utf-8');
+          } catch (writeError) {
+            console.error('Error updating hosts file:', writeError);
+          }
+        }
+
+        console.log(`Site ${id} deleted. ${orphanedCount} hosts were orphaned and updated.`);
+      } catch (hostsError) {
+        console.error('Error handling orphaned hosts:', hostsError);
+        // Continue with site deletion even if host update fails
       }
 
       // Remove site from array

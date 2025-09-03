@@ -30,7 +30,7 @@ interface ControllersData {
     name: string;
     localNetwork: string;
     mdnsService: string;
-    webAdminUrl: string;
+    controllerUrl: string;
     status: string;
     lastSync: string;
     version: string;

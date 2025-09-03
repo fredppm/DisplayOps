@@ -167,11 +167,11 @@ export const ExtensionDropdown: React.FC = () => {
       if (currentBrowser.extensionsUrl) {
         window.open(currentBrowser.extensionsUrl, '_blank');
       } else {
-        alert(currentBrowser.instructions);
+        console.log(currentBrowser.instructions);
       }
     } catch (e) {
       console.log('Could not auto-open extensions page:', e);
-      alert(currentBrowser.instructions);
+      console.log(currentBrowser.instructions);
     }
   };
 
@@ -180,10 +180,10 @@ export const ExtensionDropdown: React.FC = () => {
       if (browser.extensionsUrl) {
         window.open(browser.extensionsUrl, '_blank');
       } else {
-        alert(browser.instructions);
+        console.log(browser.instructions);
       }
     } catch (e) {
-      alert(browser.instructions);
+      console.log(browser.instructions);
     }
   };
 

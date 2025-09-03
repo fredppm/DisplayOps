@@ -6,7 +6,7 @@
       "name": "1º Andar",
       "localNetwork": "192.168.1.0/24",
       "mdnsService": "_displayops._tcp.local",
-      "webAdminUrl": "https://admin.displayops.com",
+      "controllerUrl": "https://admin.displayops.com",
       "status": "online",
       "lastSync": "2025-09-03T13:37:55.498Z",
       "version": "1.0.0"
@@ -17,7 +17,7 @@
       "name": "2º Andar",
       "localNetwork": "192.168.2.0/24",
       "mdnsService": "_displayops._tcp.local",
-      "webAdminUrl": "https://admin.displayops.com",
+      "controllerUrl": "https://admin.displayops.com",
       "status": "offline",
       "lastSync": "2024-01-01T00:00:00Z",
       "version": "1.0.0"
@@ -28,8 +28,8 @@
       "name": "NYC Office",
       "localNetwork": "10.0.1.0/24",
       "mdnsService": "_displayops._tcp.local",
-      "webAdminUrl": "https://admin.displayops.com",
-      "status": "offline",
+      "controllerUrl": "https://admin.displayops.com",
+      "status": "error",
       "lastSync": "2024-01-01T00:00:00Z",
       "version": "1.0.0"
     }

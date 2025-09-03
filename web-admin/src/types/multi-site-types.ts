@@ -5,6 +5,7 @@ export interface Site {
   name: string;
   location: string;
   timezone: string;
+  status: 'online' | 'offline' | 'error';
   controllers: string[];
   createdAt: string;
   updatedAt: string;
@@ -16,7 +17,7 @@ export interface Controller {
   name: string;
   localNetwork: string;
   mdnsService: string;
-  webAdminUrl: string;
+  controllerUrl: string;
   status: 'online' | 'offline' | 'error';
   lastSync: string;
   version: string;
@@ -122,14 +123,14 @@ export interface CreateControllerRequest {
   name: string;
   localNetwork: string;
   mdnsService?: string;
-  webAdminUrl?: string;
+  controllerUrl?: string;
 }
 
 export interface UpdateControllerRequest {
   name?: string;
   localNetwork?: string;
   mdnsService?: string;
-  webAdminUrl?: string;
+  controllerUrl?: string;
 }
 
 // Response wrappers

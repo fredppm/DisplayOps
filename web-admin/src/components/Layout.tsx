@@ -2,12 +2,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { ChevronDownIcon, UserCircleIcon } from 'lucide-react';
+import { ToastProvider } from '@/contexts/ToastContext';
 
 interface LayoutProps {
   children: React.ReactNode;
 }
 
-const Layout: React.FC<LayoutProps> = ({ children }) => {
+const LayoutContent: React.FC<LayoutProps> = ({ children }) => {
   const router = useRouter();
   const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
   const [isSystemDropdownOpen, setIsSystemDropdownOpen] = useState(false);
@@ -219,6 +220,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         </div>
       </main>
     </div>
+  );
+};
+
+const Layout: React.FC<LayoutProps> = ({ children }) => {
+  return (
+    <ToastProvider>
+      <LayoutContent>{children}</LayoutContent>
+    </ToastProvider>
   );
 };
 

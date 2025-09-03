@@ -1,5 +1,6 @@
 // Server-side helper functions for getServerSideProps
-// Funções simples que retornam dados - sem fetch complicado
+// Reads directly from JSON files for Server-Side Rendering
+// Note: Cannot make HTTP calls to ourselves during SSR, so we read files directly
 
 // System stats para admin dashboard
 export async function getSystemStats() {
@@ -222,64 +223,65 @@ export interface PerformanceMetricsProps {
 
 // Controllers data
 export async function getControllers() {
-  // Dados de exemplo para controllers
-  return {
-    controllers: [
-      {
-        id: '1',
-        siteId: 'site-1',
-        name: 'Main Controller - Office A',
-        localNetwork: '192.168.1.0/24',
-        mdnsService: '_displayops._tcp.local.',
-        webAdminUrl: 'http://192.168.1.100:3000',
-        status: 'online' as 'online' | 'offline' | 'error',
-        lastSync: new Date().toISOString(),
-        version: '1.2.3'
-      },
-      {
-        id: '2',
-        siteId: 'site-2',
-        name: 'Secondary Controller - Office B',
-        localNetwork: '192.168.2.0/24',
-        mdnsService: '_displayops._tcp.local.',
-        webAdminUrl: 'http://192.168.2.100:3000',
-        status: 'offline' as 'online' | 'offline' | 'error',
-        lastSync: new Date(Date.now() - 300000).toISOString(), // 5 min ago
-        version: '1.1.8'
-      }
-    ],
-    timestamp: new Date().toISOString()
-  };
+  // For server-side rendering, read hosts directly and convert to controllers format
+  // Cannot make HTTP calls to ourselves during SSR
+  const fs = await import('fs/promises');
+  const path = await import('path');
+  
+  try {
+    const HOSTS_FILE = path.join(process.cwd(), 'data', 'hosts.json');
+    const data = await fs.readFile(HOSTS_FILE, 'utf-8');
+    const hostsData = JSON.parse(data);
+    
+    // Convert hosts to controllers format
+    const controllers = hostsData.hosts.map((host: any) => ({
+      id: host.id,
+      siteId: host.siteId,
+      name: host.name,
+      localNetwork: `${host.ip}/24`, // Assume /24 network
+      mdnsService: '_displayops._tcp.local.',
+      controllerUrl: `http://${host.ip}:3000`,
+      status: host.status,
+      lastSync: host.lastSeen,
+      version: '1.2.3' // Default version
+    }));
+    
+    return {
+      controllers: controllers || [],
+      timestamp: new Date().toISOString()
+    };
+  } catch (error) {
+    console.error('Error reading controllers data:', error);
+    return {
+      controllers: [],
+      timestamp: new Date().toISOString()
+    };
+  }
 }
 
 // Sites data 
 export async function getSites() {
-  // Dados de exemplo para sites
-  return {
-    sites: [
-      {
-        id: 'site-1',
-        name: 'Corporate Headquarters',
-        location: 'New York, NY',
-        timezone: 'America/New_York',
-        controllers: ['1'],
-        status: 'online' as 'online' | 'offline' | 'error',
-        createdAt: new Date(Date.now() - 86400000).toISOString(),
-        updatedAt: new Date().toISOString()
-      },
-      {
-        id: 'site-2', 
-        name: 'West Coast Office',
-        location: 'San Francisco, CA',
-        timezone: 'America/Los_Angeles',
-        controllers: ['2'],
-        status: 'offline' as 'online' | 'offline' | 'error',
-        createdAt: new Date(Date.now() - 172800000).toISOString(),
-        updatedAt: new Date(Date.now() - 3600000).toISOString()
-      }
-    ],
-    timestamp: new Date().toISOString()
-  };
+  // For server-side rendering, we need to read directly from file
+  // Cannot make HTTP calls to ourselves during SSR
+  const fs = await import('fs/promises');
+  const path = await import('path');
+  
+  try {
+    const SITES_FILE = path.join(process.cwd(), 'data', 'sites.json');
+    const fileData = await fs.readFile(SITES_FILE, 'utf-8');
+    const sitesData = JSON.parse(fileData);
+    
+    return {
+      sites: sitesData.sites || [],
+      timestamp: new Date().toISOString()
+    };
+  } catch (error) {
+    console.error('Error reading sites data:', error);
+    return {
+      sites: [],
+      timestamp: new Date().toISOString()
+    };
+  }
 }
 
 // Função auxiliar para simular delay (opcional, para testar loading states)

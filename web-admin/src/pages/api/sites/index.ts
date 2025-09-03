@@ -1,43 +1,17 @@
 import { NextApiResponse } from 'next';
-import fs from 'fs/promises';
-import path from 'path';
 import { Site, CreateSiteRequest, ApiResponse } from '@/types/multi-site-types';
 import { CreateSiteSchema } from '@/schemas/validation';
 import { withPermission, ProtectedApiRequest } from '@/lib/api-protection';
-
-const SITES_FILE = path.join(process.cwd(), 'data', 'sites.json');
-
-interface SitesData {
-  sites: Site[];
-}
-
-async function readSitesData(): Promise<SitesData> {
-  try {
-    const data = await fs.readFile(SITES_FILE, 'utf-8');
-    return JSON.parse(data);
-  } catch (error) {
-    console.error('Error reading sites data:', error);
-    return { sites: [] };
-  }
-}
-
-async function writeSitesData(data: SitesData): Promise<void> {
-  try {
-    await fs.writeFile(SITES_FILE, JSON.stringify(data, null, 2), 'utf-8');
-  } catch (error) {
-    console.error('Error writing sites data:', error);
-    throw new Error('Failed to write sites data');
-  }
-}
+import { sitesRepository } from '@/lib/repositories';
 
 async function handler(req: ProtectedApiRequest, res: NextApiResponse<ApiResponse<Site[] | Site>>) {
   if (req.method === 'GET') {
     try {
-      const data = await readSitesData();
+      const sites = await sitesRepository.getAll();
       
       res.status(200).json({
         success: true,
-        data: data.sites,
+        data: sites,
         timestamp: new Date().toISOString()
       });
     } catch (error: any) {
@@ -60,11 +34,10 @@ async function handler(req: ProtectedApiRequest, res: NextApiResponse<ApiRespons
       }
 
       const createData: CreateSiteRequest = validation.data;
-      const data = await readSitesData();
 
       // Check if site ID already exists (based on name)
       const siteId = createData.name.toLowerCase().replace(/[^a-z0-9]/g, '-');
-      const existingSite = data.sites.find(site => site.id === siteId);
+      const existingSite = await sitesRepository.getById(siteId);
       
       if (existingSite) {
         return res.status(409).json({
@@ -80,20 +53,18 @@ async function handler(req: ProtectedApiRequest, res: NextApiResponse<ApiRespons
         name: createData.name,
         location: createData.location,
         timezone: createData.timezone,
+        status: 'offline', // Sites iniciam offline até controllers conectarem
         controllers: [],
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
 
-      // Add to sites array
-      data.sites.push(newSite);
-      
-      // Write back to file
-      await writeSitesData(data);
+      // Save using repository
+      const createdSite = await sitesRepository.create(newSite);
 
       res.status(201).json({
         success: true,
-        data: newSite,
+        data: createdSite,
         timestamp: new Date().toISOString()
       });
     } catch (error: any) {

@@ -1,13 +1,14 @@
 import { NextApiResponse } from 'next';
-import { loadUsers, createUser } from '../../../lib/auth';
+import { usersRepository } from '../../../lib/repositories/UsersRepository';
 import { withAdminOnly, ProtectedApiRequest } from '../../../lib/api-protection';
+import bcrypt from 'bcryptjs';
 
 async function handler(req: ProtectedApiRequest, res: NextApiResponse) {
-
   try {
     if (req.method === 'GET') {
       // List all users (without passwords)
-      const users = loadUsers().map(u => ({
+      const users = await usersRepository.getAll();
+      const safeUsers = users.map(u => ({
         id: u.id,
         email: u.email,
         name: u.name,
@@ -17,7 +18,7 @@ async function handler(req: ProtectedApiRequest, res: NextApiResponse) {
         lastLogin: u.lastLogin
       }));
 
-      res.status(200).json({ users });
+      res.status(200).json({ users: safeUsers });
 
     } else if (req.method === 'POST') {
       // Create new user
@@ -31,12 +32,20 @@ async function handler(req: ProtectedApiRequest, res: NextApiResponse) {
         return res.status(400).json({ error: 'Invalid role' });
       }
 
-      const newUser = await createUser({
+      // Check if user already exists
+      const existingUser = await usersRepository.findByEmail(email);
+      if (existingUser) {
+        return res.status(400).json({ error: 'User with this email already exists' });
+      }
+
+      // Hash password and create user
+      const passwordHash = await bcrypt.hash(password, 10);
+      const newUser = await usersRepository.createUser({
         email,
         name,
-        password,
         role,
-        sites: sites || []
+        sites: sites || [],
+        passwordHash
       });
 
       res.status(201).json({ 

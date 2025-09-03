@@ -1,0 +1,28 @@
+{
+  "hosts": [
+    {
+      "id": "host-1",
+      "name": "Monitor 1 - Reception",
+      "ip": "192.168.1.101",
+      "siteId": "site-1",
+      "status": "online",
+      "lastSeen": "2024-09-03T14:56:00.000Z"
+    },
+    {
+      "id": "host-2",
+      "name": "Monitor 2 - Conference Room A",
+      "ip": "192.168.1.102",
+      "siteId": "site-1",
+      "status": "online",
+      "lastSeen": "2024-09-03T14:55:00.000Z"
+    },
+    {
+      "id": "host-3",
+      "name": "Monitor 3 - Lobby",
+      "ip": "192.168.2.101",
+      "siteId": "site-2",
+      "status": "offline",
+      "lastSeen": "2024-09-03T13:30:00.000Z"
+    }
+  ]
+}

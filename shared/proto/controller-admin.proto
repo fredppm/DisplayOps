@@ -1,0 +1,183 @@
+syntax = "proto3";
+
+package displayops;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+
+// ================================
+// Controller-Admin Communication Service
+// ================================
+
+service ControllerAdminService {
+  // Bidirectional streaming for controller heartbeats and admin responses
+  rpc HeartbeatStream(stream ControllerHeartbeat) returns (stream AdminResponse);
+  
+  // Future: Admin commands to controller (placeholder for now)
+  rpc AdminCommandStream(stream AdminCommand) returns (stream CommandResponse);
+}
+
+// ================================
+// Controller Heartbeat Messages
+// ================================
+
+message ControllerHeartbeat {
+  string controller_id = 1;
+  HeartbeatType type = 2;
+  google.protobuf.Timestamp timestamp = 3;
+  
+  // Conditional payload based on heartbeat type
+  oneof payload {
+    RegistrationData registration = 10;  // REGISTRATION type
+    StatusData status = 11;              // STATUS_UPDATE type
+  }
+}
+
+enum HeartbeatType {
+  REGISTRATION = 0;     // First heartbeat with complete data
+  STATUS_UPDATE = 1;    // Regular heartbeats with only changing data
+}
+
+// Complete registration data sent on first connection/reconnection
+message RegistrationData {
+  string hostname = 1;
+  string mac_address = 2;
+  string local_network = 3;
+  string version = 4;
+  string location = 5;
+  string site_id = 6;                     // Optional site assignment
+  string mdns_service = 7;
+  string web_admin_url = 8;               // Controller's admin URL
+  SystemInfo system_info = 9;             // Static system information
+}
+
+// Regular status updates with changing data only
+message StatusData {
+  ControllerStatus status = 1;            // online/offline/error
+  SystemMetrics metrics = 2;              // Current CPU, RAM, etc
+  repeated ServiceStatus services = 3;     // Status of running services
+  google.protobuf.Timestamp last_error = 4;
+  string last_error_message = 5;
+}
+
+// ================================
+// Admin Response Messages
+// ================================
+
+message AdminResponse {
+  string controller_id = 1;
+  AdminResponseType type = 2;
+  google.protobuf.Timestamp timestamp = 3;
+  
+  oneof payload {
+    RegistrationResponse registration_response = 10;
+    StatusAcknowledgment status_ack = 11;
+    ErrorResponse error = 12;
+  }
+}
+
+enum AdminResponseType {
+  REGISTRATION_SUCCESS = 0;
+  REGISTRATION_ERROR = 1;
+  STATUS_ACKNOWLEDGED = 2;
+  COMMAND_READY = 3;                      // Future: Admin has commands to send
+  ERROR = 4;
+}
+
+message RegistrationResponse {
+  bool success = 1;
+  string assigned_controller_id = 2;      // In case admin assigns different ID
+  string assigned_site_id = 3;
+  string message = 4;
+}
+
+message StatusAcknowledgment {
+  bool received = 1;
+  google.protobuf.Timestamp server_time = 2;
+}
+
+message ErrorResponse {
+  string error_code = 1;
+  string error_message = 2;
+  bool retry_suggested = 3;
+}
+
+// ================================
+// Future Admin Commands (Placeholder)
+// ================================
+
+message AdminCommand {
+  string command_id = 1;
+  string controller_id = 2;
+  AdminCommandType type = 3;
+  google.protobuf.Timestamp timestamp = 4;
+  
+  // Future command payloads will be added here
+  oneof payload {
+    ConfigUpdateCommand config_update = 10;
+    StatusRequestCommand status_request = 11;
+  }
+}
+
+enum AdminCommandType {
+  CONFIG_UPDATE = 0;
+  STATUS_REQUEST = 1;
+  // More command types to be added
+}
+
+message ConfigUpdateCommand {
+  map<string, string> config_values = 1;
+}
+
+message StatusRequestCommand {
+  bool include_detailed_metrics = 1;
+}
+
+message CommandResponse {
+  string command_id = 1;
+  bool success = 2;
+  string error_message = 3;
+  google.protobuf.Timestamp timestamp = 4;
+}
+
+// ================================
+// Data Types
+// ================================
+
+enum ControllerStatus {
+  ONLINE = 0;
+  OFFLINE = 1;
+  CONNECTING = 2;
+  ERROR = 3;
+  MAINTENANCE = 4;
+}
+
+message SystemInfo {
+  string platform = 1;                   // win32, linux, darwin
+  string arch = 2;                       // x64, arm64
+  string node_version = 3;
+  string controller_version = 4;
+  int32 total_memory_gb = 5;
+  int32 cpu_cores = 6;
+  string cpu_model = 7;
+}
+
+message SystemMetrics {
+  double cpu_usage_percent = 1;          // 0-100
+  double memory_usage_percent = 2;       // 0-100
+  int64 memory_used_bytes = 3;
+  int64 memory_total_bytes = 4;
+  double disk_usage_percent = 5;         // 0-100
+  int64 disk_free_bytes = 6;
+  double network_rx_bytes_per_sec = 7;   // Network receive rate
+  double network_tx_bytes_per_sec = 8;   // Network transmit rate
+  int64 uptime_seconds = 9;              // System uptime
+}
+
+message ServiceStatus {
+  string service_name = 1;               // "web-server", "mdns-discovery", etc
+  bool running = 2;
+  int32 port = 3;                        // If applicable
+  google.protobuf.Timestamp last_check = 4;
+  string status_message = 5;
+}

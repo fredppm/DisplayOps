@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import '@/styles/globals.css';
 import { AppProvider } from '@/contexts/AppContext';
 import { AuthProvider } from '@/contexts/AuthContext';
+import { ToastProvider } from '@/contexts/ToastContext';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -12,9 +13,11 @@ export default function App({ Component, pageProps }: AppProps) {
   return (
     <AuthProvider>
       <AppProvider>
-        <main className={inter.className}>
-          <Component {...pageProps} />
-        </main>
+        <ToastProvider>
+          <main className={inter.className}>
+            <Component {...pageProps} />
+          </main>
+        </ToastProvider>
       </AppProvider>
     </AuthProvider>
   );

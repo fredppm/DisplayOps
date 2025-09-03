@@ -35,7 +35,7 @@ interface ControllersData {
     name: string;
     localNetwork: string;
     mdnsService: string;
-    webAdminUrl: string;
+    controllerUrl: string;
     status: string;
     lastSync: string;
     version: string;
@@ -164,7 +164,7 @@ async function handler(
           controllerId: controller.id,
           localNetwork: controller.localNetwork,
           mdnsService: controller.mdnsService,
-          webAdminUrl: controller.webAdminUrl,
+          controllerUrl: controller.controllerUrl,
           healthCheckInterval: 30000,  // 30 seconds
           syncInterval: 300000,        // 5 minutes
           cookieSyncInterval: 60000,   // 1 minute

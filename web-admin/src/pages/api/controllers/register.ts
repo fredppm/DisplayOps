@@ -1,8 +1,8 @@
 import { NextApiResponse } from 'next';
 import fs from 'fs/promises';
 import path from 'path';
-import { Controller, AutoRegisterControllerRequest, ApiResponse } from '@/types/multi-site-types';
-import { AutoRegisterControllerSchema } from '@/schemas/validation';
+import { Controller, ApiResponse } from '@/types/multi-site-types';
+import { AutoRegisterControllerSchema, AutoRegisterControllerRequest } from '@/schemas/validation';
 import { withPermission, ProtectedApiRequest } from '@/lib/api-protection';
 import { logger } from '@/utils/logger';
 
@@ -163,7 +163,7 @@ async function handler(req: ProtectedApiRequest, res: NextApiResponse<ApiRespons
       existingController.name = registerData.location || registerData.hostname;
       existingController.localNetwork = registerData.localNetwork;
       existingController.mdnsService = registerData.mdnsService;
-      existingController.webAdminUrl = registerData.webAdminUrl || existingController.webAdminUrl;
+      existingController.controllerUrl = registerData.controllerUrl || existingController.controllerUrl;
       existingController.version = registerData.version;
       existingController.status = 'online';
       existingController.lastSync = new Date().toISOString();
@@ -186,7 +186,7 @@ async function handler(req: ProtectedApiRequest, res: NextApiResponse<ApiRespons
       name: registerData.location || registerData.hostname,
       localNetwork: registerData.localNetwork,
       mdnsService: registerData.mdnsService,
-      webAdminUrl: registerData.webAdminUrl || 'http://localhost:3000',
+      controllerUrl: registerData.controllerUrl || 'http://localhost:3000',
       status: 'online',
       lastSync: new Date().toISOString(),
       version: registerData.version

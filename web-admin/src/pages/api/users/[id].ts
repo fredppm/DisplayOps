@@ -1,5 +1,5 @@
 import { NextApiResponse } from 'next';
-import { loadUsers, saveUsers } from '../../../lib/auth';
+import { usersRepository } from '../../../lib/repositories/UsersRepository';
 import { withAdminOnly, ProtectedApiRequest, getCurrentUser } from '../../../lib/api-protection';
 import bcrypt from 'bcryptjs';
 
@@ -12,82 +12,85 @@ async function handler(req: ProtectedApiRequest, res: NextApiResponse) {
   }
 
   try {
-    const users = loadUsers();
-    const userIndex = users.findIndex(u => u.id === id);
-
     if (req.method === 'GET') {
       // Get specific user
-      if (userIndex === -1) {
+      const user = await usersRepository.getById(id);
+      if (!user) {
         return res.status(404).json({ error: 'User not found' });
       }
 
-      const userData = users[userIndex];
       res.status(200).json({
         user: {
-          id: userData.id,
-          email: userData.email,
-          name: userData.name,
-          role: userData.role,
-          sites: userData.sites,
-          createdAt: userData.createdAt,
-          lastLogin: userData.lastLogin
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          sites: user.sites,
+          createdAt: user.createdAt,
+          lastLogin: user.lastLogin
         }
       });
 
     } else if (req.method === 'PUT') {
       // Update user
-      if (userIndex === -1) {
+      const existingUser = await usersRepository.getById(id);
+      if (!existingUser) {
         return res.status(404).json({ error: 'User not found' });
       }
 
       const { email, name, role, sites, password } = req.body;
-      const existingUser = users[userIndex];
 
       // Prevent admin from changing their own role
       if (existingUser.id === currentUser.id && role !== existingUser.role) {
         return res.status(400).json({ error: 'Cannot change your own role' });
       }
 
-      // Update user data
-      if (email) existingUser.email = email;
-      if (name) existingUser.name = name;
+      // Build update object
+      const updates: any = {};
+      if (email) updates.email = email;
+      if (name) updates.name = name;
       if (role && ['admin', 'site-manager', 'viewer'].includes(role)) {
-        existingUser.role = role;
+        updates.role = role;
       }
-      if (sites !== undefined) existingUser.sites = sites;
+      if (sites !== undefined) updates.sites = sites;
 
       // Update password if provided
       if (password) {
-        existingUser.password = await bcrypt.hash(password, 10);
+        updates.passwordHash = await bcrypt.hash(password, 10);
       }
 
-      users[userIndex] = existingUser;
-      saveUsers(users);
+      const updatedUser = await usersRepository.update(id, updates);
+      if (!updatedUser) {
+        return res.status(500).json({ error: 'Failed to update user' });
+      }
 
       res.status(200).json({
         success: true,
         user: {
-          id: existingUser.id,
-          email: existingUser.email,
-          name: existingUser.name,
-          role: existingUser.role,
-          sites: existingUser.sites
+          id: updatedUser.id,
+          email: updatedUser.email,
+          name: updatedUser.name,
+          role: updatedUser.role,
+          sites: updatedUser.sites
         }
       });
 
     } else if (req.method === 'DELETE') {
       // Delete user
-      if (userIndex === -1) {
+      const userToDelete = await usersRepository.getById(id);
+      if (!userToDelete) {
         return res.status(404).json({ error: 'User not found' });
       }
 
       // Prevent admin from deleting themselves
-      if (users[userIndex].id === currentUser.id) {
+      if (userToDelete.id === currentUser.id) {
         return res.status(400).json({ error: 'Cannot delete your own account' });
       }
 
-      users.splice(userIndex, 1);
-      saveUsers(users);
+      const deleted = await usersRepository.delete(id);
+      if (!deleted) {
+        return res.status(500).json({ error: 'Failed to delete user' });
+      }
 
       res.status(200).json({ success: true, message: 'User deleted successfully' });
 
