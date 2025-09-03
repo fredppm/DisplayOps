@@ -1,0 +1,20 @@
+[
+  {
+    "id": "common-dashboard",
+    "name": "Grafana VTEX Updated",
+    "url": "https://grafana.vtex.com/d/d7e7051f-42a2-4798-af93-cf2023dd2e28/home?orgId=1&from=now-3h&to=now&timezone=browser&var-Origin=argocd&refresh=10s",
+    "description": "Updated common dashboard for all systems",
+    "refreshInterval": 300,
+    "requiresAuth": true,
+    "category": "Monitoring"
+  },
+  {
+    "id": "health-monitor",
+    "name": "Health Monitor",
+    "url": "https://healthmonitor.vtex.com/",
+    "description": "Health monitor for all systems",
+    "refreshInterval": 600,
+    "requiresAuth": true,
+    "category": "Business Intelligence"
+  }
+]
