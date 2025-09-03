@@ -1,11 +1,15 @@
 import type { AppProps } from 'next/app';
 import { Inter } from 'next/font/google';
 import { useEffect } from 'react';
+import { useAutoRegister } from '@/hooks/useAutoRegister';
 import '@/styles/globals.css';
 
 const inter = Inter({ subsets: ['latin'] });
 
 export default function App({ Component, pageProps }: AppProps) {
+  // 🚀 AUTO-REGISTRO: Tentar auto-registrar controller no admin
+  const autoRegisterStatus = useAutoRegister();
+
   // 🚀 AUTO-INICIALIZAÇÃO: Chamar auto-init quando app carrega
   useEffect(() => {
     const autoInit = async () => {
