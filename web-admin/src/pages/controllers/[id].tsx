@@ -15,6 +15,7 @@ import {
   Building2
 } from 'lucide-react';
 import Layout from '@/components/Layout';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { Controller } from '@/types/multi-site-types';
 import { useToastContext } from '@/contexts/ToastContext';
 import { usePendingToasts } from '@/hooks/usePendingToasts';
@@ -28,9 +29,10 @@ const ControllerDetailsPage: NextPage = () => {
   usePendingToasts();
   
   const [controller, setController] = useState<Controller | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true);  
   const [error, setError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const hasInitializedRef = useRef(false);
 
   useEffect(() => {
@@ -60,11 +62,15 @@ const ControllerDetailsPage: NextPage = () => {
     }
   };
 
-  const handleDelete = async () => {
-    if (!controller || !confirm('Are you sure you want to unregister this controller? This will remove it from the system, but it can reconnect automatically if still online.')) {
-      return;
-    }
+  const handleDeleteClick = () => {
+    if (!controller) return;
+    setShowDeleteConfirm(true);
+  };
 
+  const handleDeleteConfirm = async () => {
+    if (!controller) return;
+    
+    setShowDeleteConfirm(false);
     setIsDeleting(true);
     
     try {
@@ -117,7 +123,7 @@ const ControllerDetailsPage: NextPage = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="animate-pulse">
             {/* Header Skeleton */}
-            <div className="border-b border-gray-200 pb-6 mb-8">
+            <div className="border-b border-gray-200 dark:border-gray-700 pb-6 mb-8">
               <div className="flex items-center justify-between">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center mb-2">
@@ -191,41 +197,53 @@ const ControllerDetailsPage: NextPage = () => {
   }
 
   return (
-    <Layout>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <>
+      <ConfirmDialog
+        isOpen={showDeleteConfirm}
+        title="Unregister Controller"
+        message="Are you sure you want to unregister this controller? This will remove it from the system, but it can reconnect automatically if still online."
+        confirmText="Unregister"
+        cancelText="Cancel"
+        variant="warning"
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
+      
+      <Layout>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="border-b border-gray-200 pb-6 mb-8">
+        <div className="border-b border-gray-200 dark:border-gray-700 pb-6 mb-8">
           <div className="flex items-center justify-between">
             <div className="min-w-0 flex-1">
               <div className="flex items-center mb-2">
                 <Link
                   href="/controllers"
-                  className="mr-4 text-gray-400 hover:text-gray-600 transition-colors"
+                  className="mr-4 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-400 transition-colors"
                 >
                   <ArrowLeft className="h-6 w-6" />
                 </Link>
                 <div className="flex items-center space-x-3">
-                  <h1 className="text-2xl font-bold leading-7 text-gray-900 sm:truncate sm:text-3xl sm:tracking-tight">
+                  <h1 className="text-2xl font-bold leading-7 text-gray-900 dark:text-gray-100 sm:truncate sm:text-3xl sm:tracking-tight">
                     {controller.name}
                   </h1>
                   <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ring-1 ring-inset ${
                     controller.status === 'online'
-                      ? 'bg-green-50 text-green-700 ring-green-600/20'
+                      ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 ring-green-600/20 dark:ring-green-400/20'
                       : controller.status === 'offline'
-                      ? 'bg-red-50 text-red-700 ring-red-600/20'
-                      : 'bg-yellow-50 text-yellow-800 ring-yellow-600/20'
+                      ? 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 ring-red-600/20 dark:ring-red-400/20'
+                      : 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-400 ring-yellow-600/20 dark:ring-yellow-400/20'
                   }`}>
                     {controller.status === 'online' ? 'Online' : controller.status === 'offline' ? 'Offline' : 'Error'}
                   </span>
                 </div>
               </div>
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-gray-500 dark:text-gray-400">
                 <strong className="text-blue-600">Auto-registered controller</strong> • Version: {controller.version} • Last sync: {formatLastSync(controller.lastSync)}
               </p>
             </div>
             <div className="ml-6 flex flex-shrink-0 space-x-3">
               <button
-                onClick={handleDelete}
+                onClick={handleDeleteClick}
                 disabled={isDeleting}
                 className="inline-flex items-center rounded-md bg-orange-600 px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-orange-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
@@ -249,63 +267,63 @@ const ControllerDetailsPage: NextPage = () => {
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">
             {/* Controller Information */}
-            <div className="bg-white shadow rounded-lg">
+            <div className="bg-white dark:bg-gray-800 shadow rounded-lg">
               <div className="px-4 py-5 sm:p-6">
-                <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
+                <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-gray-100 mb-4">
                   Controller Information
                 </h3>
                 
                 <div className="grid grid-cols-1 gap-6">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                       Controller Name
                     </label>
-                    <div className="text-sm text-gray-900 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                    <div className="text-sm text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2">
                       {controller.name}
                     </div>
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                       <Building2 className="h-4 w-4 inline mr-2" />
                       Associated Site
                     </label>
-                    <div className="text-sm text-gray-900 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                    <div className="text-sm text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2">
                       {controller.siteId || 'No site assigned'}
                     </div>
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                       <Network className="h-4 w-4 inline mr-2" />
                       Local Network
                     </label>
-                    <div className="text-sm text-gray-900 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 font-mono">
+                    <div className="text-sm text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 font-mono">
                       {controller.localNetwork}
                     </div>
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                       <Wifi className="h-4 w-4 inline mr-2" />
                       mDNS Service
                     </label>
-                    <div className="text-sm text-gray-900 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 font-mono">
+                    <div className="text-sm text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 font-mono">
                       {controller.mdnsService}
                     </div>
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                       <Server className="h-4 w-4 inline mr-2" />
                       Controller Access URL
                     </label>
-                    <div className="text-sm text-gray-900 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                    <div className="text-sm text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2">
                       <a 
                         href={controller.controllerUrl} 
                         target="_blank" 
                         rel="noopener noreferrer"
-                        className="text-blue-600 hover:text-blue-800 underline"
+                        className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline"
                       >
                         {controller.controllerUrl}
                       </a>
@@ -320,12 +338,12 @@ const ControllerDetailsPage: NextPage = () => {
           <div className="lg:col-span-1 space-y-6">
 
             {/* Auto Registration Info */}
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-              <h4 className="text-sm font-medium text-blue-900 mb-3">🔄 Auto Registration</h4>
-              <p className="text-sm text-blue-700 mb-3">
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-6">
+              <h4 className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-3">🔄 Auto Registration</h4>
+              <p className="text-sm text-blue-700 dark:text-blue-300 mb-3">
                 This controller was <strong>automatically registered</strong> when it connected to the network and established communication with the admin panel.
               </p>
-              <ul className="text-sm text-blue-600 space-y-1">
+              <ul className="text-sm text-blue-600 dark:text-blue-400 space-y-1">
                 <li>• Controllers register themselves automatically when online</li>
                 <li>• Status updates in real-time via network communication</li>
                 <li>• No manual configuration required</li>
@@ -334,7 +352,8 @@ const ControllerDetailsPage: NextPage = () => {
           </div>
         </div>
       </div>
-    </Layout>
+      </Layout>
+    </>
   );
 };
 

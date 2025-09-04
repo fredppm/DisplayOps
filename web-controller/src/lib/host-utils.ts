@@ -1,12 +1,16 @@
+import { createContextLogger } from '@/utils/logger';
+
+const hostUtilsLogger = createContextLogger('host-utils');
+
 // Simple in-memory cache for host mappings
 let hostCache: Map<string, { ipAddress: string; port: number }> = new Map();
 
 export function parseHostId(hostId: string): { ipAddress: string; port: number } | null {
-  console.log(`🔍 parseHostId: Parsing hostId: ${hostId}`);
+  hostUtilsLogger.debug('Parsing hostId', { hostId });
   
   // First try the gRPC-compatible format: agent-*-*-*-*-PORT format
   const parts = hostId.split('-');
-  console.log(`🔍 parseHostId: Split parts:`, parts);
+  hostUtilsLogger.debug('Split hostId parts', { parts });
   
   // Look for agent at the beginning, then IP parts at the end
   const agentIndex = parts.indexOf('agent');
@@ -14,21 +18,21 @@ export function parseHostId(hostId: string): { ipAddress: string; port: number }
     // Format could be: VTEX-B9LH6Z3-agent-192-168-1-100-8080
     // We need the last 5 parts after 'agent': IP (4 parts) + PORT (1 part)
     const relevantParts = parts.slice(agentIndex + 1);
-    console.log(`🔍 parseHostId: Relevant parts after 'agent':`, relevantParts);
+    hostUtilsLogger.debug('Relevant parts after agent', { relevantParts });
     
     if (relevantParts.length >= 5) {
       const port = parseInt(relevantParts[relevantParts.length - 1]);
       const ipParts = relevantParts.slice(-5, -1); // Last 5 parts minus the port = 4 IP parts
       
-      console.log(`🔍 parseHostId: Port:`, port, `IP parts:`, ipParts);
+      hostUtilsLogger.debug('Parsed port and IP parts', { port, ipParts });
       
       if (ipParts.length === 4 && !isNaN(port)) {
         const ipAddress = ipParts.join('.');
-        console.log(`🔍 parseHostId: Constructed IP:`, ipAddress);
+        hostUtilsLogger.debug('Constructed IP address', { ipAddress });
         
         // Basic IP validation
         if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(ipAddress)) {
-          console.log(`✅ parseHostId: Successfully parsed: ${ipAddress}:${port}`);
+          hostUtilsLogger.debug('Successfully parsed hostId', { ipAddress, port });
           return { ipAddress, port };
         }
       }
@@ -36,12 +40,12 @@ export function parseHostId(hostId: string): { ipAddress: string; port: number }
   }
   
   // If not gRPC format, try discovery service for new format hostIds
-  console.log(`🔍 parseHostId: Not gRPC format, trying discovery service...`);
+  hostUtilsLogger.debug('Not gRPC format, trying discovery service', { hostId });
   
   // Try cache first
   if (hostCache.has(hostId)) {
     const cached = hostCache.get(hostId)!;
-    console.log(`✅ parseHostId: Found in cache:`, cached);
+    hostUtilsLogger.debug('Found in cache', { hostId, cached });
     return cached;
   }
   
@@ -59,17 +63,17 @@ export function parseHostId(hostId: string): { ipAddress: string; port: number }
           ipAddress: host.ipAddress,
           port: host.port
         };
-        console.log(`✅ parseHostId: Found in discovery service:`, hostInfo);
+        hostUtilsLogger.debug('Found in discovery service', { hostId, hostInfo });
         // Cache for future use
         hostCache.set(hostId, hostInfo);
         return hostInfo;
       }
     }
   } catch (error: any) {
-    console.debug('Could not get host from discovery service:', error?.message || 'unknown error');
+    hostUtilsLogger.debug('Could not get host from discovery service', { error: error?.message || 'unknown error' });
   }
   
-  console.error(`❌ parseHostId: Could not parse hostId: ${hostId}`);
+  hostUtilsLogger.warn('Could not parse hostId', { hostId });
   return null;
 }
 

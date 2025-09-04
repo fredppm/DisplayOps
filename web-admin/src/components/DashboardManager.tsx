@@ -329,15 +329,15 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ initialDashb
       )}
 
       {/* Dashboard Management Card */}
-      <div className="border border-gray-200 rounded-lg bg-white shadow-sm">
+      <div className="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 shadow-sm">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200">
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
             <div className="min-w-0 flex-1">
-              <h2 className="text-lg font-medium text-gray-900">
+              <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100">
                 Dashboard Management
               </h2>
-              <div className="mt-1 text-sm text-gray-500">
+              <div className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 Configure and deploy dashboards to display devices
               </div>
             </div>
@@ -356,18 +356,18 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ initialDashb
         </div>
 
         {/* Dashboards List */}
-        <div className="divide-y divide-gray-200">
+        <div className="divide-y divide-gray-200 dark:divide-gray-700">
           {loading ? (
             <DashboardListSkeleton />
           ) : dashboards.length === 0 ? (
             <div className="px-6 py-8 text-center">
-              <div className="w-12 h-12 text-gray-400 mx-auto mb-4">
+              <div className="w-12 h-12 text-gray-400 dark:text-gray-500 mx-auto mb-4">
                 <svg className="w-full h-full" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                 </svg>
               </div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No dashboards configured yet</h3>
-              <p className="text-gray-600">
+              <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">No dashboards configured yet</h3>
+              <p className="text-gray-600 dark:text-gray-400">
                 Use the "Add Dashboard" button above to create your first dashboard
               </p>
             </div>
@@ -376,7 +376,7 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ initialDashb
             <div
               key={dashboard.id} 
               className={`px-6 py-6 ${
-                selectedDashboard === dashboard.id ? 'bg-gray-50' : 'hover:bg-gray-50'
+                selectedDashboard === dashboard.id ? 'bg-gray-50 dark:bg-gray-700' : 'hover:bg-gray-50 dark:hover:bg-gray-700'
               } cursor-pointer transition-colors`}
               onClick={() => setSelectedDashboard(
                 selectedDashboard === dashboard.id ? null : dashboard.id
@@ -386,7 +386,7 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ initialDashb
                 <div className="flex items-center justify-between">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center space-x-2">
-                      <h4 className="text-lg font-medium text-gray-900">
+                      <h4 className="text-lg font-medium text-gray-900 dark:text-gray-100">
                         {dashboard.name}
                       </h4>
                       <button
@@ -409,7 +409,7 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ initialDashb
                         </span>
                       )}
                     </div>
-                    <div className="mt-1 flex items-center space-x-4 text-sm text-gray-500">
+                    <div className="mt-1 flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400">
                       <span className="flex items-center">
                         <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
@@ -418,7 +418,7 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ initialDashb
                       </span>
                       
                       {dashboard.category && (
-                        <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-800">
+                        <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200">
                           {dashboard.category}
                         </span>
                       )}
@@ -440,7 +440,7 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ initialDashb
                         e.stopPropagation();
                         startEditingDashboard(dashboard);
                       }}
-                      className="inline-flex items-center px-2 py-1 text-xs font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                      className="inline-flex items-center px-2 py-1 text-xs font-medium text-gray-700 dark:text-gray-300 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800"
                     >
                       <Edit3 className="w-3 h-3 mr-1" />
                       Edit
@@ -451,7 +451,7 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ initialDashb
                         e.stopPropagation();
                         confirmDeleteDashboard(dashboard.id);
                       }}
-                      className="inline-flex items-center px-2 py-1 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                      className="inline-flex items-center px-2 py-1 text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded hover:bg-red-100 dark:hover:bg-red-900/30 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 dark:focus:ring-offset-gray-800"
                     >
                       <Trash2 className="w-3 h-3 mr-1" />
                       Delete
@@ -463,8 +463,8 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ initialDashb
                 <div className="mt-4">
                   <div className="space-y-3">
                     <div>
-                      <span className="text-xs text-gray-500 uppercase tracking-wide font-medium">URL</span>
-                      <div className="text-sm text-gray-400 font-mono">
+                      <span className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide font-medium">URL</span>
+                      <div className="text-sm text-gray-400 dark:text-gray-500 font-mono">
                         {dashboard.url}
                       </div>
                     </div>
@@ -480,23 +480,23 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ initialDashb
       {/* Add/Edit Dashboard Modal */}
       {showEditModal && editForm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" style={{margin: 0, top: 0}}>
-          <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <h3 className="text-lg font-semibold mb-4">{editingDashboard ? 'Edit Dashboard' : 'Add New Dashboard'}</h3>
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">{editingDashboard ? 'Edit Dashboard' : 'Add New Dashboard'}</h3>
             
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name *</label>
                 <input
                   type="text"
                   value={editForm.name}
                   onChange={(e) => setEditForm(prev => ({ ...prev!, name: e.target.value }))}
-                  className="w-full p-2 border rounded"
+                  className="w-full p-2 border dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400"
                   placeholder="Dashboard name"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">URL *</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">URL *</label>
                 <input
                   type="url"
                   value={editForm.url}
@@ -507,11 +507,11 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ initialDashb
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
                 <textarea
                   value={editForm.description || ''}
                   onChange={(e) => setEditForm(prev => ({ ...prev!, description: e.target.value }))}
-                  className="w-full p-2 border rounded"
+                  className="w-full p-2 border dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400"
                   placeholder="Dashboard description"
                   rows={2}
                 />
@@ -519,22 +519,22 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ initialDashb
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Refresh Interval (seconds)</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Refresh Interval (seconds)</label>
                   <input
                     type="number"
                     min="30"
                     max="3600"
                     value={editForm.refreshInterval}
                     onChange={(e) => setEditForm(prev => ({ ...prev!, refreshInterval: parseInt(e.target.value) || 300 }))}
-                    className="w-full p-2 border rounded"
+                    className="w-full p-2 border dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Category</label>
                   <select
                     value={editForm.category}
                     onChange={(e) => setEditForm(prev => ({ ...prev!, category: e.target.value }))}
-                    className="w-full p-2 border rounded"
+                    className="w-full p-2 border dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400"
                   >
                     <option value="Custom">Custom</option>
                     <option value="Analytics">Analytics</option>
@@ -566,7 +566,7 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ initialDashb
               <div className="flex justify-end space-x-3 pt-4 border-t">
                 <button 
                   onClick={cancelEditingDashboard}
-                  className="px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded flex items-center transition-colors"
+                  className="px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 dark:text-gray-300 rounded flex items-center transition-colors"
                 >
                   <XCircle className="w-3 h-3 mr-1" />
                   Cancel
@@ -600,7 +600,7 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ initialDashb
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
             <h3 className="text-lg font-semibold mb-4 text-red-600">⚠️ Delete Dashboard</h3>
             
-            <p className="text-gray-700 mb-4">
+            <p className="text-gray-700 dark:text-gray-300 mb-4">
               Are you sure you want to delete <strong>{dashboards.find(d => d.id === showDeleteConfirm)?.name}</strong>?
             </p>
             
@@ -611,7 +611,7 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ initialDashb
             <div className="flex justify-end space-x-3">
               <button 
                 onClick={() => setShowDeleteConfirm('')}
-                className="px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded flex items-center transition-colors"
+                className="px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 dark:text-gray-300 rounded flex items-center transition-colors"
               >
                 Cancel
               </button>

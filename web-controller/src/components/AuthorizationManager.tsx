@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { MiniPC } from '@/types/shared-types';
+import { createContextLogger } from '@/utils/logger';
 import { 
   Cookie, 
   Copy, 
@@ -26,6 +27,8 @@ interface AuthorizationManagerProps {
   hosts: MiniPC[];
 }
 
+const authManagerLogger = createContextLogger('auth-manager');
+
 // Import Form Component
 const ImportForm: React.FC<{
   domain: string;
@@ -38,7 +41,7 @@ const ImportForm: React.FC<{
   const handleImport = async (replaceAll: boolean) => {
     if (!importData.trim()) return;
     if (!domain || domain.trim() === '') {
-      console.error('Domain is empty, cannot import cookies');
+      authManagerLogger.error('Cannot import cookies: domain is empty');
       return;
     }
 
@@ -60,7 +63,7 @@ const ImportForm: React.FC<{
         onSuccess(); // This will trigger loadSavedCookieData in the parent
       }
     } catch (error) {
-      console.error('Import failed:', error);
+      authManagerLogger.error('Cookie import failed', { error: error instanceof Error ? error.message : String(error) });
     } finally {
       setIsImporting(false);
     }
@@ -148,10 +151,10 @@ const CookieForm: React.FC<{
       if (result.success) {
         onSuccess();
       } else {
-        console.error('Save failed:', result.error);
+        authManagerLogger.error('Save failed', { error: result.error });
       }
     } catch (error) {
-      console.error('Save failed:', error);
+      authManagerLogger.error('Save failed', { error: error instanceof Error ? error.message : String(error) });
     } finally {
       setIsSaving(false);
     }
@@ -543,7 +546,7 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
         addNotification('error', 'Remove Failed', result.error || 'Failed to remove domain from server');
       }
     } catch (error) {
-      console.error('Error removing domain:', error);
+      authManagerLogger.error('Error removing domain', { error: error instanceof Error ? error.message : String(error) });
       addNotification('error', 'Remove Failed', 'Failed to communicate with server');
     } finally {
       setRemovingDomains(prev => {
@@ -658,7 +661,7 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
           'Some displays may not have refreshed. Cookies synced but may need manual refresh.');
       }
     } catch (error) {
-      console.error('Error refreshing pages:', error);
+      authManagerLogger.error('Error refreshing pages', { error: error instanceof Error ? error.message : String(error) });
       addNotification('warning', 'Refresh Error', 
         'Cookies synced successfully but auto-refresh failed. You may need to manually refresh displays.');
     }
@@ -854,7 +857,7 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
       }
 
     } catch (error) {
-      console.error('Cookie sync error:', error);
+      authManagerLogger.error('Cookie sync error', { error: error instanceof Error ? error.message : String(error) });
       // Replace with error notification
       setNotifications(prev => prev.map(n => 
         n.id === syncNotificationId 
@@ -913,15 +916,14 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
   // Helper to get domain from domainId
   const getDomainFromId = (domainId: string): string => {
     const domain = authDomains.find(d => d.id === domainId);
-    console.log('getDomainFromId:', { domainId, domain: domain?.domain, allDomains: authDomains });
+    authManagerLogger.debug('getDomainFromId', { domainId, domain: domain?.domain, totalDomains: authDomains.length });
     return domain?.domain || '';
   };
 
   // Open import modal for DevTools table format
   const openImportModal = (domainId: string) => {
-    console.log('Opening import modal for domainId:', domainId);
     const domainObj = authDomains.find(d => d.id === domainId);
-    console.log('Domain object:', domainObj);
+    authManagerLogger.debug('Opening import modal', { domainId, domainObj: domainObj?.domain });
     setCurrentDomainId(domainId);
     setShowImportModal(true);
     // Cookies will be loaded automatically from storage
@@ -962,7 +964,7 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
         addNotification('error', 'Delete Failed', result.error || `Failed to delete "${cookieName}"`);
       }
     } catch (error) {
-      console.error('Error deleting cookie:', error);
+      authManagerLogger.error('Error deleting cookie', { error: error instanceof Error ? error.message : String(error) });
       addNotification('error', 'Delete Failed', `Failed to delete "${cookieName}" - check connection`);
     } finally {
       setDeletingCookies(prev => {
@@ -1082,7 +1084,7 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
               <Cookie className="w-12 h-12 text-gray-400 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">No domains configured yet</h3>
               <p className="text-gray-600">
-                Use the "Add Domain" button above to start managing cookies
+                Use the &quot;Add Domain&quot; button above to start managing cookies
               </p>
             </div>
           ) : (
@@ -1383,7 +1385,7 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
             <ImportForm 
               domain={getDomainFromId(currentDomainId)}
               onSuccess={() => {
-                console.log('Import success, currentDomainId:', currentDomainId);
+                authManagerLogger.info('Import success', { currentDomainId });
                 setShowImportModal(false);
                 // Reload data to show imported cookies
                 loadSavedCookieData(true);

@@ -6,7 +6,9 @@ import fs from 'fs/promises';
 import path from 'path';
 // Using proto-loader runtime types (no static TypeScript types)
 import { Controller } from '@/types/multi-site-types';
-import { logger } from '@/utils/logger';
+import { createContextLogger } from '@/utils/logger';
+
+const grpcServerLogger = createContextLogger('grpc-server');
 
 // Load protobuf definition
 const PROTO_PATH = join(process.cwd(), '..', 'shared', 'proto', 'controller-admin.proto');
@@ -68,7 +70,7 @@ function createErrorResponse(controllerId: string, errorCode: string, errorMessa
 }
 
 export class ControllerAdminGrpcServer extends EventEmitter {
-  private server: grpc.Server;
+  private server!: grpc.Server;
   private connections: Map<string, ControllerConnection> = new Map();
   private packageDefinition: any;
   private protoDescriptor: any;
@@ -103,26 +105,172 @@ export class ControllerAdminGrpcServer extends EventEmitter {
         AdminCommandStream: this.handleAdminCommandStream.bind(this)
       });
 
-      logger.info('gRPC ControllerAdminServer initialized', { port: this.port });
+      grpcServerLogger.info('gRPC ControllerAdminServer initialized', { port: this.port });
     } catch (error) {
-      logger.error('Failed to setup gRPC server:', error);
+      grpcServerLogger.error('Failed to setup gRPC server:', error);
       throw error;
     }
   }
 
+  private async isPortInUse(port: number): Promise<boolean> {
+    return new Promise((resolve) => {
+      const server = require('net').createServer();
+      server.listen(port, (err: any) => {
+        if (err) {
+          resolve(true); // Port is in use
+        } else {
+          server.once('close', () => resolve(false));
+          server.close();
+        }
+      });
+      server.on('error', () => resolve(true));
+    });
+  }
+
+  private async killProcessOnPort(port: number): Promise<void> {
+    return new Promise((resolve) => {
+      const { exec } = require('child_process');
+      const isWindows = process.platform === 'win32';
+      
+      if (isWindows) {
+        exec(`netstat -ano | findstr :${port}`, (error: any, stdout: string) => {
+          if (stdout) {
+            const lines = stdout.trim().split('\n');
+            const pids = new Set<string>();
+            
+            lines.forEach(line => {
+              const parts = line.trim().split(/\s+/);
+              if (parts.length > 4) {
+                pids.add(parts[parts.length - 1]);
+              }
+            });
+            
+            if (pids.size > 0) {
+              grpcServerLogger.info(`Found ${pids.size} processes using port ${port}, killing them...`);
+              const killPromises = Array.from(pids).map(pid => {
+                return new Promise<void>((resolveKill) => {
+                  // Skip system processes
+                  if (pid === '0' || pid === '4') {
+                    resolveKill();
+                    return;
+                  }
+                  
+                  // Try graceful termination first, then force kill
+                  exec(`taskkill /PID ${pid}`, (killError: any) => {
+                    if (killError) {
+                      // If graceful fails, force kill
+                      exec(`taskkill /F /PID ${pid}`, (forceKillError: any) => {
+                        if (forceKillError) {
+                          grpcServerLogger.warn(`Failed to force kill process ${pid}:`, forceKillError.message);
+                        } else {
+                          grpcServerLogger.info(`Force killed process ${pid}`);
+                        }
+                        resolveKill();
+                      });
+                    } else {
+                      grpcServerLogger.info(`Gracefully killed process ${pid}`);
+                      resolveKill();
+                    }
+                  });
+                });
+              });
+              
+              Promise.all(killPromises).then(() => {
+                // Wait longer for Windows processes to fully terminate
+                setTimeout(resolve, 2000);
+              });
+            } else {
+              resolve();
+            }
+          } else {
+            resolve();
+          }
+        });
+      } else {
+        exec(`lsof -ti:${port}`, (error: any, stdout: string) => {
+          if (stdout) {
+            const pids = stdout.trim().split('\n').filter(pid => pid);
+            if (pids.length > 0) {
+              grpcServerLogger.info(`Found ${pids.length} processes using port ${port}, killing them...`);
+              const killPromises = pids.map(pid => {
+                return new Promise<void>((resolveKill) => {
+                  exec(`kill -TERM ${pid}`, (killError: any) => {
+                    if (killError) {
+                      // If SIGTERM fails, try SIGKILL
+                      exec(`kill -9 ${pid}`, (forceKillError: any) => {
+                        if (forceKillError) {
+                          grpcServerLogger.warn(`Failed to kill process ${pid}:`, forceKillError.message);
+                        } else {
+                          grpcServerLogger.info(`Force killed process ${pid}`);
+                        }
+                        resolveKill();
+                      });
+                    } else {
+                      grpcServerLogger.info(`Gracefully killed process ${pid}`);
+                      resolveKill();
+                    }
+                  });
+                });
+              });
+              
+              Promise.all(killPromises).then(() => {
+                setTimeout(resolve, 1500);
+              });
+            } else {
+              resolve();
+            }
+          } else {
+            resolve();
+          }
+        });
+      }
+    });
+  }
+
   public async start(): Promise<void> {
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
+      // Enhanced port cleanup with retry logic
+      let retryCount = 0;
+      const maxRetries = 3;
+      
+      while (retryCount < maxRetries) {
+        const portInUse = await this.isPortInUse(this.port);
+        if (!portInUse) {
+          break; // Port is free, proceed
+        }
+        
+        grpcServerLogger.warn(`Port ${this.port} is in use (attempt ${retryCount + 1}/${maxRetries}), attempting to free it...`);
+        await this.killProcessOnPort(this.port);
+        
+        // Progressive delay: 2s, 3s, 5s
+        const delay = 2000 + (retryCount * 1000);
+        await new Promise(r => setTimeout(r, delay));
+        
+        const stillInUse = await this.isPortInUse(this.port);
+        if (!stillInUse) {
+          grpcServerLogger.info(`Port ${this.port} successfully freed after cleanup attempt ${retryCount + 1}`);
+          break;
+        }
+        
+        retryCount++;
+        if (retryCount >= maxRetries) {
+          grpcServerLogger.error(`Port ${this.port} is still in use after ${maxRetries} cleanup attempts`);
+          reject(new Error(`Port ${this.port} is still in use after multiple cleanup attempts`));
+          return;
+        }
+      }
+
       const serverCredentials = grpc.ServerCredentials.createInsecure();
       
       this.server.bindAsync(`0.0.0.0:${this.port}`, serverCredentials, (error, port) => {
         if (error) {
-          logger.error('Failed to bind gRPC server:', error);
+          grpcServerLogger.error('Failed to bind gRPC server:', error);
           reject(error);
           return;
         }
 
         this.server.start();
-        logger.info(`gRPC ControllerAdminServer started on port ${port}`);
+        grpcServerLogger.info(`gRPC ControllerAdminServer started on port ${port}`);
         
         // Start connection cleanup interval
         this.startConnectionCleanup();
@@ -144,25 +292,50 @@ export class ControllerAdminGrpcServer extends EventEmitter {
         try {
           conn.stream.end();
         } catch (error) {
-          logger.warn('Error closing connection:', error);
+          grpcServerLogger.warn('Error closing connection:', error);
         }
       });
       this.connections.clear();
 
+      // First try graceful shutdown
       this.server.tryShutdown((error) => {
         if (error) {
-          logger.error('Error during server shutdown:', error);
+          grpcServerLogger.warn('Graceful shutdown failed, forcing shutdown:', error);
+          // Force shutdown if graceful fails (important for hotreload scenarios)
+          this.server.forceShutdown();
+          grpcServerLogger.info('gRPC ControllerAdminServer force stopped');
         } else {
-          logger.info('gRPC ControllerAdminServer stopped');
+          grpcServerLogger.info('gRPC ControllerAdminServer stopped gracefully');
         }
         resolve();
       });
     });
   }
 
+  public forceStop(): void {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
+    }
+
+    // Close all connections immediately
+    this.connections.forEach((conn) => {
+      try {
+        conn.stream.destroy();
+      } catch (error) {
+        grpcServerLogger.warn('Error destroying connection:', error);
+      }
+    });
+    this.connections.clear();
+
+    // Force shutdown immediately (for hotreload scenarios)
+    this.server.forceShutdown();
+    grpcServerLogger.info('gRPC ControllerAdminServer force stopped immediately');
+  }
+
   private handleHeartbeatStream(stream: grpc.ServerDuplexStream<any, any>): void {
     const connectionId = this.generateConnectionId();
-    logger.info('New controller heartbeat stream connected', { connectionId });
+    grpcServerLogger.info('New controller heartbeat stream connected', { connectionId });
 
     let controllerConnection: ControllerConnection | null = null;
 
@@ -175,19 +348,19 @@ export class ControllerAdminGrpcServer extends EventEmitter {
           controllerConnection.lastHeartbeat = new Date();
         }
       } catch (error) {
-        logger.error('Error processing heartbeat:', error);
+        grpcServerLogger.error('Error processing heartbeat:', error);
         this.sendErrorResponse(stream, heartbeat.controller_id, 'PROCESSING_ERROR', 
           `Error processing heartbeat: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
     });
 
     stream.on('end', () => {
-      logger.info('Controller heartbeat stream ended', { connectionId });
+      grpcServerLogger.info('Controller heartbeat stream ended', { connectionId });
       this.removeConnection(connectionId);
     });
 
     stream.on('error', (error) => {
-      logger.error('Controller heartbeat stream error:', { connectionId, error });
+      grpcServerLogger.error('Controller heartbeat stream error:', { connectionId, error });
       this.removeConnection(connectionId);
     });
 
@@ -209,7 +382,7 @@ export class ControllerAdminGrpcServer extends EventEmitter {
   ): Promise<void> {
     const connection = this.connections.get(connectionId);
     if (!connection) {
-      logger.error('Connection not found for heartbeat', { connectionId });
+      grpcServerLogger.error('Connection not found for heartbeat', { connectionId });
       return;
     }
 
@@ -221,7 +394,7 @@ export class ControllerAdminGrpcServer extends EventEmitter {
     } else if (heartbeat.type === 'STATUS_UPDATE') {
       await this.handleStatusUpdate(heartbeat, stream, connection);
     } else {
-      logger.warn('Unknown heartbeat type received', { 
+      grpcServerLogger.warn('Unknown heartbeat type received', { 
         type: heartbeat.type, 
         controllerId: heartbeat.controller_id 
       });
@@ -237,12 +410,12 @@ export class ControllerAdminGrpcServer extends EventEmitter {
     const registrationData = heartbeat.registration;
 
     if (!registrationData) {
-      logger.error('Registration heartbeat missing registration data', { controller_id });
+      grpcServerLogger.error('Registration heartbeat missing registration data', { controller_id });
       this.sendErrorResponse(stream, controller_id, 'MISSING_DATA', 'Registration data is required');
       return;
     }
 
-    logger.info('Processing controller registration', { 
+    grpcServerLogger.info('Processing controller registration', { 
       controller_id,
       hostname: registrationData.hostname,
       location: registrationData.location 
@@ -268,14 +441,20 @@ export class ControllerAdminGrpcServer extends EventEmitter {
       // Emit event for other parts of the application
       this.emit('controller_registered', controller);
       
-      logger.info('Controller registration successful', { 
+      // Process pending dashboard syncs for this controller
+      await this.processPendingSyncs(controller.id);
+      
+      // Process pending cookie syncs for this controller
+      await this.processPendingCookieSyncs(controller.id);
+      
+      grpcServerLogger.info('Controller registration successful', { 
         controller_id: controller.id,
         name: controller.name,
         siteId: controller.siteId
       });
 
     } catch (error) {
-      logger.error('Controller registration failed:', error);
+      grpcServerLogger.error('Controller registration failed:', error);
       
       const response = createRegistrationResponse(
         controller_id,
@@ -296,14 +475,14 @@ export class ControllerAdminGrpcServer extends EventEmitter {
     const statusData = heartbeat.status;
 
     if (!connection.isRegistered) {
-      logger.warn('Status update from unregistered controller', { controller_id });
+      grpcServerLogger.warn('Status update from unregistered controller', { controller_id });
       this.sendErrorResponse(stream, controller_id, 'NOT_REGISTERED', 
         'Controller must complete registration first');
       return;
     }
 
     if (!statusData) {
-      logger.error('Status heartbeat missing status data', { controller_id });
+      grpcServerLogger.error('Status heartbeat missing status data', { controller_id });
       this.sendErrorResponse(stream, controller_id, 'MISSING_DATA', 'Status data is required');
       return;
     }
@@ -324,7 +503,7 @@ export class ControllerAdminGrpcServer extends EventEmitter {
       });
 
     } catch (error) {
-      logger.error('Failed to update controller status:', error);
+      grpcServerLogger.error('Failed to update controller status:', error);
       this.sendErrorResponse(stream, controller_id, 'UPDATE_ERROR', 
         `Failed to update status: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -413,19 +592,19 @@ export class ControllerAdminGrpcServer extends EventEmitter {
 
   private handleAdminCommandStream(stream: grpc.ServerDuplexStream<any, any>): void {
     // Future implementation for admin commands
-    logger.info('Admin command stream connected (placeholder)');
+    grpcServerLogger.info('Admin command stream connected (placeholder)');
     
     stream.on('data', (command) => {
-      logger.info('Received admin command (placeholder):', command);
+      grpcServerLogger.info('Received admin command (placeholder):', command);
       // TODO: Implement admin command handling
     });
 
     stream.on('end', () => {
-      logger.info('Admin command stream ended');
+      grpcServerLogger.info('Admin command stream ended');
     });
 
     stream.on('error', (error) => {
-      logger.error('Admin command stream error:', error);
+      grpcServerLogger.error('Admin command stream error:', error);
     });
   }
 
@@ -445,7 +624,7 @@ export class ControllerAdminGrpcServer extends EventEmitter {
     try {
       stream.write(response);
     } catch (error) {
-      logger.error('Failed to send error response:', error);
+      grpcServerLogger.error('Failed to send error response:', error);
     }
   }
 
@@ -468,7 +647,7 @@ export class ControllerAdminGrpcServer extends EventEmitter {
 
       for (const [connectionId, connection] of this.connections.entries()) {
         if (now.getTime() - connection.lastHeartbeat.getTime() > timeoutMs) {
-          logger.warn('Cleaning up stale connection', { 
+          grpcServerLogger.warn('Cleaning up stale connection', { 
             connectionId, 
             controllerId: connection.controllerId 
           });
@@ -476,7 +655,7 @@ export class ControllerAdminGrpcServer extends EventEmitter {
           try {
             connection.stream.end();
           } catch (error) {
-            logger.warn('Error ending stale connection:', error);
+            grpcServerLogger.warn('Error ending stale connection:', error);
           }
           
           this.removeConnection(connectionId);
@@ -547,5 +726,398 @@ export class ControllerAdminGrpcServer extends EventEmitter {
     return Array.from(this.connections.values()).some(conn => 
       conn.controllerId === controllerId && conn.isRegistered
     );
+  }
+
+  // ================================
+  // Dashboard Sync Functions
+  // ================================
+
+  /**
+   * Marca todos os controllers como pendentes de sync de dashboard
+   */
+  public async markAllControllersForSync(): Promise<void> {
+    const CONTROLLERS_FILE = path.join(process.cwd(), 'data', 'controllers.json');
+    const controllersData = await this.readControllersData(CONTROLLERS_FILE);
+    const syncTimestamp = new Date().toISOString();
+
+    // Marcar todos os controllers como pending
+    controllersData.controllers.forEach(controller => {
+      controller.pendingDashboardSync = true;
+      controller.dashboardSyncTimestamp = syncTimestamp;
+    });
+
+    await this.writeControllersData(CONTROLLERS_FILE, controllersData);
+    
+    grpcServerLogger.info('All controllers marked for dashboard sync', {
+      controllersCount: controllersData.controllers.length,
+      syncTimestamp
+    });
+  }
+
+  /**
+   * Faz broadcast de dashboard sync para todos os controllers conectados
+   */
+  public async broadcastDashboardSync(): Promise<void> {
+    const dashboards = await this.loadDashboards();
+    const syncTimestamp = new Date().toISOString();
+
+    const dashboardSyncCommand = {
+      command_id: this.generateConnectionId(),
+      controller_id: 'broadcast',
+      type: 'DASHBOARD_SYNC',
+      timestamp: createTimestamp(),
+      dashboard_sync: {
+        dashboards: dashboards.map(d => ({
+          id: d.id,
+          name: d.name,
+          url: d.url,
+          description: d.description,
+          refresh_interval: d.refreshInterval,
+          requires_auth: d.requiresAuth,
+          category: d.category || ''
+        })),
+        sync_timestamp: syncTimestamp,
+        sync_type: 'full'
+      }
+    };
+
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const [connectionId, connection] of this.connections.entries()) {
+      if (connection.isRegistered) {
+        try {
+          // Personalizar comando para o controller específico
+          const personalizedCommand = {
+            ...dashboardSyncCommand,
+            controller_id: connection.controllerId
+          };
+
+          connection.stream.write(personalizedCommand);
+          
+          // Marcar controller como não tendo pending sync
+          await this.clearSyncFlag(connection.controllerId);
+          successCount++;
+          
+          grpcServerLogger.debug('Dashboard sync sent to controller', {
+            controllerId: connection.controllerId,
+            dashboardsCount: dashboards.length
+          });
+        } catch (error) {
+          errorCount++;
+          grpcServerLogger.error('Failed to send dashboard sync to controller', {
+            controllerId: connection.controllerId,
+            error: error instanceof Error ? error.message : String(error)
+          });
+        }
+      }
+    }
+
+    grpcServerLogger.info('Dashboard sync broadcast completed', {
+      successCount,
+      errorCount,
+      totalDashboards: dashboards.length,
+      syncTimestamp
+    });
+  }
+
+  /**
+   * Processa syncs pendentes para um controller específico quando ele reconecta
+   */
+  public async processPendingSyncs(controllerId: string): Promise<void> {
+    const CONTROLLERS_FILE = path.join(process.cwd(), 'data', 'controllers.json');
+    const controllersData = await this.readControllersData(CONTROLLERS_FILE);
+    
+    const controller = controllersData.controllers.find(c => c.id === controllerId);
+    if (!controller || !controller.pendingDashboardSync) {
+      return; // Nenhum sync pendente
+    }
+
+    grpcServerLogger.info('Processing pending dashboard sync', {
+      controllerId,
+      pendingSince: controller.dashboardSyncTimestamp
+    });
+
+    // Enviar dashboard sync para este controller específico
+    const connection = Array.from(this.connections.values())
+      .find(conn => conn.controllerId === controllerId && conn.isRegistered);
+    
+    if (connection) {
+      const dashboards = await this.loadDashboards();
+      const syncTimestamp = new Date().toISOString();
+
+      const dashboardSyncCommand = {
+        command_id: this.generateConnectionId(),
+        controller_id: controllerId,
+        type: 'DASHBOARD_SYNC',
+        timestamp: createTimestamp(),
+        dashboard_sync: {
+          dashboards: dashboards.map(d => ({
+            id: d.id,
+            name: d.name,
+            url: d.url,
+            description: d.description,
+            refresh_interval: d.refreshInterval,
+            requires_auth: d.requiresAuth,
+            category: d.category || ''
+          })),
+          sync_timestamp: syncTimestamp,
+          sync_type: 'full'
+        }
+      };
+
+      try {
+        connection.stream.write(dashboardSyncCommand);
+        await this.clearSyncFlag(controllerId);
+        
+        grpcServerLogger.info('Pending dashboard sync sent successfully', {
+          controllerId,
+          dashboardsCount: dashboards.length
+        });
+      } catch (error) {
+        grpcServerLogger.error('Failed to send pending dashboard sync', {
+          controllerId,
+          error: error instanceof Error ? error.message : String(error)
+        });
+      }
+    }
+  }
+
+  /**
+   * Remove a flag de pending sync de um controller específico
+   */
+  public async clearSyncFlag(controllerId: string): Promise<void> {
+    const CONTROLLERS_FILE = path.join(process.cwd(), 'data', 'controllers.json');
+    const controllersData = await this.readControllersData(CONTROLLERS_FILE);
+    
+    const controller = controllersData.controllers.find(c => c.id === controllerId);
+    if (controller) {
+      controller.pendingDashboardSync = false;
+      controller.dashboardSyncTimestamp = null;
+      await this.writeControllersData(CONTROLLERS_FILE, controllersData);
+      
+      grpcServerLogger.debug('Dashboard sync flag cleared', { controllerId });
+    }
+  }
+
+  /**
+   * Carrega dashboards do arquivo
+   */
+  private async loadDashboards(): Promise<any[]> {
+    const DASHBOARDS_FILE = path.join(process.cwd(), 'data', 'dashboards.json');
+    try {
+      const data = await fs.readFile(DASHBOARDS_FILE, 'utf-8');
+      const parsed = JSON.parse(data);
+      return Array.isArray(parsed) ? parsed : parsed.dashboards || [];
+    } catch (error) {
+      grpcServerLogger.error('Error loading dashboards for sync', { error });
+      return [];
+    }
+  }
+
+  // ================================
+  // Cookie Sync Functions
+  // ================================
+
+  /**
+   * Marca todos os controllers como pendentes de sync de cookies
+   */
+  public async markAllControllersForCookieSync(): Promise<void> {
+    const CONTROLLERS_FILE = path.join(process.cwd(), 'data', 'controllers.json');
+    const controllersData = await this.readControllersData(CONTROLLERS_FILE);
+    const syncTimestamp = new Date().toISOString();
+
+    // Marcar todos os controllers como pending cookie sync
+    controllersData.controllers.forEach(controller => {
+      controller.pendingCookieSync = true;
+      controller.cookieSyncTimestamp = syncTimestamp;
+    });
+
+    await this.writeControllersData(CONTROLLERS_FILE, controllersData);
+    
+    grpcServerLogger.info('All controllers marked for cookie sync', {
+      controllersCount: controllersData.controllers.length,
+      syncTimestamp
+    });
+  }
+
+  /**
+   * Faz broadcast de cookie sync para todos os controllers conectados
+   */
+  public async broadcastCookieSync(): Promise<void> {
+    const cookiesData = await this.loadCookies();
+    const syncTimestamp = new Date().toISOString();
+
+    // Convert cookies data to gRPC format
+    const cookieDomains = Object.values(cookiesData.domains).map(domain => ({
+      domain: domain.domain,
+      description: domain.description,
+      cookies: domain.cookies.map(cookie => ({
+        name: cookie.name,
+        value: cookie.value,
+        domain: cookie.domain,
+        path: cookie.path,
+        secure: cookie.secure,
+        http_only: cookie.httpOnly,
+        same_site: cookie.sameSite,
+        expiration_date: cookie.expirationDate,
+        description: cookie.description || ''
+      })),
+      last_updated: createTimestamp()
+    }));
+
+    const cookieSyncCommand = {
+      command_id: this.generateConnectionId(),
+      controller_id: 'broadcast',
+      type: 'COOKIE_SYNC',
+      timestamp: createTimestamp(),
+      cookie_sync: {
+        cookie_domains: cookieDomains,
+        sync_timestamp: syncTimestamp,
+        sync_type: 'full'
+      }
+    };
+
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const [connectionId, connection] of this.connections.entries()) {
+      if (connection.isRegistered) {
+        try {
+          // Personalizar comando para o controller específico
+          const personalizedCommand = {
+            ...cookieSyncCommand,
+            controller_id: connection.controllerId
+          };
+
+          connection.stream.write(personalizedCommand);
+          
+          // Marcar controller como não tendo pending cookie sync
+          await this.clearCookieSyncFlag(connection.controllerId);
+          successCount++;
+          
+          grpcServerLogger.debug('Cookie sync sent to controller', {
+            controllerId: connection.controllerId,
+            domainsCount: cookieDomains.length
+          });
+        } catch (error) {
+          errorCount++;
+          grpcServerLogger.error('Failed to send cookie sync to controller', {
+            controllerId: connection.controllerId,
+            error: error instanceof Error ? error.message : String(error)
+          });
+        }
+      }
+    }
+
+    grpcServerLogger.info('Cookie sync broadcast completed', {
+      successCount,
+      errorCount,
+      totalDomains: cookieDomains.length,
+      syncTimestamp
+    });
+  }
+
+  /**
+   * Processa syncs pendentes de cookies para um controller específico quando ele reconecta
+   */
+  public async processPendingCookieSyncs(controllerId: string): Promise<void> {
+    const CONTROLLERS_FILE = path.join(process.cwd(), 'data', 'controllers.json');
+    const controllersData = await this.readControllersData(CONTROLLERS_FILE);
+    
+    const controller = controllersData.controllers.find(c => c.id === controllerId);
+    if (!controller || !controller.pendingCookieSync) {
+      return; // Nenhum sync pendente
+    }
+
+    grpcServerLogger.info('Processing pending cookie sync', {
+      controllerId,
+      pendingSince: controller.cookieSyncTimestamp
+    });
+
+    // Enviar cookie sync para este controller específico
+    const connection = Array.from(this.connections.values())
+      .find(conn => conn.controllerId === controllerId && conn.isRegistered);
+    
+    if (connection) {
+      const cookiesData = await this.loadCookies();
+      const syncTimestamp = new Date().toISOString();
+
+      // Convert cookies data to gRPC format
+      const cookieDomains = Object.values(cookiesData.domains).map(domain => ({
+        domain: domain.domain,
+        description: domain.description,
+        cookies: domain.cookies.map(cookie => ({
+          name: cookie.name,
+          value: cookie.value,
+          domain: cookie.domain,
+          path: cookie.path,
+          secure: cookie.secure,
+          http_only: cookie.httpOnly,
+          same_site: cookie.sameSite,
+          expiration_date: cookie.expirationDate,
+          description: cookie.description || ''
+        })),
+        last_updated: createTimestamp()
+      }));
+
+      const cookieSyncCommand = {
+        command_id: this.generateConnectionId(),
+        controller_id: controllerId,
+        type: 'COOKIE_SYNC',
+        timestamp: createTimestamp(),
+        cookie_sync: {
+          cookie_domains: cookieDomains,
+          sync_timestamp: syncTimestamp,
+          sync_type: 'full'
+        }
+      };
+
+      try {
+        connection.stream.write(cookieSyncCommand);
+        await this.clearCookieSyncFlag(controllerId);
+        
+        grpcServerLogger.info('Pending cookie sync sent successfully', {
+          controllerId,
+          domainsCount: cookieDomains.length
+        });
+      } catch (error) {
+        grpcServerLogger.error('Failed to send pending cookie sync', {
+          controllerId,
+          error: error instanceof Error ? error.message : String(error)
+        });
+      }
+    }
+  }
+
+  /**
+   * Remove a flag de pending cookie sync de um controller específico
+   */
+  public async clearCookieSyncFlag(controllerId: string): Promise<void> {
+    const CONTROLLERS_FILE = path.join(process.cwd(), 'data', 'controllers.json');
+    const controllersData = await this.readControllersData(CONTROLLERS_FILE);
+    
+    const controller = controllersData.controllers.find(c => c.id === controllerId);
+    if (controller) {
+      controller.pendingCookieSync = false;
+      controller.cookieSyncTimestamp = null;
+      await this.writeControllersData(CONTROLLERS_FILE, controllersData);
+      
+      grpcServerLogger.debug('Cookie sync flag cleared', { controllerId });
+    }
+  }
+
+  /**
+   * Carrega cookies do arquivo
+   */
+  private async loadCookies(): Promise<any> {
+    const COOKIES_FILE = path.join(process.cwd(), 'data', 'cookies.json');
+    try {
+      const data = await fs.readFile(COOKIES_FILE, 'utf-8');
+      return JSON.parse(data);
+    } catch (error) {
+      grpcServerLogger.error('Error loading cookies for sync', { error });
+      return { domains: {}, lastUpdated: new Date().toISOString() };
+    }
   }
 }

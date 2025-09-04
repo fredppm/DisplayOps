@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Dashboard } from '@/types/shared-types';
+import { createContextLogger } from '@/utils/logger';
 import { 
   Plus, 
   ExternalLink, 
@@ -13,6 +14,8 @@ import {
 } from 'lucide-react';
 
 interface DashboardManagerProps {}
+
+const dashboardManagerLogger = createContextLogger('dashboard-manager');
 
 export const DashboardManager: React.FC<DashboardManagerProps> = () => {
   const [dashboards, setDashboards] = useState<Dashboard[]>([]);
@@ -74,7 +77,7 @@ export const DashboardManager: React.FC<DashboardManagerProps> = () => {
       
       setDashboards(result.data);
     } catch (error: any) {
-      console.error('Error fetching dashboards:', error);
+      dashboardManagerLogger.error('Error fetching dashboards', { error: error instanceof Error ? error.message : String(error) });
       addNotification('error', 'Load Error', error.message || 'Failed to load dashboards');
     } finally {
       setLoading(false);
@@ -101,7 +104,7 @@ export const DashboardManager: React.FC<DashboardManagerProps> = () => {
       addNotification('success', 'Dashboard Created', `${result.data.name} has been created`);
       return result.data;
     } catch (error: any) {
-      console.error('Error creating dashboard:', error);
+      dashboardManagerLogger.error('Error creating dashboard', { error: error instanceof Error ? error.message : String(error) });
       addNotification('error', 'Creation Error', error.message || 'Failed to create dashboard');
       throw error;
     }
@@ -127,7 +130,7 @@ export const DashboardManager: React.FC<DashboardManagerProps> = () => {
       addNotification('success', 'Dashboard Updated', `${result.data.name} has been updated`);
       return result.data;
     } catch (error: any) {
-      console.error('Error updating dashboard:', error);
+      dashboardManagerLogger.error('Error updating dashboard', { error: error instanceof Error ? error.message : String(error) });
       addNotification('error', 'Update Error', error.message || 'Failed to update dashboard');
       throw error;
     }
@@ -149,7 +152,7 @@ export const DashboardManager: React.FC<DashboardManagerProps> = () => {
       addNotification('success', 'Dashboard Deleted', `${result.data.name} has been removed`);
       return result.data;
     } catch (error: any) {
-      console.error('Error deleting dashboard:', error);
+      dashboardManagerLogger.error('Error deleting dashboard', { error: error instanceof Error ? error.message : String(error) });
       addNotification('error', 'Deletion Error', error.message || 'Failed to delete dashboard');
       throw error;
     }
@@ -372,7 +375,7 @@ export const DashboardManager: React.FC<DashboardManagerProps> = () => {
               </div>
               <h3 className="text-lg font-medium text-gray-900 mb-2">No dashboards configured yet</h3>
               <p className="text-gray-600">
-                Use the "Add Dashboard" button above to create your first dashboard
+                Use the &quot;Add Dashboard&quot; button above to create your first dashboard
               </p>
             </div>
           ) : (

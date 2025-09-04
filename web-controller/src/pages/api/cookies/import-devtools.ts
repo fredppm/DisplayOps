@@ -2,6 +2,9 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { CookieStorageManager } from '../../../lib/cookie-storage';
 import { discoveryService } from '../../../lib/discovery-singleton';
 import { proxyToHost } from '../../../lib/host-utils';
+import { createContextLogger } from '@/utils/logger';
+
+const cookiesImportLogger = createContextLogger('api-cookies-import');
 
 // Function to parse DevTools table format to structured cookies
 function parseDevToolsTable(cookieStr: string, domain: string): any[] {
@@ -82,14 +85,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     }
 
-    console.log(`🍪 [DevTools Import] Importing cookies for: ${domain}`);
-    console.log(`🍪 [DevTools Import] Replace all mode: ${replaceAll ? 'YES' : 'NO'}`);
-    console.log(`🍪 [DevTools Import] Raw cookie data length: ${cookies.length}`);
+    cookiesImportLogger.info('DevTools import starting', { domain, replaceAll, rawDataLength: cookies.length });
 
     // Step 1: Parse DevTools string format to structured cookies
     const structuredCookies = parseDevToolsTable(cookies, domain);
     
-    console.log(`🍪 [DevTools Import] Parsed ${structuredCookies.length} structured cookies`);
+    cookiesImportLogger.info('DevTools cookies parsed', { parsedCount: structuredCookies.length });
 
     if (structuredCookies.length === 0) {
       return res.status(400).json({
@@ -107,7 +108,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     );
 
     if (!result.success) {
-      console.error(`❌ Failed to import DevTools cookies for ${domain}:`, result.errors);
+      cookiesImportLogger.error('Failed to import DevTools cookies', { domain, errors: result.errors });
       return res.status(400).json({
         success: false,
         data: {
@@ -118,7 +119,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     }
 
-    console.log(`✅ Successfully imported ${result.injectedCount} DevTools cookies for ${domain}`);
+    cookiesImportLogger.info('DevTools cookies imported successfully', { domain, injectedCount: result.injectedCount });
 
     // Step 3: Auto-distribute cookies to all discovered hosts
     let hostDistributionResults = {
@@ -133,7 +134,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const hosts = discoveryService.getHosts();
       if (hosts.length > 0) {
         hostDistributionResults.hostsFound = hosts.length;
-        console.log(`🔍 Found ${hosts.length} hosts for cookie distribution`);
+        cookiesImportLogger.info('Found hosts for distribution', { hostCount: hosts.length });
 
         const distributionPromises = hosts.map(async (host) => {
           try {
@@ -150,26 +151,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             const responseData = await response.json();
             if (response.ok && responseData.success) {
               hostDistributionResults.hostsSuccess++;
-              console.log(`✅ Successfully distributed cookies to ${host.hostname || host.ipAddress}`);
+              cookiesImportLogger.debug('Successfully distributed cookies to host', { hostname: host.hostname || host.ipAddress });
             } else {
               hostDistributionResults.hostsFailed++;
               hostDistributionResults.errors.push(`${host.hostname}: ${responseData.error || 'Unknown error'}`);
-              console.error(`❌ Failed to distribute to ${host.hostname}: ${responseData.error || 'Unknown error'}`);
+              cookiesImportLogger.error('Failed to distribute to host', { hostname: host.hostname, error: responseData.error || 'Unknown error' });
             }
           } catch (error) {
             hostDistributionResults.hostsFailed++;
             const errorMsg = error instanceof Error ? error.message : 'Unknown error';
             hostDistributionResults.errors.push(`${host.hostname}: ${errorMsg}`);
-            console.error(`❌ Exception distributing to ${host.hostname}:`, error);
+            cookiesImportLogger.error('Exception distributing to host', { hostname: host.hostname, error: error instanceof Error ? error.message : String(error) });
           }
         });
 
         await Promise.all(distributionPromises);
       } else {
-        console.log('ℹ️ No hosts found for distribution');
+        cookiesImportLogger.info('No hosts found for distribution');
       }
     } catch (error) {
-      console.error('Error during host distribution:', error);
+      cookiesImportLogger.error('Error during host distribution', { error: error instanceof Error ? error.message : String(error) });
       hostDistributionResults.errors.push('Host discovery failed');
     }
 
@@ -187,7 +188,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
 
   } catch (error) {
-    console.error('DevTools cookie import error:', error);
+    cookiesImportLogger.error('DevTools cookie import error', { error: error instanceof Error ? error.message : String(error) });
     return res.status(500).json({
       success: false,
       error: 'Internal server error importing DevTools cookies'

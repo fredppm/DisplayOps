@@ -7,7 +7,6 @@ const PROTECTED_ROUTES = [
   '/admin',
   '/api/sites',
   '/api/controllers',
-  '/api/sync',
   '/api/health',
   '/api/audit',
   '/api/users'

@@ -86,11 +86,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
-      if (mountedRef.current) {
-        setUser(null);
-        setAuthCheckCalled(false);
-        router.push('/login');
-      }
+      setUser(null);
+      router.push('/login');
     }
   };
 

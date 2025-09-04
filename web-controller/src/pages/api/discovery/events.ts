@@ -1,6 +1,9 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { discoveryService } from '@/lib/discovery-singleton';
 import { MiniPC } from '@/types/shared-types';
+import { createContextLogger } from '@/utils/logger';
+
+const discoveryEventsLogger = createContextLogger('api-discovery-events');
 
 // Enhanced client management with metadata
 interface SSEClient {
@@ -23,7 +26,7 @@ const broadcastToClients = (event: string, data: any) => {
   clients.forEach((client, clientId) => {
     // Check if connection is destroyed/closed before writing
     if (client.response.destroyed || client.response.writableEnded) {
-      console.log(`🔌 Client ${clientId} connection destroyed during broadcast, removing`);
+      discoveryEventsLogger.debug('Client connection destroyed during broadcast, removing', { clientId });
       disconnectedClients.push(clientId);
       return;
     }
@@ -33,7 +36,7 @@ const broadcastToClients = (event: string, data: any) => {
       (client.response as any).flush?.(); // Force flush the buffer
       client.lastSuccessfulWrite = new Date(); // Track successful broadcast writes
     } catch (error) {
-      console.log(`❌ Client ${clientId} disconnected during broadcast`);
+      discoveryEventsLogger.info('Client disconnected during broadcast', { clientId });
       disconnectedClients.push(clientId);
     }
   });
@@ -53,7 +56,7 @@ const sendHeartbeat = () => {
   clients.forEach((client, clientId) => {
     // Check if connection is destroyed/closed
     if (client.response.destroyed || client.response.writableEnded) {
-      console.log(`🔌 Client ${clientId} connection destroyed, removing`);
+      discoveryEventsLogger.debug('Client connection destroyed, removing', { clientId });
       disconnectedClients.push(clientId);
       return;
     }
@@ -61,7 +64,10 @@ const sendHeartbeat = () => {
     // Check for stale connections (no successful write in last 30s)
     const timeSinceLastWrite = now.getTime() - client.lastSuccessfulWrite.getTime();
     if (timeSinceLastWrite > staleTimeout) {
-      console.log(`⏰ Client ${clientId} stale (${Math.round(timeSinceLastWrite/1000)}s), removing`);
+      discoveryEventsLogger.warn('Client stale, removing', { 
+        clientId, 
+        staleSeconds: Math.round(timeSinceLastWrite/1000) 
+      });
       disconnectedClients.push(clientId);
       return;
     }
@@ -72,7 +78,7 @@ const sendHeartbeat = () => {
       client.lastHeartbeat = now;
       client.lastSuccessfulWrite = now; // Track successful writes
     } catch (error) {
-      console.log(`❌ Client ${clientId} failed heartbeat, removing`);
+      discoveryEventsLogger.warn('Client failed heartbeat, removing', { clientId });
       disconnectedClients.push(clientId);
     }
   });
@@ -82,19 +88,19 @@ const sendHeartbeat = () => {
     clients.delete(clientId);
   });
   
-  console.log(`💓 Heartbeat sent to ${clients.size} clients`);
+  discoveryEventsLogger.debug('Heartbeat sent to clients', { clientCount: clients.size });
 };
 
 // Start global heartbeat if not already running
 const startGlobalHeartbeat = () => {
   if (heartbeatInterval) return;
   
-  console.log('❤️ Starting global SSE heartbeat (10s interval)');
+  discoveryEventsLogger.info('Starting global SSE heartbeat (10s interval)');
   heartbeatInterval = setInterval(() => {
     if (clients.size > 0) {
       sendHeartbeat();
     } else {
-      console.log('👤 No SSE clients connected, stopping heartbeat');
+      discoveryEventsLogger.info('No SSE clients connected, stopping heartbeat');
       stopGlobalHeartbeat();
     }
   }, 10000); // 10 second heartbeat
@@ -103,7 +109,7 @@ const startGlobalHeartbeat = () => {
 // Stop global heartbeat when no clients
 const stopGlobalHeartbeat = () => {
   if (heartbeatInterval) {
-    console.log('📏 Stopping global SSE heartbeat (no clients)');
+    discoveryEventsLogger.info('Stopping global SSE heartbeat (no clients)');
     clearInterval(heartbeatInterval);
     heartbeatInterval = null;
   }
@@ -142,7 +148,7 @@ export default async function handler(
       id: clientId
     });
     
-    console.log(`🔗 New SSE client connected: ${clientId} (Total: ${clients.size})`);
+    discoveryEventsLogger.info('New SSE client connected', { clientId, totalClients: clients.size });
     
     // Start global heartbeat if this is first client
     if (clients.size === 1) {
@@ -195,7 +201,7 @@ export default async function handler(
 
     // Handle client disconnect
     const cleanup = () => {
-      console.log(`🔌 SSE client disconnected: ${clientId}`);
+      discoveryEventsLogger.info('SSE client disconnected', { clientId });
       discoveryService.offHostsChange(eventHandler);
       clients.delete(clientId);
       
@@ -205,7 +211,7 @@ export default async function handler(
     
     req.on('close', cleanup);
     req.on('error', (error) => {
-      console.error(`❌ SSE client error for ${clientId}:`, error);
+      discoveryEventsLogger.error('SSE client error', { clientId, error });
       cleanup();
     });
     
@@ -215,7 +221,7 @@ export default async function handler(
         res.write(`event: heartbeat\ndata: ${JSON.stringify({ timestamp: new Date(), clientId, message: 'connection_established' })}\n\n`);
         (res as any).flush?.();
       } catch (error) {
-        console.error(`❌ Failed to send initial heartbeat to ${clientId}`);
+        discoveryEventsLogger.error('Failed to send initial heartbeat', { clientId });
         cleanup();
       }
     }, 1000);
@@ -231,7 +237,7 @@ export default async function handler(
 
 // Cleanup on process exit
 process.on('SIGTERM', () => {
-  console.log('🧹 Process terminating, cleaning up SSE clients...');
+  discoveryEventsLogger.info('Process terminating, cleaning up SSE clients');
   if (heartbeatInterval) {
     clearInterval(heartbeatInterval);
     heartbeatInterval = null;
@@ -240,7 +246,7 @@ process.on('SIGTERM', () => {
 });
 
 process.on('SIGINT', () => {
-  console.log('🧹 Process interrupted, cleaning up SSE clients...');
+  discoveryEventsLogger.info('Process interrupted, cleaning up SSE clients');
   if (heartbeatInterval) {
     clearInterval(heartbeatInterval);
     heartbeatInterval = null;

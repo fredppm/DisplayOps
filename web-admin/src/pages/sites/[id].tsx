@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { NextPage, GetServerSideProps } from 'next';
+import { useState, useEffect, useRef } from 'react';
+import { NextPage } from 'next';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { 
@@ -14,125 +14,43 @@ import {
   XCircle 
 } from 'lucide-react';
 import Layout from '@/components/Layout';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import TimezoneCombobox from '@/components/forms/TimezoneCombobox';
 import { Site } from '@/types/multi-site-types';
-import { getSites, getControllers } from '@/lib/api-server';
 import { useToastContext } from '@/contexts/ToastContext';
 import { useToastStore } from '@/stores/toastStore';
 
-interface SiteDetailsPageProps {
-  site: Site | null;
-  controllers: any[];
-}
 
-interface DeleteConfirmModalProps {
-  isOpen: boolean;
-  site: Site;
-  orphanedHosts: string[];
-  onConfirm: () => void;
-  onCancel: () => void;
-  isDeleting: boolean;
-}
 
-const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({ 
-  isOpen, 
-  site, 
-  orphanedHosts, 
-  onConfirm, 
-  onCancel, 
-  isDeleting 
-}) => {
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-        <div className="flex items-center mb-4">
-          <AlertTriangle className="h-6 w-6 text-red-500 mr-2" />
-          <h3 className="text-lg font-medium text-gray-900">Confirm Deletion</h3>
-        </div>
-        
-        <div className="mb-4">
-          <p className="text-sm text-gray-600 mb-3">
-            Are you sure you want to delete the site <strong>{site.name}</strong>?
-          </p>
-          
-          {orphanedHosts.length > 0 && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3 mb-3">
-              <div className="flex">
-                <AlertTriangle className="h-5 w-5 text-yellow-400 mr-2 flex-shrink-0 mt-0.5" />
-                <div>
-                  <h4 className="text-sm font-medium text-yellow-800">
-                    Hosts that will become orphaned:
-                  </h4>
-                  <div className="mt-2 text-sm text-yellow-700">
-                    <p className="mb-2">{orphanedHosts.length} host(s) will be disassociated:</p>
-                    <ul className="list-disc list-inside space-y-1">
-                      {orphanedHosts.map((hostName, index) => (
-                        <li key={index}>{hostName}</li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-          
-          <p className="text-sm text-gray-600">
-            This action cannot be undone.
-          </p>
-        </div>
-        
-        <div className="flex justify-end space-x-3">
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={isDeleting}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            disabled={isDeleting}
-            className="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 flex items-center"
-          >
-            {isDeleting ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                Deleting...
-              </>
-            ) : (
-              <>
-                <Trash2 className="h-4 w-4 mr-2" />
-                Delete Site
-              </>
-            )}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const SiteDetailsPage: NextPage<SiteDetailsPageProps> = ({ site: initialSite, controllers }) => {
+const SiteDetailsPage: NextPage = () => {
   const router = useRouter();
+  const { id } = router.query;
   const toast = useToastContext();
   const { addPendingToast } = useToastStore();
-  const [site, setSite] = useState<Site | null>(initialSite);
+  
+  const [site, setSite] = useState<Site | null>(null);
+  const [controllers, setControllers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [orphanedHosts, setOrphanedHosts] = useState<string[]>([]);
+  const hasInitializedRef = useRef(false);
   
   // Form state
   const [formData, setFormData] = useState({
-    name: site?.name || '',
-    location: site?.location || '',
-    timezone: site?.timezone || 'America/New_York'
+    name: '',
+    location: '',
+    timezone: 'America/New_York'
   });
+
+  useEffect(() => {
+    if (id && typeof id === 'string' && !hasInitializedRef.current) {
+      hasInitializedRef.current = true;
+      fetchSiteData();
+    }
+  }, [id]);
 
   useEffect(() => {
     if (site) {
@@ -143,6 +61,37 @@ const SiteDetailsPage: NextPage<SiteDetailsPageProps> = ({ site: initialSite, co
       });
     }
   }, [site]);
+
+  const fetchSiteData = async () => {
+    if (!id || typeof id !== 'string') return;
+    
+    try {
+      setLoading(true);
+      
+      // Fetch site and controllers data in parallel
+      const [siteResponse, controllersResponse] = await Promise.all([
+        fetch(`/api/sites/${id}`),
+        fetch('/api/controllers')
+      ]);
+      
+      const siteData = await siteResponse.json();
+      const controllersData = await controllersResponse.json();
+      
+      if (siteData.success) {
+        setSite(siteData.data);
+      } else {
+        setError(siteData.error || 'Site not found');
+      }
+      
+      if (controllersData.success) {
+        setControllers(controllersData.data || []);
+      }
+    } catch (err: any) {
+      setError('Network error: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const siteControllers = controllers.filter(controller => 
     site?.controllers.includes(controller.id)
@@ -178,28 +127,15 @@ const SiteDetailsPage: NextPage<SiteDetailsPageProps> = ({ site: initialSite, co
     }
   };
 
-  const handleDeleteClick = async () => {
+  const handleDeleteClick = () => {
     if (!site) return;
-    
-    // Check for orphaned hosts
-    try {
-      const response = await fetch(`/api/sites/${site.id}/orphaned-hosts`);
-      const data = await response.json();
-      
-      if (data.success) {
-        setOrphanedHosts(data.hosts || []);
-        setShowDeleteModal(true);
-      } else {
-        toast.error('Erro ao verificar hosts associados');
-      }
-    } catch (err: any) {
-      toast.error('Erro de rede', err.message);
-    }
+    setShowDeleteModal(true);
   };
 
   const handleDeleteConfirm = async () => {
     if (!site) return;
     
+    setShowDeleteModal(false);
     setIsDeleting(true);
     
     try {
@@ -220,41 +156,116 @@ const SiteDetailsPage: NextPage<SiteDetailsPageProps> = ({ site: initialSite, co
         router.push('/sites');
       } else {
         toast.error('Erro ao excluir site', data.error);
-        setShowDeleteModal(false);
       }
     } catch (err: any) {
       toast.error('Erro de rede', err.message);
-      setShowDeleteModal(false);
     } finally {
       setIsDeleting(false);
     }
   };
 
-  if (!site) {
+  if (loading) {
     return (
       <Layout>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* Site not found - silently redirect or show minimal message */}
+          <div className="animate-pulse">
+            <div className="border-b border-gray-200 dark:border-gray-700 pb-6 mb-8">
+              <div className="flex items-center justify-between">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center mb-2">
+                    <div className="mr-4 h-6 w-6 bg-gray-200 dark:bg-gray-600 rounded"></div>
+                    <div className="h-8 bg-gray-200 dark:bg-gray-600 rounded w-64"></div>
+                  </div>
+                </div>
+                <div className="ml-6 flex space-x-3">
+                  <div className="h-9 bg-gray-200 dark:bg-gray-600 rounded w-20"></div>
+                  <div className="h-9 bg-gray-200 dark:bg-gray-600 rounded w-24"></div>
+                </div>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              <div className="lg:col-span-2 space-y-6">
+                <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+                  <div className="h-6 bg-gray-200 dark:bg-gray-600 rounded w-48 mb-4"></div>
+                  <div className="space-y-4">
+                    <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-full"></div>
+                    <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-3/4"></div>
+                    <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-1/2"></div>
+                  </div>
+                </div>
+              </div>
+              <div className="lg:col-span-1">
+                <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+                  <div className="h-6 bg-gray-200 dark:bg-gray-600 rounded w-32 mb-4"></div>
+                  <div className="space-y-3">
+                    <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-full"></div>
+                    <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-3/4"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (error || !site) {
+    return (
+      <Layout>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6">
+            <div className="flex items-center">
+              <XCircle className="h-6 w-6 text-red-500 mr-2" />
+              <h3 className="text-lg font-medium text-red-800 dark:text-red-300">
+                {error || 'Site not found'}
+              </h3>
+            </div>
+            <p className="mt-2 text-red-700 dark:text-red-400">
+              {error || 'The requested site could not be found.'}
+            </p>
+            <div className="mt-4">
+              <Link
+                href="/sites"
+                className="inline-flex items-center px-4 py-2 bg-red-100 dark:bg-red-800 hover:bg-red-200 dark:hover:bg-red-700 text-red-700 dark:text-red-100 rounded-lg transition-colors"
+              >
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back to Sites
+              </Link>
+            </div>
+          </div>
         </div>
       </Layout>
     );
   }
 
   return (
-    <Layout>
+    <>
+      <ConfirmDialog
+        isOpen={showDeleteModal}
+        title="Delete Site"
+        message={`Are you sure you want to delete the site "${site.name}"? This action cannot be undone.`}
+        confirmText="Delete Site"
+        cancelText="Cancel"
+        variant="danger"
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => setShowDeleteModal(false)}
+      />
+      
+      <Layout>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="border-b border-gray-200 pb-6 mb-8">
+        <div className="border-b border-gray-200 dark:border-gray-700 pb-6 mb-8">
           <div className="flex items-center justify-between">
             <div className="min-w-0 flex-1">
               <div className="flex items-center mb-2">
                 <Link
                   href="/sites"
-                  className="mr-4 text-gray-400 hover:text-gray-600"
+                  className="mr-4 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-400"
                 >
                   <ArrowLeft className="h-6 w-6" />
                 </Link>
-                <h1 className="text-2xl font-bold leading-7 text-gray-900 sm:truncate sm:text-3xl sm:tracking-tight">
+                <h1 className="text-2xl font-bold leading-7 text-gray-900 dark:text-gray-100 sm:truncate sm:text-3xl sm:tracking-tight">
                   {isEditing ? 'Edit Site' : site.name}
                 </h1>
               </div>
@@ -265,7 +276,7 @@ const SiteDetailsPage: NextPage<SiteDetailsPageProps> = ({ site: initialSite, co
                   <button
                     type="button"
                     onClick={() => setIsEditing(true)}
-                    className="inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
+                    className="inline-flex items-center rounded-md bg-white dark:bg-gray-700 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600"
                   >
                     Edit
                   </button>
@@ -290,7 +301,7 @@ const SiteDetailsPage: NextPage<SiteDetailsPageProps> = ({ site: initialSite, co
                         timezone: site.timezone
                       });
                     }}
-                    className="inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
+                    className="inline-flex items-center rounded-md bg-white dark:bg-gray-700 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600"
                   >
                     Cancel
                   </button>
@@ -324,16 +335,16 @@ const SiteDetailsPage: NextPage<SiteDetailsPageProps> = ({ site: initialSite, co
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">
             {/* Site Information */}
-            <div className="bg-white shadow rounded-lg">
+            <div className="bg-white dark:bg-gray-800 shadow rounded-lg">
               <div className="px-4 py-5 sm:p-6">
-                <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
+                <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-gray-100 mb-4">
                   Informações do Site
                 </h3>
                 
                 <form className="space-y-6">
                   <div className="grid grid-cols-1 gap-6">
                     <div>
-                      <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
+                      <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Site Name
                       </label>
                       {isEditing ? (
@@ -343,20 +354,20 @@ const SiteDetailsPage: NextPage<SiteDetailsPageProps> = ({ site: initialSite, co
                             id="name"
                             value={formData.name}
                             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                            className="block w-full px-4 py-3 text-sm border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                            className="block w-full px-4 py-3 text-sm border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                             placeholder="Enter site name"
                             required
                           />
                         </div>
                       ) : (
-                        <div className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg">
-                          <p className="text-sm font-medium text-gray-900">{site.name}</p>
+                        <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg">
+                          <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{site.name}</p>
                         </div>
                       )}
                     </div>
                     
                     <div>
-                      <label htmlFor="location" className="block text-sm font-medium text-gray-700 mb-2">
+                      <label htmlFor="location" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         <MapPin className="h-4 w-4 inline mr-2" />
                         Location
                       </label>
@@ -367,20 +378,20 @@ const SiteDetailsPage: NextPage<SiteDetailsPageProps> = ({ site: initialSite, co
                             id="location"
                             value={formData.location}
                             onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                            className="block w-full px-4 py-3 text-sm border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                            className="block w-full px-4 py-3 text-sm border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                             placeholder="City, State/Country"
                             required
                           />
                         </div>
                       ) : (
-                        <div className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg">
-                          <p className="text-sm font-medium text-gray-900">{site.location}</p>
+                        <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg">
+                          <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{site.location}</p>
                         </div>
                       )}
                     </div>
                     
                     <div>
-                      <label htmlFor="timezone" className="block text-sm font-medium text-gray-700 mb-2">
+                      <label htmlFor="timezone" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         <Clock className="h-4 w-4 inline mr-2" />
                         Timezone
                       </label>
@@ -392,8 +403,8 @@ const SiteDetailsPage: NextPage<SiteDetailsPageProps> = ({ site: initialSite, co
                           placeholder="Select timezone..."
                         />
                       ) : (
-                        <div className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg">
-                          <p className="text-sm font-medium text-gray-900">{site.timezone}</p>
+                        <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg">
+                          <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{site.timezone}</p>
                         </div>
                       )}
                     </div>
@@ -403,9 +414,9 @@ const SiteDetailsPage: NextPage<SiteDetailsPageProps> = ({ site: initialSite, co
             </div>
 
             {/* Controllers */}
-            <div className="bg-white shadow rounded-lg">
+            <div className="bg-white dark:bg-gray-800 shadow rounded-lg">
               <div className="px-4 py-5 sm:p-6">
-                <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
+                <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-gray-100 mb-4">
                   <Monitor className="h-5 w-5 inline mr-2" />
                   Associated Controllers ({siteControllers.length})
                 </h3>
@@ -413,28 +424,28 @@ const SiteDetailsPage: NextPage<SiteDetailsPageProps> = ({ site: initialSite, co
                 {siteControllers.length === 0 ? (
                   <div className="text-center py-6">
                     <Monitor className="mx-auto h-12 w-12 text-gray-400" />
-                    <h3 className="mt-2 text-sm font-medium text-gray-900">No controllers</h3>
-                    <p className="mt-1 text-sm text-gray-500">
+                    <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-gray-100">No controllers</h3>
+                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                       This site has no associated controllers.
                     </p>
                   </div>
                 ) : (
                   <div className="space-y-3">
                     {siteControllers.map((controller) => (
-                      <div key={controller.id} className="border border-gray-200 rounded-lg p-4">
+                      <div key={controller.id} className="border border-gray-200 dark:border-gray-600 rounded-lg p-4">
                         <div className="flex items-center justify-between">
                           <div>
-                            <h4 className="text-sm font-medium text-gray-900">{controller.name}</h4>
-                            <p className="text-sm text-gray-500">{controller.localNetwork}</p>
-                            <p className="text-xs text-gray-400">Version {controller.version}</p>
+                            <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100">{controller.name}</h4>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">{controller.localNetwork}</p>
+                            <p className="text-xs text-gray-400 dark:text-gray-500">Version {controller.version}</p>
                           </div>
                           <div className="flex items-center">
                             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                               controller.status === 'online' 
-                                ? 'bg-green-100 text-green-800'
+                                ? 'bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-400'
                                 : controller.status === 'offline'
-                                ? 'bg-gray-100 text-gray-800'
-                                : 'bg-red-100 text-red-800'
+                                ? 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-300'
+                                : 'bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-400'
                             }`}>
                               {controller.status === 'online' ? 'Online' : 
                                controller.status === 'offline' ? 'Offline' : 'Erro'}
@@ -452,20 +463,20 @@ const SiteDetailsPage: NextPage<SiteDetailsPageProps> = ({ site: initialSite, co
           {/* Sidebar */}
           <div className="lg:col-span-1">
             <div className="bg-white shadow rounded-lg p-6">
-              <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
+              <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-gray-100 mb-4">
                 General Information
               </h3>
               
               <dl className="space-y-4">
                 <div>
-                  <dt className="text-sm font-medium text-gray-500">Status</dt>
+                  <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Status</dt>
                   <dd className="mt-1">
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                       site.status === 'online' 
-                        ? 'bg-green-100 text-green-800'
+                        ? 'bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-400'
                         : site.status === 'offline'
-                        ? 'bg-gray-100 text-gray-800'
-                        : 'bg-red-100 text-red-800'
+                        ? 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-300'
+                        : 'bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-400'
                     }`}>
                       {site.status === 'online' ? 'Online' : 
                        site.status === 'offline' ? 'Offline' : 'Erro'}
@@ -474,13 +485,13 @@ const SiteDetailsPage: NextPage<SiteDetailsPageProps> = ({ site: initialSite, co
                 </div>
                 
                 <div>
-                  <dt className="text-sm font-medium text-gray-500">Site ID</dt>
-                  <dd className="mt-1 text-sm text-gray-900 font-mono">{site.id}</dd>
+                  <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Site ID</dt>
+                  <dd className="mt-1 text-sm text-gray-900 dark:text-gray-100 font-mono">{site.id}</dd>
                 </div>
                 
                 <div>
-                  <dt className="text-sm font-medium text-gray-500">Created At</dt>
-                  <dd className="mt-1 text-sm text-gray-900">
+                  <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Created At</dt>
+                  <dd className="mt-1 text-sm text-gray-900 dark:text-gray-100">
                     {new Date(site.createdAt).toLocaleDateString('pt-BR', {
                       year: 'numeric',
                       month: 'long',
@@ -490,8 +501,8 @@ const SiteDetailsPage: NextPage<SiteDetailsPageProps> = ({ site: initialSite, co
                 </div>
                 
                 <div>
-                  <dt className="text-sm font-medium text-gray-500">Last Updated</dt>
-                  <dd className="mt-1 text-sm text-gray-900">
+                  <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Last Updated</dt>
+                  <dd className="mt-1 text-sm text-gray-900 dark:text-gray-100">
                     {new Date(site.updatedAt).toLocaleDateString('pt-BR', {
                       year: 'numeric',
                       month: 'long',
@@ -505,58 +516,11 @@ const SiteDetailsPage: NextPage<SiteDetailsPageProps> = ({ site: initialSite, co
         </div>
       </div>
 
-      {/* Delete Confirmation Modal */}
-      <DeleteConfirmModal
-        isOpen={showDeleteModal}
-        site={site}
-        orphanedHosts={orphanedHosts}
-        onConfirm={handleDeleteConfirm}
-        onCancel={() => setShowDeleteModal(false)}
-        isDeleting={isDeleting}
-      />
-    </Layout>
+        </div>
+      </div>
+      </Layout>
+    </>
   );
-};
-
-export const getServerSideProps: GetServerSideProps = async ({ params }) => {
-  try {
-    const siteId = params?.id as string;
-    
-    if (!siteId) {
-      return {
-        notFound: true,
-      };
-    }
-    
-    const [sitesData, controllersData] = await Promise.all([
-      getSites(),
-      getControllers()
-    ]);
-    
-    const site = sitesData.sites.find(s => s.id === siteId);
-    
-    if (!site) {
-      return {
-        notFound: true,
-      };
-    }
-    
-    return {
-      props: {
-        site,
-        controllers: controllersData.controllers,
-      },
-    };
-  } catch (error) {
-    console.error('Error fetching site:', error);
-    
-    return {
-      props: {
-        site: null,
-        controllers: [],
-      },
-    };
-  }
 };
 
 export default SiteDetailsPage;

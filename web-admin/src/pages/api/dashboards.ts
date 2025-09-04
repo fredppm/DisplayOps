@@ -1,9 +1,13 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { Dashboard } from '@/types/shared-types';
+import { createContextLogger } from '@/utils/logger';
+import { grpcServerSingleton } from '@/lib/grpc-server-singleton';
 import fs from 'fs';
 import path from 'path';
 
 const DASHBOARDS_FILE = path.join(process.cwd(), 'data', 'dashboards.json');
+
+const dashboardsApiLogger = createContextLogger('api-dashboards');
 
 // Ensure data directory exists
 const ensureDataDirectory = () => {
@@ -50,7 +54,7 @@ const loadDashboards = (): Dashboard[] => {
     // Handle both formats: direct array or wrapped object
     return Array.isArray(parsed) ? parsed : parsed.dashboards || [];
   } catch (error) {
-    console.error('Error loading dashboards:', error);
+    dashboardsApiLogger.error('Error loading dashboards', { error: error instanceof Error ? error.message : String(error) });
     return [];
   }
 };
@@ -61,7 +65,7 @@ const saveDashboards = (dashboards: Dashboard[]): void => {
     ensureDataDirectory();
     fs.writeFileSync(DASHBOARDS_FILE, JSON.stringify(dashboards, null, 2), 'utf8');
   } catch (error) {
-    console.error('Error saving dashboards:', error);
+    dashboardsApiLogger.error('Error saving dashboards', { error: error instanceof Error ? error.message : String(error) });
     throw new Error('Failed to save dashboards');
   }
 };
@@ -81,6 +85,18 @@ const validateDashboard = (data: any): data is Omit<Dashboard, 'id'> => {
 // Generate unique ID
 const generateId = (): string => {
   return `dashboard-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+};
+
+// Trigger dashboard sync to all controllers
+const triggerDashboardSync = async (): Promise<void> => {
+  try {
+    await grpcServerSingleton.triggerDashboardSync();
+    dashboardsApiLogger.info('Dashboard sync triggered successfully');
+  } catch (error) {
+    dashboardsApiLogger.error('Failed to trigger dashboard sync', { 
+      error: error instanceof Error ? error.message : String(error) 
+    });
+  }
 };
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -127,6 +143,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
         currentDashboards.push(newDashboard);
         saveDashboards(currentDashboards);
+
+        // Trigger sync to all controllers
+        await triggerDashboardSync();
 
         return res.status(201).json({
           success: true,
@@ -184,6 +203,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         dashboardsToUpdate[dashboardIndex] = updatedDashboard;
         saveDashboards(dashboardsToUpdate);
 
+        // Trigger sync to all controllers
+        await triggerDashboardSync();
+
         return res.status(200).json({
           success: true,
           data: updatedDashboard
@@ -214,6 +236,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         dashboardsToDelete.splice(deleteIndex, 1);
         saveDashboards(dashboardsToDelete);
 
+        // Trigger sync to all controllers
+        await triggerDashboardSync();
+
         return res.status(200).json({
           success: true,
           data: deletedDashboard
@@ -227,7 +252,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         });
     }
   } catch (error: any) {
-    console.error('Dashboards API error:', error);
+    dashboardsApiLogger.error('Dashboards API error', { error: error instanceof Error ? error.message : String(error) });
     return res.status(500).json({
       success: false,
       error: error.message || 'Internal server error'

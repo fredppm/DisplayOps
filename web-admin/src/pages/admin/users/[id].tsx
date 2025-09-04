@@ -51,10 +51,10 @@ const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6 max-w-md w-full mx-4">
         <div className="flex items-center mb-4">
           <AlertTriangle className="h-6 w-6 text-red-500 mr-2" />
-          <h3 className="text-lg font-medium text-gray-900">Confirm Deletion</h3>
+          <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">Confirm Deletion</h3>
         </div>
         
         <div className="mb-4">
@@ -72,7 +72,7 @@ const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
             type="button"
             onClick={onCancel}
             disabled={isDeleting}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+            className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
           >
             Cancel
           </button>
@@ -211,7 +211,7 @@ const UserDetailsPage: NextPage<UserDetailsPageProps> = ({ user: initialUser }) 
         <Layout>
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center py-12">
-              <h2 className="text-2xl font-bold text-gray-900">User not found</h2>
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">User not found</h2>
               <p className="mt-2 text-gray-600">The user you're looking for doesn't exist.</p>
               <Link
                 href="/admin/users"
@@ -237,11 +237,11 @@ const UserDetailsPage: NextPage<UserDetailsPageProps> = ({ user: initialUser }) 
                 <div className="flex items-center mb-2">
                   <Link
                     href="/admin/users"
-                    className="mr-4 text-gray-400 hover:text-gray-600"
+                    className="mr-4 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
                   >
                     <ArrowLeft className="h-6 w-6" />
                   </Link>
-                  <h1 className="text-2xl font-bold leading-7 text-gray-900 sm:truncate sm:text-3xl sm:tracking-tight">
+                  <h1 className="text-2xl font-bold leading-7 text-gray-900 dark:text-gray-100 dark:text-gray-100 sm:truncate sm:text-3xl sm:tracking-tight">
                     {isEditing ? 'Edit User' : user.name}
                   </h1>
                 </div>
@@ -252,7 +252,7 @@ const UserDetailsPage: NextPage<UserDetailsPageProps> = ({ user: initialUser }) 
                     <button
                       type="button"
                       onClick={() => setIsEditing(true)}
-                      className="inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
+                      className="inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
                     >
                       Edit
                     </button>
@@ -279,7 +279,7 @@ const UserDetailsPage: NextPage<UserDetailsPageProps> = ({ user: initialUser }) 
                           sites: user.sites
                         });
                       }}
-                      className="inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
+                      className="inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
                     >
                       Cancel
                     </button>
@@ -311,16 +311,16 @@ const UserDetailsPage: NextPage<UserDetailsPageProps> = ({ user: initialUser }) 
             {/* Main Content */}
             <div className="lg:col-span-2 space-y-6">
               {/* User Information */}
-              <div className="bg-white shadow rounded-lg">
+              <div className="bg-white dark:bg-gray-800 shadow rounded-lg border border-gray-200 dark:border-gray-700">
                 <div className="px-4 py-5 sm:p-6">
-                  <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
+                  <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-gray-100 dark:text-gray-100 mb-4">
                     User Information
                   </h3>
                   
                   <form className="space-y-6">
                     <div className="grid grid-cols-1 gap-6">
                       <div>
-                        <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
+                        <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                           Full Name
                         </label>
                         {isEditing ? (
@@ -329,19 +329,19 @@ const UserDetailsPage: NextPage<UserDetailsPageProps> = ({ user: initialUser }) 
                             id="name"
                             value={formData.name}
                             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                            className="block w-full px-4 py-3 text-sm border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                            className="block w-full px-4 py-3 text-sm border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                             placeholder="Enter full name"
                             required
                           />
                         ) : (
-                          <div className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg">
-                            <p className="text-sm font-medium text-gray-900">{user.name}</p>
+                          <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg">
+                            <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{user.name}</p>
                           </div>
                         )}
                       </div>
                       
                       <div>
-                        <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+                        <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                           <Mail className="h-4 w-4 inline mr-2" />
                           Email Address
                         </label>
@@ -351,20 +351,20 @@ const UserDetailsPage: NextPage<UserDetailsPageProps> = ({ user: initialUser }) 
                             id="email"
                             value={formData.email}
                             onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                            className="block w-full px-4 py-3 text-sm border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                            className="block w-full px-4 py-3 text-sm border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                             placeholder="Enter email address"
                             required
                           />
                         ) : (
-                          <div className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg">
-                            <p className="text-sm font-medium text-gray-900">{user.email}</p>
+                          <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg">
+                            <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{user.email}</p>
                           </div>
                         )}
                       </div>
 
                       {isEditing && (
                         <div>
-                          <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+                          <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                             Password (leave blank to keep current)
                           </label>
                           <input
@@ -372,14 +372,14 @@ const UserDetailsPage: NextPage<UserDetailsPageProps> = ({ user: initialUser }) 
                             id="password"
                             value={formData.password}
                             onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                            className="block w-full px-4 py-3 text-sm border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                            className="block w-full px-4 py-3 text-sm border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                             placeholder="Enter new password"
                           />
                         </div>
                       )}
                       
                       <div>
-                        <label htmlFor="role" className="block text-sm font-medium text-gray-700 mb-2">
+                        <label htmlFor="role" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                           <Shield className="h-4 w-4 inline mr-2" />
                           Role
                         </label>
@@ -388,14 +388,14 @@ const UserDetailsPage: NextPage<UserDetailsPageProps> = ({ user: initialUser }) 
                             id="role"
                             value={formData.role}
                             onChange={(e) => setFormData({ ...formData, role: e.target.value as any })}
-                            className="block w-full px-4 py-3 text-sm border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                            className="block w-full px-4 py-3 text-sm border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                           >
                             <option value="viewer">Viewer</option>
                             <option value="site-manager">Site Manager</option>
                             <option value="admin">Admin</option>
                           </select>
                         ) : (
-                          <div className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg">
+                          <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg">
                             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getRoleColor(user.role)}`}>
                               {user.role.replace('-', ' ')}
                             </span>
@@ -404,7 +404,7 @@ const UserDetailsPage: NextPage<UserDetailsPageProps> = ({ user: initialUser }) 
                       </div>
 
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                           <MapPin className="h-4 w-4 inline mr-2" />
                           Site Access
                         </label>
@@ -423,13 +423,13 @@ const UserDetailsPage: NextPage<UserDetailsPageProps> = ({ user: initialUser }) 
                                   }}
                                   className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                                 />
-                                <span className="ml-2 text-sm text-gray-900 capitalize">{site}</span>
+                                <span className="ml-2 text-sm text-gray-900 dark:text-gray-100 capitalize">{site}</span>
                               </label>
                             ))}
                           </div>
                         ) : (
-                          <div className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg">
-                            <p className="text-sm font-medium text-gray-900">
+                          <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg">
+                            <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
                               {user.sites.includes('*') ? 'All Sites' : user.sites.join(', ') || 'No access'}
                             </p>
                           </div>
@@ -443,20 +443,20 @@ const UserDetailsPage: NextPage<UserDetailsPageProps> = ({ user: initialUser }) 
 
             {/* Sidebar */}
             <div className="lg:col-span-1">
-              <div className="bg-white shadow rounded-lg p-6">
-                <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
+              <div className="bg-white dark:bg-gray-800 shadow rounded-lg border border-gray-200 dark:border-gray-700 p-6">
+                <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-gray-100 dark:text-gray-100 mb-4">
                   Account Information
                 </h3>
                 
                 <dl className="space-y-4">
                   <div>
-                    <dt className="text-sm font-medium text-gray-500">User ID</dt>
-                    <dd className="mt-1 text-sm text-gray-900 font-mono">{user.id}</dd>
+                    <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">User ID</dt>
+                    <dd className="mt-1 text-sm text-gray-900 dark:text-gray-100 font-mono">{user.id}</dd>
                   </div>
                   
                   <div>
-                    <dt className="text-sm font-medium text-gray-500">Created At</dt>
-                    <dd className="mt-1 text-sm text-gray-900">
+                    <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Created At</dt>
+                    <dd className="mt-1 text-sm text-gray-900 dark:text-gray-100">
                       {new Date(user.createdAt).toLocaleDateString('en-US', {
                         year: 'numeric',
                         month: 'long',
@@ -466,8 +466,8 @@ const UserDetailsPage: NextPage<UserDetailsPageProps> = ({ user: initialUser }) 
                   </div>
                   
                   <div>
-                    <dt className="text-sm font-medium text-gray-500">Last Login</dt>
-                    <dd className="mt-1 text-sm text-gray-900">
+                    <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Last Login</dt>
+                    <dd className="mt-1 text-sm text-gray-900 dark:text-gray-100">
                       {user.lastLogin ? new Date(user.lastLogin).toLocaleDateString('en-US', {
                         year: 'numeric',
                         month: 'long',

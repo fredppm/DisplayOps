@@ -1,7 +1,9 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { Controller } from '@/types/multi-site-types';
-import { logger } from '@/utils/logger';
+import { createContextLogger } from '@/utils/logger';
+
+const monitorLogger = createContextLogger('controller-monitor');
 
 interface ControllerMonitorConfig {
   checkInterval: number; // milliseconds
@@ -30,18 +32,18 @@ export class ControllerStatusMonitor {
 
   public start(): void {
     if (this.isRunning) {
-      logger.info('Controller status monitor already running');
+      monitorLogger.info('Controller status monitor already running');
       return;
     }
 
-    logger.info('Starting controller status monitor', {
+    monitorLogger.info('Starting controller status monitor', {
       checkInterval: this.config.checkInterval,
       offlineThreshold: this.config.offlineThreshold
     });
 
     this.monitorInterval = setInterval(() => {
       this.checkControllerStatuses().catch(error => {
-        logger.error('Error during controller status check:', error);
+        monitorLogger.error('Error during controller status check:', error);
       });
     }, this.config.checkInterval);
 
@@ -49,7 +51,7 @@ export class ControllerStatusMonitor {
 
     // Run initial check
     this.checkControllerStatuses().catch(error => {
-      logger.error('Error during initial controller status check:', error);
+      monitorLogger.error('Error during initial controller status check:', error);
     });
   }
 
@@ -59,7 +61,7 @@ export class ControllerStatusMonitor {
       this.monitorInterval = null;
     }
     this.isRunning = false;
-    logger.info('Controller status monitor stopped');
+    monitorLogger.info('Controller status monitor stopped');
   }
 
   private async checkControllerStatuses(): Promise<void> {
@@ -76,7 +78,7 @@ export class ControllerStatusMonitor {
 
         // Check if controller should be marked as offline
         if (controller.status === 'online' && timeSinceLastSync > this.config.offlineThreshold) {
-          logger.warn('Marking controller as offline due to no recent heartbeat', {
+          monitorLogger.warn('Marking controller as offline due to no recent heartbeat', {
             controllerId: controller.id,
             name: controller.name,
             lastSync: controller.lastSync,
@@ -88,7 +90,7 @@ export class ControllerStatusMonitor {
         }
         // Check if controller should be marked as online (if it was offline but has recent sync)
         else if (controller.status === 'offline' && timeSinceLastSync <= this.config.offlineThreshold) {
-          logger.info('Marking controller as online due to recent heartbeat', {
+          monitorLogger.info('Marking controller as online due to recent heartbeat', {
             controllerId: controller.id,
             name: controller.name,
             lastSync: controller.lastSync
@@ -102,11 +104,11 @@ export class ControllerStatusMonitor {
       // Save changes if any
       if (hasChanges) {
         await this.writeControllersData(CONTROLLERS_FILE, controllersData);
-        logger.debug('Controller statuses updated');
+        monitorLogger.debug('Controller statuses updated');
       }
 
     } catch (error) {
-      logger.error('Failed to check controller statuses:', error);
+      monitorLogger.error('Failed to check controller statuses:', error);
     }
   }
 
@@ -176,7 +178,7 @@ export class ControllerStatusMonitor {
         controllers
       };
     } catch (error) {
-      logger.error('Failed to get controller statistics:', error);
+      monitorLogger.error('Failed to get controller statistics:', error);
       return {
         total: 0,
         online: 0,
@@ -188,7 +190,7 @@ export class ControllerStatusMonitor {
 
   // Force a status check (useful for debugging)
   public async forceCheck(): Promise<void> {
-    logger.info('Forcing controller status check');
+    monitorLogger.info('Forcing controller status check');
     await this.checkControllerStatuses();
   }
 }

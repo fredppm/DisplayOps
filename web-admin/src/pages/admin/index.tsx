@@ -2,128 +2,441 @@ import React from 'react';
 import { NextPage, GetServerSideProps } from 'next';
 import Link from 'next/link';
 import Layout from '@/components/Layout';
-import { getSystemStats, SystemStatsProps } from '@/lib/api-server';
+import { 
+  UsersIcon, 
+  BuildingOfficeIcon, 
+  ServerIcon, 
+  HeartIcon,
+  ChartBarIcon,
+  BellIcon,
+  ChartPieIcon,
+  ArrowRightIcon
+} from '@heroicons/react/24/outline';
+import { CheckCircleIcon, ExclamationTriangleIcon, XCircleIcon } from '@heroicons/react/24/solid';
+import { useDashboardData, useSystemHealth } from '@/hooks/useDashboardData';
+import { useAdminEvents } from '@/hooks/useAdminEvents';
+import { 
+  MetricCardSkeleton, 
+  PerformanceCardSkeleton, 
+  AlertCardSkeleton 
+} from '@/components/skeletons/DashboardSkeleton';
 
-interface AdminPageProps {
-  systemStats: SystemStatsProps;
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  lastLogin: string | null;
 }
 
-const AdminPage: NextPage<AdminPageProps> = ({ systemStats }) => {
+interface Site {
+  id: string;
+  name: string;
+  location: string;
+  status: 'online' | 'offline';
+}
+
+interface Controller {
+  id: string;
+  name: string;
+  siteId: string;
+  status: 'online' | 'offline';
+}
+
+interface AdminDashboardData {
+  users: User[];
+  sites: Site[];
+  controllers: Controller[];
+}
+
+interface AdminPageProps {
+  dashboardData: AdminDashboardData;
+}
+
+const AdminPage: NextPage<AdminPageProps> = ({ dashboardData }) => {
+  // Hook para dados dinâmicos (CSR) com refresh automático
+  const { monitoringData, alertData, healthChecksData, loading, error, refetch } = useDashboardData(30000);
+  
+  // Hook para dados em tempo real via SSE
+  const { systemHealth: realtimeHealth, controllers: realtimeControllers, sites: realtimeSites, isConnected } = useAdminEvents();
+  
+  // Hook para status do sistema com fallback
+  const systemHealth = useSystemHealth(monitoringData);
+  
+  // Usar dados em tempo real quando disponíveis, senão fallback para SSR
+  const totalUsers = dashboardData.users.length;
+  const onlineSites = realtimeSites?.filter(s => s.status === 'healthy').length || dashboardData.sites.filter(s => s.status === 'online').length;
+  const onlineControllers = realtimeControllers?.filter(c => c.status === 'online').length || dashboardData.controllers.filter(c => c.status === 'online').length;
+  const totalSites = realtimeSites?.length || dashboardData.sites.length;
+  const totalControllers = realtimeControllers?.length || dashboardData.controllers.length;
+  const activeAlerts = alertData?.stats?.activeAlerts || 0;
+
+  // Função para obter ícone e cor do status do sistema
+  const getSystemHealthIcon = () => {
+    if (!monitoringData) return { icon: ExclamationTriangleIcon, color: systemHealth.color };
+    
+    switch (monitoringData.overview?.systemHealth) {
+      case 'healthy':
+        return { icon: CheckCircleIcon, color: systemHealth.color };
+      case 'warning':
+        return { icon: ExclamationTriangleIcon, color: systemHealth.color };
+      case 'critical':
+        return { icon: XCircleIcon, color: systemHealth.color };
+      default:
+        return { icon: ExclamationTriangleIcon, color: systemHealth.color };
+    }
+  };
+
+  const healthIcon = getSystemHealthIcon();
+
+  const quickActions = [
+    {
+      title: 'Users',
+      description: 'Manage accounts and permissions',
+      href: '/admin/users',
+      icon: UsersIcon,
+      count: totalUsers
+    },
+    {
+      title: 'Sites',
+      description: 'Manage all sites',
+      href: '/sites',
+      icon: BuildingOfficeIcon,
+      count: onlineSites,
+      total: totalSites
+    },
+    {
+      title: 'Controllers',
+      description: 'Local site controllers',
+      href: '/controllers',
+      icon: ServerIcon,
+      count: onlineControllers,
+      total: totalControllers
+    }
+  ];
+
+  const systemTools = [
+    {
+      title: 'System Health',
+      description: 'System health monitoring',
+      href: '/admin/health',
+      icon: HeartIcon,
+      status: systemHealth.status
+    },
+    {
+      title: 'Metrics',
+      description: 'Performance and statistics',
+      href: '/admin/metrics',
+      icon: ChartBarIcon,
+      status: monitoringData?.overview?.uptime || 'Loading...'
+    },
+    {
+      title: 'Alerts',
+      description: 'Notifications and alerts',
+      href: '/admin/alerts',
+      icon: BellIcon,
+      status: `${activeAlerts} ativos`
+    },
+    {
+      title: 'Monitoring',
+      description: 'Complete dashboard',
+      href: '/admin/monitoring',
+      icon: ChartPieIcon,
+      status: 'Real-time'
+    }
+  ];
+
   return (
     <Layout>
-      <div className="container mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-6">Admin Dashboard</h1>
-      
-      <div className="mb-8 bg-white shadow rounded-lg p-6">
-        <h2 className="text-lg font-semibold mb-4">Quick Stats</h2>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="text-center">
-            <div className="text-2xl font-bold text-gray-700">{systemStats.totalUsers}</div>
-            <div className="text-sm text-gray-600">Total Users</div>
-          </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-gray-700">{systemStats.totalSites}</div>
-            <div className="text-sm text-gray-600">Active Sites</div>
-          </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-gray-700">{systemStats.totalControllers}</div>
-            <div className="text-sm text-gray-600">Controllers</div>
-          </div>
-          <div className="text-center">
-            <div className={`text-2xl font-bold ${
-              systemStats.systemStatus === 'Online' ? 'text-green-600' : 
-              systemStats.systemStatus === 'Offline' ? 'text-red-600' : 
-              'text-yellow-600'
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        <div className="container mx-auto px-6 py-8">
+          {/* Status de Conexão SSE */}
+          <div className="mb-4">
+            <div className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${
+              isConnected 
+                ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 ring-1 ring-inset ring-green-600/20' 
+                : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 ring-1 ring-inset ring-red-600/20'
             }`}>
-              {systemStats.systemStatus}
+              <div className={`w-2 h-2 rounded-full mr-2 ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
+              {isConnected ? 'Live Updates Active' : 'Live Updates Disconnected'}
             </div>
-            <div className="text-sm text-gray-600">System Status</div>
+          </div>
+          {/* Métricas Principais */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                    {onlineSites}/{totalSites}
+                  </p>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Sites Online</p>
+                </div>
+                <div className="h-12 w-12 bg-blue-50 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
+                  <BuildingOfficeIcon className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                    {onlineControllers}/{totalControllers}
+                  </p>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Controllers Online</p>
+                </div>
+                <div className="h-12 w-12 bg-purple-50 dark:bg-purple-900/20 rounded-lg flex items-center justify-center">
+                  <ServerIcon className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+                </div>
+              </div>
+            </div>
+
+            {realtimeHealth ? (
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 animate-fade-in">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <div className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${
+                      realtimeHealth.status === 'healthy' 
+                        ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 ring-1 ring-inset ring-green-600/20' 
+                        : realtimeHealth.status === 'degraded' 
+                        ? 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400 ring-1 ring-inset ring-yellow-600/20'
+                        : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 ring-1 ring-inset ring-red-600/20'
+                    }`}>
+                      {realtimeHealth.status}
+                    </div>
+                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mt-1">System Health</p>
+                  </div>
+                  <div className="h-12 w-12 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center">
+                    <div className={`w-6 h-6 rounded-full ${
+                      realtimeHealth.status === 'healthy' ? 'bg-green-500' :
+                      realtimeHealth.status === 'degraded' ? 'bg-yellow-500' : 'bg-red-500'
+                    }`}></div>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center space-x-2">
+                      <div className={`w-2 h-2 rounded-full ${
+                        realtimeHealth.controllers.percentage >= 80 ? 'bg-green-500' :
+                        realtimeHealth.controllers.percentage >= 50 ? 'bg-yellow-500' : 'bg-red-500'
+                      }`}></div>
+                      <span className="text-gray-700 dark:text-gray-300">Controllers</span>
+                    </div>
+                    <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                      {realtimeHealth.controllers.online}/{realtimeHealth.controllers.total} ({realtimeHealth.controllers.percentage}%)
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center space-x-2">
+                      <div className={`w-2 h-2 rounded-full ${
+                        realtimeHealth.sites.percentage >= 80 ? 'bg-green-500' :
+                        realtimeHealth.sites.percentage >= 50 ? 'bg-yellow-500' : 'bg-red-500'
+                      }`}></div>
+                      <span className="text-gray-700 dark:text-gray-300">Sites</span>
+                    </div>
+                    <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                      {realtimeHealth.sites.healthy}/{realtimeHealth.sites.total} ({realtimeHealth.sites.percentage}%)
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ) : loading ? (
+              <MetricCardSkeleton />
+            ) : healthChecksData ? (
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 animate-fade-in">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <div className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${
+                      healthChecksData.data.overallStatus === 'healthy' 
+                        ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 ring-1 ring-inset ring-green-600/20' 
+                        : healthChecksData.data.overallStatus === 'warning' 
+                        ? 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400 ring-1 ring-inset ring-yellow-600/20'
+                        : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 ring-1 ring-inset ring-red-600/20'
+                    }`}>
+                      {healthChecksData.data.overallStatus}
+                    </div>
+                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mt-1">System Health</p>
+                  </div>
+                  <div className="h-12 w-12 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center">
+                    <div className={`w-6 h-6 rounded-full ${
+                      healthChecksData.data.overallStatus === 'healthy' ? 'bg-green-500' :
+                      healthChecksData.data.overallStatus === 'warning' ? 'bg-yellow-500' : 'bg-red-500'
+                    }`}></div>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  {healthChecksData.data.checks.map((check) => (
+                    <div key={check.name} className="flex items-center justify-between text-sm">
+                      <div className="flex items-center space-x-2">
+                        <div className={`w-2 h-2 rounded-full ${
+                          check.status === 'healthy' ? 'bg-green-500' :
+                          check.status === 'warning' ? 'bg-yellow-500' :
+                          check.status === 'critical' ? 'bg-red-500' : 'bg-gray-400'
+                        }`}></div>
+                        <span className="text-gray-700 dark:text-gray-300">{check.name}</span>
+                      </div>
+                      <span className={`text-xs font-medium capitalize ${
+                        check.status === 'healthy' ? 'text-green-600 dark:text-green-400' :
+                        check.status === 'warning' ? 'text-yellow-600 dark:text-yellow-400' :
+                        check.status === 'critical' ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'
+                      }`}>
+                        {check.status}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 animate-fade-in">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium text-gray-500 bg-gray-50 dark:bg-gray-800/50 ring-1 ring-inset ring-gray-300 dark:ring-gray-600">
+                      Loading
+                    </div>
+                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mt-1">System Health</p>
+                  </div>
+                  <div className="h-12 w-12 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center">
+                    <div className="w-6 h-6 rounded-full bg-gray-400"></div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Coluna Principal */}
+            <div className="lg:col-span-2 space-y-6">
+              {/* Ações Rápidas */}
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Quick Actions</h2>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {quickActions.map((action) => (
+                    <Link key={action.title} href={action.href} className="group block h-full">
+                      <div className="border border-gray-200 dark:border-gray-600 rounded-lg p-6 hover:border-gray-300 dark:hover:border-gray-500 hover:shadow-md transition-all duration-200 bg-white dark:bg-gray-800 h-full flex flex-col">
+                        <div className="flex items-center justify-between mb-3">
+                          <action.icon className="h-8 w-8 text-gray-700 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-gray-100" />
+                          <ArrowRightIcon className="h-4 w-4 text-gray-400 dark:text-gray-500 group-hover:text-gray-600 dark:group-hover:text-gray-400 transition-colors" />
+                        </div>
+                        <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-1">{action.title}</h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-2 flex-grow">{action.description}</p>
+                        {action.total ? (
+                          <p className="text-xs text-gray-500 dark:text-gray-400">{action.count} de {action.total} online</p>
+                        ) : (
+                          <p className="text-xs text-gray-500 dark:text-gray-400">{action.count} total</p>
+                        )}
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+
+              {/* Ferramentas do Sistema */}
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">System Tools</h2>
+                <div className="space-y-3">
+                  {systemTools.map((tool) => (
+                    <Link key={tool.title} href={tool.href} className="group block">
+                      <div className="flex items-center justify-between p-4 rounded-lg border border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                        <div className="flex items-center space-x-3">
+                          <tool.icon className="h-5 w-5 text-gray-600 dark:text-gray-400 group-hover:text-gray-800 dark:group-hover:text-gray-200" />
+                          <div>
+                            <h3 className="font-medium text-gray-900 dark:text-gray-100 group-hover:text-gray-800 dark:group-hover:text-gray-50">{tool.title}</h3>
+                            <p className="text-sm text-gray-600 dark:text-gray-400">{tool.description}</p>
+                          </div>
+                        </div>
+                        <span className="inline-flex items-center rounded-full bg-gray-100 dark:bg-gray-700 px-2.5 py-0.5 text-xs font-medium text-gray-700 dark:text-gray-300">
+                          {tool.status}
+                        </span>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Sidebar */}
+            <div className="space-y-6">
+              {/* Performance Metrics */}
+              {loading ? (
+                <PerformanceCardSkeleton />
+              ) : (
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 animate-slide-in">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Performance</h3>
+                  {monitoringData ? (
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center transition-all duration-200">
+                        <span className="text-sm text-gray-600 dark:text-gray-400">CPU</span>
+                        <span className={`text-sm font-medium transition-colors duration-300 ${
+                          monitoringData.performance?.cpu?.status === 'normal' ? 'text-green-600 dark:text-green-400' :
+                          monitoringData.performance?.cpu?.status === 'warning' ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'
+                        }`}>
+                          {monitoringData.performance?.cpu?.current?.toFixed(1)}%
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center transition-all duration-200">
+                        <span className="text-sm text-gray-600 dark:text-gray-400">Memory</span>
+                        <span className={`text-sm font-medium transition-colors duration-300 ${
+                          monitoringData.performance?.memory?.status === 'normal' ? 'text-green-600 dark:text-green-400' :
+                          monitoringData.performance?.memory?.status === 'warning' ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'
+                        }`}>
+                          {monitoringData.performance?.memory?.current?.toFixed(1)}%
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center transition-all duration-200">
+                        <span className="text-sm text-gray-600 dark:text-gray-400">Active Connections</span>
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300 transition-colors duration-200">
+                          {monitoringData.performance?.network?.activeConnections}
+                        </span>
+                      </div>
+                      <div className="pt-3 border-t transition-all duration-200">
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          Uptime: {monitoringData.overview?.uptime}
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-sm text-gray-500 animate-fade-in">
+                      {error ? `Erro: ${error}` : 'Dados não disponíveis'}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Alertas Ativos */}
+              {loading ? (
+                <AlertCardSkeleton />
+              ) : alertData && activeAlerts > 0 ? (
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 animate-slide-in">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Active Alerts</h3>
+                    <Link 
+                      href="/admin/alerts" 
+                      className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 transition-colors duration-200"
+                    >
+                      Ver todos
+                    </Link>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm transition-all duration-200">
+                      <span className="text-gray-600 dark:text-gray-400">Critical</span>
+                      <span className="font-medium text-red-600 dark:text-red-400 transition-colors duration-300">{alertData.stats.criticalAlerts || 0}</span>
+                    </div>
+                    <div className="flex justify-between text-sm transition-all duration-200">
+                      <span className="text-gray-600 dark:text-gray-400">Total</span>
+                      <span className="font-medium text-gray-700 dark:text-gray-300 transition-colors duration-300">{activeAlerts}</span>
+                    </div>
+                  </div>
+                </div>
+              ) : !loading && alertData && activeAlerts === 0 ? (
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 animate-fade-in">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">System Stable</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">No active alerts at the moment.</p>
+                </div>
+              ) : null}
+
+            </div>
           </div>
         </div>
-        <div className="text-xs text-gray-400 mt-4 text-center">
-          Last updated: {new Date(systemStats.timestamp).toLocaleString()}
-        </div>
-      </div>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        
-        <div className="bg-white shadow rounded-lg p-6">
-          <h2 className="text-lg font-semibold mb-4 text-gray-800">Users</h2>
-          <p className="text-gray-600 mb-4">Manage user accounts and permissions</p>
-          <Link 
-            href="/admin/users" 
-            className="bg-gray-700 hover:bg-gray-800 text-white px-4 py-2 rounded block text-center transition-colors"
-          >
-            Manage Users
-          </Link>
-        </div>
-
-        <div className="bg-white shadow rounded-lg p-6">
-          <h2 className="text-lg font-semibold mb-4 text-gray-800">Sites</h2>
-          <p className="text-gray-600 mb-4">Manage all sites in the organization</p>
-          <Link 
-            href="/sites" 
-            className="bg-gray-700 hover:bg-gray-800 text-white px-4 py-2 rounded block text-center transition-colors"
-          >
-            Manage Sites
-          </Link>
-        </div>
-        
-        <div className="bg-white shadow rounded-lg p-6">
-          <h2 className="text-lg font-semibold mb-4 text-gray-800">Controllers</h2>
-          <p className="text-gray-600 mb-4">Manage local controllers for each site</p>
-          <Link 
-            href="/controllers" 
-            className="bg-gray-700 hover:bg-gray-800 text-white px-4 py-2 rounded block text-center transition-colors"
-          >
-            Manage Controllers
-          </Link>
-        </div>
-        
-        <div className="bg-white shadow rounded-lg p-6">
-          <h2 className="text-lg font-semibold mb-4 text-gray-800">System Health</h2>
-          <p className="text-gray-600 mb-4">Monitor system-wide health metrics</p>
-          <Link 
-            href="/admin/health" 
-            className="bg-gray-700 hover:bg-gray-800 text-white px-4 py-2 rounded block text-center transition-colors"
-          >
-            View Health
-          </Link>
-        </div>
-        
-        <div className="bg-white shadow rounded-lg p-6">
-          <h2 className="text-lg font-semibold mb-4 text-gray-800">Metrics</h2>
-          <p className="text-gray-600 mb-4">View system performance metrics</p>
-          <Link 
-            href="/admin/metrics" 
-            className="bg-gray-700 hover:bg-gray-800 text-white px-4 py-2 rounded block text-center transition-colors"
-          >
-            View Metrics
-          </Link>
-        </div>
-        
-        <div className="bg-white shadow rounded-lg p-6">
-          <h2 className="text-lg font-semibold mb-4 text-gray-800">Alerts</h2>
-          <p className="text-gray-600 mb-4">Manage system alerts and notifications</p>
-          <Link 
-            href="/admin/alerts" 
-            className="bg-gray-700 hover:bg-gray-800 text-white px-4 py-2 rounded block text-center transition-colors"
-          >
-            Manage Alerts
-          </Link>
-        </div>
-        
-        <div className="bg-white shadow rounded-lg p-6">
-          <h2 className="text-lg font-semibold mb-4 text-gray-800">Monitoring</h2>
-          <p className="text-gray-600 mb-4">Comprehensive monitoring dashboard</p>
-          <Link 
-            href="/admin/monitoring" 
-            className="bg-gray-700 hover:bg-gray-800 text-white px-4 py-2 rounded block text-center transition-colors"
-          >
-            View Dashboard
-          </Link>
-        </div>
-      </div>
       </div>
     </Layout>
   );
@@ -131,25 +444,45 @@ const AdminPage: NextPage<AdminPageProps> = ({ systemStats }) => {
 
 export const getServerSideProps: GetServerSideProps = async () => {
   try {
-    const systemStats = await getSystemStats();
+    // Import repositories - usando padrão repository ao invés de api-server
+    const { UsersRepository } = await import('@/lib/repositories/UsersRepository');
+    const { SitesRepository } = await import('@/lib/repositories/SitesRepository');
+    const { ControllersRepository } = await import('@/lib/repositories/ControllersRepository');
+    
+    // Instanciar repositories
+    const usersRepo = new UsersRepository();
+    const sitesRepo = new SitesRepository();
+    const controllersRepo = new ControllersRepository();
+    
+    // Buscar dados dos repositories
+    const [users, sites, controllers] = await Promise.all([
+      usersRepo.getAll(),
+      sitesRepo.getAll(),
+      controllersRepo.getAll()
+    ]);
+    
+    // Preparar dados do dashboard
+    const dashboardData: AdminDashboardData = {
+      users,
+      sites,
+      controllers
+    };
     
     return {
       props: {
-        systemStats,
+        dashboardData,
       },
     };
   } catch (error) {
-    console.error('Error fetching system stats:', error);
+    console.error('Error fetching dashboard data:', error);
     
     // Return fallback data
     return {
       props: {
-        systemStats: {
-          totalUsers: 0,
-          totalSites: 0,
-          totalControllers: 0,
-          systemStatus: 'Error',
-          timestamp: new Date().toISOString()
+        dashboardData: {
+          users: [],
+          sites: [],
+          controllers: []
         },
       },
     };

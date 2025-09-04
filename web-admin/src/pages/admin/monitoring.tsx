@@ -11,7 +11,8 @@ interface MonitoringPageProps {
 const MonitoringPage: NextPage<MonitoringPageProps> = ({ initialMonitoringData }) => {
   return (
     <Layout>
-      <div className="container mx-auto p-4">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        <div className="container mx-auto p-4">
         <MonitoringDashboard 
           initialData={{
             metrics: initialMonitoringData.metrics,
@@ -19,6 +20,7 @@ const MonitoringPage: NextPage<MonitoringPageProps> = ({ initialMonitoringData }
             alertStats: initialMonitoringData.alertStats
           }}
         />
+        </div>
       </div>
     </Layout>
   );

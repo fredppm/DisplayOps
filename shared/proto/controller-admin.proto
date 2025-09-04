@@ -116,12 +116,16 @@ message AdminCommand {
   oneof payload {
     ConfigUpdateCommand config_update = 10;
     StatusRequestCommand status_request = 11;
+    DashboardSyncCommand dashboard_sync = 12;
+    CookieSyncCommand cookie_sync = 13;
   }
 }
 
 enum AdminCommandType {
   CONFIG_UPDATE = 0;
   STATUS_REQUEST = 1;
+  DASHBOARD_SYNC = 2;
+  COOKIE_SYNC = 3;
   // More command types to be added
 }
 
@@ -133,11 +137,60 @@ message StatusRequestCommand {
   bool include_detailed_metrics = 1;
 }
 
+message DashboardSyncCommand {
+  repeated Dashboard dashboards = 1;
+  string sync_timestamp = 2;
+  string sync_type = 3; // "full" | "delete_all"
+}
+
+message CookieSyncCommand {
+  repeated CookieDomain cookie_domains = 1;
+  string sync_timestamp = 2;
+  string sync_type = 3; // "full" | "delete_all"
+}
+
 message CommandResponse {
   string command_id = 1;
   bool success = 2;
   string error_message = 3;
   google.protobuf.Timestamp timestamp = 4;
+}
+
+// ================================
+// Cookie Types
+// ================================
+
+message Cookie {
+  string name = 1;
+  string value = 2;
+  string domain = 3;
+  string path = 4;
+  bool secure = 5;
+  bool http_only = 6;
+  string same_site = 7;
+  int64 expiration_date = 8; // Unix timestamp, 0 = session cookie
+  string description = 9;
+}
+
+message CookieDomain {
+  string domain = 1;
+  repeated Cookie cookies = 2;
+  string description = 3;
+  google.protobuf.Timestamp last_updated = 4;
+}
+
+// ================================
+// Dashboard Types
+// ================================
+
+message Dashboard {
+  string id = 1;
+  string name = 2;
+  string url = 3;
+  string description = 4;
+  int32 refresh_interval = 5;
+  bool requires_auth = 6;
+  string category = 7;
 }
 
 // ================================

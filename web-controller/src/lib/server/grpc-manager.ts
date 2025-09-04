@@ -1,5 +1,8 @@
 import { GrpcClientService } from './grpc-client-service';
 import { MiniPC } from '@/types/shared-types';
+import { createContextLogger } from '../../utils/logger';
+
+const grpcManagerLogger = createContextLogger('grpc-manager');
 
 /**
  * Server-side gRPC manager for communicating with host agents
@@ -12,7 +15,7 @@ class GrpcManagerSingleton {
   private isInitialized: boolean = false;
 
   private constructor() {
-    console.log('🔧 GrpcManager: Inicializando com GrpcClientService singleton');
+    grpcManagerLogger.info('🔧 GrpcManager: Inicializando com GrpcClientService singleton');
     this.grpcService = GrpcClientService.getInstance();
     this.setupEventHandlers();
   }
@@ -26,12 +29,12 @@ class GrpcManagerSingleton {
 
   private setupEventHandlers(): void {
     this.grpcService.on('host-connected', ({ hostId, host }) => {
-      console.log(`🔌 gRPC Manager: Host ${hostId} connected`);
+      grpcManagerLogger.info(`🔌 gRPC Manager: Host ${hostId} connected`);
       this.connectedHosts.set(hostId, host);
     });
 
     this.grpcService.on('host-disconnected', ({ hostId }) => {
-      console.log(`🔌 gRPC Manager: Host ${hostId} disconnected`);
+      grpcManagerLogger.info(`🔌 gRPC Manager: Host ${hostId} disconnected`);
       this.connectedHosts.delete(hostId);
     });
   }
@@ -40,12 +43,12 @@ class GrpcManagerSingleton {
     if (this.isInitialized) return;
     
     // Start the gRPC client service
-    console.log('🚀 gRPC Manager: Initializing server-side gRPC client...');
+    grpcManagerLogger.info('🚀 gRPC Manager: Initializing server-side gRPC client...');
     this.isInitialized = true;
   }
 
   public async connectToHost(host: MiniPC): Promise<void> {
-    console.log(`🔌 gRPC Manager: Connecting to host ${host.id}...`);
+    grpcManagerLogger.info(`🔌 gRPC Manager: Connecting to host ${host.id}...`);
     await this.grpcService.connectToHost(host);
   }
 
@@ -152,7 +155,7 @@ class GrpcManagerSingleton {
   }
 
   public async forceReconnectHost(hostId: string): Promise<any> {
-    console.log(`🔄 gRPC Manager: Force reconnecting to host ${hostId}`);
+    grpcManagerLogger.info(`🔄 gRPC Manager: Force reconnecting to host ${hostId}`);
     
     // First disconnect if connected
     if (this.isHostConnected(hostId)) {
@@ -203,7 +206,7 @@ class GrpcManagerSingleton {
       try {
         healthStatus = await this.getHealthStatus(hostId);
       } catch (error) {
-        console.error(`Failed to get health status for ${hostId}:`, error);
+        grpcManagerLogger.error(`Failed to get health status for ${hostId}:`, error);
       }
     }
     
@@ -218,7 +221,7 @@ class GrpcManagerSingleton {
   }
 
   public async clearAllCircuitBreakers(): Promise<void> {
-    console.log('🔄 gRPC Manager: Clearing all circuit breakers');
+    grpcManagerLogger.info('🔄 gRPC Manager: Clearing all circuit breakers');
     
     // Get all host IDs from connected hosts and connection stats
     const connectedHostIds = Array.from(this.connectedHosts.keys());

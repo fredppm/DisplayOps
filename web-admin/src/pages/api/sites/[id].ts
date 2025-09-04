@@ -3,6 +3,8 @@ import { Site, UpdateSiteRequest, ApiResponse } from '@/types/multi-site-types';
 import { UpdateSiteSchema } from '@/schemas/validation';
 import { withPermission, ProtectedApiRequest } from '@/lib/api-protection';
 import { sitesRepository, controllersRepository } from '@/lib/repositories';
+import fs from 'fs/promises';
+import path from 'path';
 
 async function handler(req: ProtectedApiRequest, res: NextApiResponse<ApiResponse<Site>>) {
   const { id } = req.query;
@@ -17,8 +19,7 @@ async function handler(req: ProtectedApiRequest, res: NextApiResponse<ApiRespons
 
   if (req.method === 'GET') {
     try {
-      const data = await readSitesData();
-      const site = data.sites.find(s => s.id === id);
+      const site = await sitesRepository.getById(id);
 
       if (!site) {
         return res.status(404).json({
@@ -53,10 +54,10 @@ async function handler(req: ProtectedApiRequest, res: NextApiResponse<ApiRespons
       }
 
       const updateData: UpdateSiteRequest = validation.data;
-      const data = await readSitesData();
       
-      const siteIndex = data.sites.findIndex(s => s.id === id);
-      if (siteIndex === -1) {
+      // Check if site exists
+      const existingSite = await sitesRepository.getById(id);
+      if (!existingSite) {
         return res.status(404).json({
           success: false,
           error: 'Site not found',
@@ -65,11 +66,11 @@ async function handler(req: ProtectedApiRequest, res: NextApiResponse<ApiRespons
       }
 
       // If name is being updated, check for conflicts with new ID
-      if (updateData.name && updateData.name !== data.sites[siteIndex].name) {
+      if (updateData.name && updateData.name !== existingSite.name) {
         const newSiteId = updateData.name.toLowerCase().replace(/[^a-z0-9]/g, '-');
-        const existingSite = data.sites.find(site => site.id === newSiteId && site.id !== id);
+        const conflictingSite = await sitesRepository.getById(newSiteId);
         
-        if (existingSite) {
+        if (conflictingSite && conflictingSite.id !== id) {
           return res.status(409).json({
             success: false,
             error: 'A site with this name already exists',
@@ -79,21 +80,23 @@ async function handler(req: ProtectedApiRequest, res: NextApiResponse<ApiRespons
       }
 
       // Update site
-      const updatedSite: Site = {
-        ...data.sites[siteIndex],
+      const updatedSite = await sitesRepository.update(id, {
         ...updateData,
         // If name changed, update the ID
-        ...(updateData.name && updateData.name !== data.sites[siteIndex].name 
+        ...(updateData.name && updateData.name !== existingSite.name 
           ? { id: updateData.name.toLowerCase().replace(/[^a-z0-9]/g, '-') }
           : {}
         ),
         updatedAt: new Date().toISOString()
-      };
+      });
 
-      data.sites[siteIndex] = updatedSite;
-      
-      // Write back to file
-      await writeSitesData(data);
+      if (!updatedSite) {
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to update site',
+          timestamp: new Date().toISOString()
+        });
+      }
 
       res.status(200).json({
         success: true,
@@ -109,18 +112,15 @@ async function handler(req: ProtectedApiRequest, res: NextApiResponse<ApiRespons
     }
   } else if (req.method === 'DELETE') {
     try {
-      const data = await readSitesData();
-      
-      const siteIndex = data.sites.findIndex(s => s.id === id);
-      if (siteIndex === -1) {
+      // Get site before deleting
+      const site = await sitesRepository.getById(id);
+      if (!site) {
         return res.status(404).json({
           success: false,
           error: 'Site not found',
           timestamp: new Date().toISOString()
         });
       }
-
-      const site = data.sites[siteIndex];
 
       // Handle orphaned hosts before deleting site
       try {
@@ -159,11 +159,15 @@ async function handler(req: ProtectedApiRequest, res: NextApiResponse<ApiRespons
         // Continue with site deletion even if host update fails
       }
 
-      // Remove site from array
-      data.sites.splice(siteIndex, 1);
-      
-      // Write back to file
-      await writeSitesData(data);
+      // Delete the site using repository
+      const deleted = await sitesRepository.delete(id);
+      if (!deleted) {
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to delete site',
+          timestamp: new Date().toISOString()
+        });
+      }
 
       res.status(200).json({
         success: true,

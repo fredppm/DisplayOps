@@ -1,9 +1,13 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { Dashboard } from '@/types/shared-types';
+import { createContextLogger } from '@/utils/logger';
+import { grpcServerSingleton } from '@/lib/grpc-server-singleton';
 import fs from 'fs';
 import path from 'path';
 
 const DASHBOARDS_FILE = path.join(process.cwd(), 'data', 'dashboards.json');
+
+const dashboardsByIdLogger = createContextLogger('api-dashboards-by-id');
 
 // Load dashboards from file
 const loadDashboards = (): Dashboard[] => {
@@ -44,6 +48,18 @@ const validateDashboard = (data: any): data is Omit<Dashboard, 'id'> => {
     typeof data.requiresAuth === 'boolean' &&
     (typeof data.category === 'string' || data.category === undefined)
   );
+};
+
+// Trigger dashboard sync to all controllers
+const triggerDashboardSync = async (): Promise<void> => {
+  try {
+    await grpcServerSingleton.triggerDashboardSync();
+    dashboardsByIdLogger.info('Dashboard sync triggered successfully');
+  } catch (error) {
+    dashboardsByIdLogger.error('Failed to trigger dashboard sync', { 
+      error: error instanceof Error ? error.message : String(error) 
+    });
+  }
 };
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -118,6 +134,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         dashboardsToUpdate[dashboardIndex] = updatedDashboard;
         saveDashboards(dashboardsToUpdate);
 
+        // Trigger sync to all controllers
+        await triggerDashboardSync();
+
         return res.status(200).json({
           success: true,
           data: updatedDashboard
@@ -138,6 +157,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const deletedDashboard = dashboardsToDelete[deleteIndex];
         dashboardsToDelete.splice(deleteIndex, 1);
         saveDashboards(dashboardsToDelete);
+
+        // Trigger sync to all controllers
+        await triggerDashboardSync();
 
         return res.status(200).json({
           success: true,

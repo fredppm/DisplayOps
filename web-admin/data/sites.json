@@ -14,16 +14,19 @@
       "updatedAt": "2025-09-03T20:33:04.151Z"
     },
     {
-      "id": "nyc",
-      "name": "Escritório NYC",
-      "location": "New York City",
-      "timezone": "America/New_York",
-      "status": "offline",
+      "id": "auto-discovered",
+      "name": "Auto-Discovered Controllers",
+      "location": "Various Locations",
+      "timezone": "America/Sao_Paulo",
       "controllers": [
-        "nyc-office"
+        "ctrl-vtex-b9lh6z3-mf5t4yq1",
+        "ctrl-vtex-b9lh6z3-mf5tknr1",
+        "ctrl-vtex-b9lh6z3-mf5txdhg",
+        "ctrl-vtex-b9lh6z3-mf60d0n5",
+        "ctrl-vtex-b9lh6z3-mf60d0m4"
       ],
-      "createdAt": "2024-01-01T00:00:00Z",
-      "updatedAt": "2024-01-01T00:00:00Z"
+      "createdAt": "2025-09-04T17:53:55.979Z",
+      "updatedAt": "2025-09-04T23:37:36.008Z"
     }
   ]
 }

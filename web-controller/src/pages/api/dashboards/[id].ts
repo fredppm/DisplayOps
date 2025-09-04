@@ -2,6 +2,9 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { Dashboard } from '@/types/shared-types';
 import fs from 'fs';
 import path from 'path';
+import { createContextLogger } from '@/utils/logger';
+
+const dashboardApiLogger = createContextLogger('api-dashboard-id');
 
 const DASHBOARDS_FILE = path.join(process.cwd(), 'data', 'dashboards.json');
 
@@ -15,7 +18,7 @@ const loadDashboards = (): Dashboard[] => {
     const data = fs.readFileSync(DASHBOARDS_FILE, 'utf8');
     return JSON.parse(data);
   } catch (error) {
-    console.error('Error loading dashboards:', error);
+    dashboardApiLogger.error('Error loading dashboards', { error });
     return [];
   }
 };
@@ -29,7 +32,7 @@ const saveDashboards = (dashboards: Dashboard[]): void => {
     }
     fs.writeFileSync(DASHBOARDS_FILE, JSON.stringify(dashboards, null, 2), 'utf8');
   } catch (error) {
-    console.error('Error saving dashboards:', error);
+    dashboardApiLogger.error('Error saving dashboards', { error });
     throw new Error('Failed to save dashboards');
   }
 };
@@ -152,7 +155,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         });
     }
   } catch (error: any) {
-    console.error('Dashboard API error:', error);
+    dashboardApiLogger.error('Dashboard API error', { error });
     return res.status(500).json({
       success: false,
       error: error.message || 'Internal server error'

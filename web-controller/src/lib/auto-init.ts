@@ -3,9 +3,13 @@
  * Este arquivo só será executado no server-side via API routes
  */
 
+import { createContextLogger } from '../utils/logger';
+
+const autoInitLogger = createContextLogger('auto-init');
+
 // Função para auto-inicializar os serviços (apenas server-side)
 export async function autoInitializeServices() {
-  console.log('🚀 Iniciando auto-inicialização dos serviços...');
+  autoInitLogger.info('Iniciando auto-inicialização dos serviços...');
   
   try {
     const services = [];
@@ -14,17 +18,17 @@ export async function autoInitializeServices() {
     try {
       const discoveryService = require('./discovery-singleton').discoveryService;
       await discoveryService.initialize();
-      console.log('✅ Discovery Service auto-inicializado com sucesso');
+      autoInitLogger.info('Discovery Service auto-inicializado com sucesso');
       services.push('Discovery Service');
     } catch (error) {
-      console.warn('⚠️ Discovery Service não disponível:', error.message);
+      autoInitLogger.warn('Discovery Service não disponível', { error: error instanceof Error ? error.message : String(error) });
     }
     
     // 2. Inicializar gRPC Client (se habilitado)
     const grpcEnabled = process.env.GRPC_ADMIN_ENABLED !== 'false' && 
                        process.env.CONTROLLER_AUTO_REGISTER !== 'false';
     
-    console.log('🔍 gRPC auto-init check:', {
+    autoInitLogger.debug('gRPC auto-init check', {
       GRPC_ADMIN_ENABLED: process.env.GRPC_ADMIN_ENABLED,
       CONTROLLER_AUTO_REGISTER: process.env.CONTROLLER_AUTO_REGISTER,
       grpcEnabled
@@ -35,22 +39,22 @@ export async function autoInitializeServices() {
         // Usar import dinâmico para evitar problemas de dependência
         const { grpcClientSingleton } = await import('./grpc-client-singleton');
         await grpcClientSingleton.start();
-        console.log('✅ gRPC Client auto-inicializado com sucesso');
+        autoInitLogger.info('gRPC Client auto-inicializado com sucesso');
         services.push('gRPC Client');
       } catch (error) {
-        console.warn('⚠️ gRPC Client não disponível:', error.message);
+        autoInitLogger.warn('gRPC Client não disponível', { error: error instanceof Error ? error.message : String(error) });
       }
     } else {
-      console.log('ℹ️ gRPC Client desabilitado via configuração');
+      autoInitLogger.info('gRPC Client desabilitado via configuração');
     }
     
     // 3. Verificar outros serviços (fallback)
     try {
       const grpcClientService = require('./server/grpc-client-service').grpcClientService;
-      console.log('✅ gRPC Client Service (legacy) instanciado');
+      autoInitLogger.info('gRPC Client Service (legacy) instanciado');
       services.push('gRPC Client Service (legacy)');
     } catch (error) {
-      console.log('ℹ️ gRPC Client Service (legacy) não disponível');
+      autoInitLogger.debug('gRPC Client Service (legacy) não disponível');
     }
     
     const message = services.length > 0 
@@ -59,7 +63,7 @@ export async function autoInitializeServices() {
       
     return { success: true, message, services };
   } catch (error) {
-    console.error('❌ Erro na auto-inicialização dos services:', error);
+    autoInitLogger.error('Erro na auto-inicialização dos services', { error });
     throw error;
   }
 }

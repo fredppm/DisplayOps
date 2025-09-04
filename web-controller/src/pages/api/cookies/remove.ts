@@ -1,5 +1,8 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { CookieStorageManager } from '../../../lib/cookie-storage';
+import { createContextLogger } from '@/utils/logger';
+
+const cookieRemoveLogger = createContextLogger('api-cookie-remove');
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -16,7 +19,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     }
 
-    console.log(`🗑️ Removing cookie ${cookieName} from domain: ${domain}`);
+    cookieRemoveLogger.info('Removing cookie', { cookieName, domain });
     
     const result = CookieStorageManager.removeCookie(domain, cookieName);
     
@@ -37,7 +40,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
   } catch (error) {
-    console.error('Cookie remove error:', error);
+    cookieRemoveLogger.error('Cookie remove error', { error: error instanceof Error ? error.message : String(error) });
     return res.status(500).json({
       success: false,
       error: 'Internal server error removing cookie'

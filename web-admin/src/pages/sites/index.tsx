@@ -78,13 +78,13 @@ const SitesPage: NextPage = () => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'online':
-        return 'bg-green-50 text-green-700 ring-green-600/20';
+        return 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 ring-green-600/20 dark:ring-green-400/20';
       case 'offline':
-        return 'bg-gray-50 text-gray-700 ring-gray-600/20';
+        return 'bg-gray-50 dark:bg-gray-800/50 text-gray-700 dark:text-gray-400 ring-gray-600/20 dark:ring-gray-500/20';
       case 'error':
-        return 'bg-red-50 text-red-700 ring-red-600/20';
+        return 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 ring-red-600/20 dark:ring-red-400/20';
       default:
-        return 'bg-gray-50 text-gray-700 ring-gray-600/20';
+        return 'bg-gray-50 dark:bg-gray-800/50 text-gray-700 dark:text-gray-400 ring-gray-600/20 dark:ring-gray-500/20';
     }
   };
 
@@ -112,14 +112,14 @@ const SitesPage: NextPage = () => {
             <div className="flex items-center justify-between">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center mb-2">
-                  <h1 className="text-2xl font-bold leading-7 text-gray-900 sm:truncate sm:text-3xl sm:tracking-tight">
+                  <h1 className="text-2xl font-bold leading-7 text-gray-900 dark:text-gray-100 sm:truncate sm:text-3xl sm:tracking-tight">
                     Sites Management
                   </h1>
-                  <span className="ml-3 inline-flex items-center rounded-full bg-gray-50 px-2.5 py-0.5 text-xs font-medium text-gray-400 ring-1 ring-inset ring-gray-200">
+                  <span className="ml-3 inline-flex items-center rounded-full bg-gray-50 dark:bg-gray-700 px-2.5 py-0.5 text-xs font-medium text-gray-400 dark:text-gray-500 ring-1 ring-inset ring-gray-200 dark:ring-gray-600">
                     Loading...
                   </span>
                 </div>
-                <p className="text-sm text-gray-500 max-w-2xl">
+                <p className="text-sm text-gray-500 dark:text-gray-400 max-w-2xl">
                   Manage all your DisplayOps sites and their controllers. Monitor status, configure settings, and deploy dashboards across your network.
                 </p>
               </div>
@@ -137,7 +137,7 @@ const SitesPage: NextPage = () => {
 
           {/* Stats Skeleton */}
           <div className="mb-6">
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 px-6 py-4">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 px-6 py-4">
               <div className="animate-pulse flex items-center space-x-8">
                 <div className="flex items-center space-x-2">
                   <div className="h-4 w-4 bg-gray-200 rounded"></div>
@@ -160,36 +160,36 @@ const SitesPage: NextPage = () => {
             {[1, 2, 3, 4, 5, 6].map((i) => (
               <div
                 key={i}
-                className="relative rounded-lg border border-gray-300 bg-white px-6 py-5 shadow-sm"
+                className="relative rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-6 py-5 shadow-sm"
               >
                 <div className="animate-pulse">
                   <div className="flex justify-between items-start mb-3">
                     <div className="flex items-center space-x-3">
-                      <div className="h-5 w-5 bg-gray-200 rounded-full"></div>
-                      <div className="h-4 bg-gray-200 rounded w-24"></div>
+                      <div className="h-5 w-5 bg-gray-200 dark:bg-gray-600 rounded-full"></div>
+                      <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-24"></div>
                     </div>
-                    <div className="h-6 bg-gray-200 rounded-full w-16"></div>
+                    <div className="h-6 bg-gray-200 dark:bg-gray-600 rounded-full w-16"></div>
                   </div>
                   
                   <div className="space-y-2">
                     <div className="flex items-center space-x-2">
-                      <div className="h-4 w-4 bg-gray-200 rounded"></div>
-                      <div className="h-3 bg-gray-200 rounded w-20"></div>
+                      <div className="h-4 w-4 bg-gray-200 dark:bg-gray-600 rounded"></div>
+                      <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-20"></div>
                     </div>
                     <div className="flex items-center space-x-2">
-                      <div className="h-4 w-4 bg-gray-200 rounded"></div>
-                      <div className="h-3 bg-gray-200 rounded w-16"></div>
+                      <div className="h-4 w-4 bg-gray-200 dark:bg-gray-600 rounded"></div>
+                      <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-16"></div>
                     </div>
                     <div className="flex items-center space-x-2">
-                      <div className="h-4 w-4 bg-gray-200 rounded"></div>
-                      <div className="h-3 bg-gray-200 rounded w-12"></div>
+                      <div className="h-4 w-4 bg-gray-200 dark:bg-gray-600 rounded"></div>
+                      <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-12"></div>
                     </div>
                   </div>
 
-                  <div className="mt-4 pt-3 border-t border-gray-100">
+                  <div className="mt-4 pt-3 border-t border-gray-100 dark:border-gray-800">
                     <div className="flex justify-between">
-                      <div className="h-3 bg-gray-200 rounded w-16"></div>
-                      <div className="h-3 bg-gray-200 rounded w-16"></div>
+                      <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-16"></div>
+                      <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-16"></div>
                     </div>
                   </div>
                 </div>
@@ -204,15 +204,15 @@ const SitesPage: NextPage = () => {
   if (error) {
     return (
       <Layout>
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6">
           <div className="flex items-center">
             <XCircle className="h-6 w-6 text-red-500 mr-2" />
-            <h3 className="text-lg font-medium text-red-800">Error Loading Sites</h3>
+            <h3 className="text-lg font-medium text-red-800 dark:text-red-300">Error Loading Sites</h3>
           </div>
-          <p className="mt-2 text-red-700">{error}</p>
+          <p className="mt-2 text-red-700 dark:text-red-400">{error}</p>
           <button
             onClick={fetchSites}
-            className="mt-4 px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg transition-colors"
+            className="mt-4 px-4 py-2 bg-red-100 dark:bg-red-800 hover:bg-red-200 dark:hover:bg-red-700 text-red-700 dark:text-red-100 rounded-lg transition-colors"
           >
             Try Again
           </button>
@@ -230,14 +230,14 @@ const SitesPage: NextPage = () => {
           <div className="flex items-center justify-between">
             <div className="min-w-0 flex-1">
               <div className="flex items-center mb-2">
-                <h1 className="text-2xl font-bold leading-7 text-gray-900 sm:truncate sm:text-3xl sm:tracking-tight">
+                <h1 className="text-2xl font-bold leading-7 text-gray-900 dark:text-gray-100 sm:truncate sm:text-3xl sm:tracking-tight">
                   Sites Management
                 </h1>
-                <span className="ml-3 inline-flex items-center rounded-full bg-green-50 px-2.5 py-0.5 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">
+                <span className="ml-3 inline-flex items-center rounded-full bg-green-50 dark:bg-green-900/20 px-2.5 py-0.5 text-xs font-medium text-green-700 dark:text-green-400 ring-1 ring-inset ring-green-600/20 dark:ring-green-400/20">
                   {sites.length} {sites.length === 1 ? 'site' : 'sites'}
                 </span>
               </div>
-              <p className="text-sm text-gray-500 max-w-2xl">
+              <p className="text-sm text-gray-500 dark:text-gray-400 max-w-2xl">
                 Manage all your DisplayOps sites and their controllers. Monitor status, configure settings, and deploy dashboards across your network.
               </p>
             </div>
@@ -255,24 +255,24 @@ const SitesPage: NextPage = () => {
 
         {/* Quick Stats - Compact */}
         <div className="mb-6">
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 px-6 py-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 px-6 py-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-8">
                 <div className="flex items-center space-x-2">
                   <MapPin className="h-4 w-4 text-gray-400" />
-                  <span className="text-sm text-gray-600">Total: <span className="font-semibold text-gray-900">{sites.length}</span></span>
+                  <span className="text-sm text-gray-600 dark:text-gray-400">Total: <span className="font-semibold text-gray-900 dark:text-gray-100">{sites.length}</span></span>
                 </div>
                 <div className="flex items-center space-x-2">
                   <CheckCircle className="h-4 w-4 text-green-500" />
-                  <span className="text-sm text-gray-600">Online: <span className="font-semibold text-green-700">{sites.filter(site => site.status === 'online').length}</span></span>
+                  <span className="text-sm text-gray-600 dark:text-gray-400">Online: <span className="font-semibold text-green-700 dark:text-green-400">{sites.filter(site => site.status === 'online').length}</span></span>
                 </div>
                 <div className="flex items-center space-x-2">
                   <AlertCircle className="h-4 w-4 text-gray-400" />
-                  <span className="text-sm text-gray-600">Offline: <span className="font-semibold text-gray-700">{sites.filter(site => site.status === 'offline').length}</span></span>
+                  <span className="text-sm text-gray-600 dark:text-gray-400">Offline: <span className="font-semibold text-gray-700 dark:text-gray-300">{sites.filter(site => site.status === 'offline').length}</span></span>
                 </div>
                 <div className="flex items-center space-x-2">
                   <XCircle className="h-4 w-4 text-red-500" />
-                  <span className="text-sm text-gray-600">Error: <span className="font-semibold text-red-700">{sites.filter(site => site.status === 'error').length}</span></span>
+                  <span className="text-sm text-gray-600 dark:text-gray-400">Error: <span className="font-semibold text-red-700 dark:text-red-400">{sites.filter(site => site.status === 'error').length}</span></span>
                 </div>
               </div>
             </div>
@@ -282,12 +282,12 @@ const SitesPage: NextPage = () => {
         {/* Sites List */}
         <div>
           {sites.length === 0 ? (
-            <div className="text-center bg-white shadow-sm ring-1 ring-gray-200 rounded-lg py-12">
-              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-gray-100">
-                <MapPin className="h-6 w-6 text-gray-600" />
+            <div className="text-center bg-white dark:bg-gray-800 shadow-sm ring-1 ring-gray-200 dark:ring-gray-700 rounded-lg py-12">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700">
+                <MapPin className="h-6 w-6 text-gray-600 dark:text-gray-400" />
               </div>
-              <h3 className="mt-4 text-sm font-semibold text-gray-900">No Sites</h3>
-              <p className="mt-2 text-sm text-gray-500 max-w-sm mx-auto">
+              <h3 className="mt-4 text-sm font-semibold text-gray-900 dark:text-gray-100">No Sites</h3>
+              <p className="mt-2 text-sm text-gray-500 dark:text-gray-400 max-w-sm mx-auto">
                 Get started by creating your first site to manage DisplayOps controllers.
               </p>
               <div className="mt-6">
@@ -306,7 +306,7 @@ const SitesPage: NextPage = () => {
                 return (
                   <div
                     key={site.id}
-                    className="relative rounded-lg border border-gray-300 bg-white px-6 py-5 shadow-sm hover:shadow-md transition-shadow focus-within:ring-2 focus-within:ring-indigo-500 focus-within:ring-offset-2"
+                    className="relative rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-6 py-5 shadow-sm hover:shadow-md dark:hover:shadow-xl transition-shadow focus-within:ring-2 focus-within:ring-indigo-500 focus-within:ring-offset-2 dark:focus-within:ring-offset-gray-900"
                   >
                     <div className="flex justify-between items-start mb-3">
                       <div className="flex items-center space-x-3">
@@ -316,7 +316,7 @@ const SitesPage: NextPage = () => {
                         <div className="min-w-0 flex-1">
                           <Link href={`/sites/${site.id}`} className="focus:outline-none">
                             <span className="absolute inset-0" aria-hidden="true" />
-                            <p className="text-sm font-medium text-gray-900 truncate">{site.name}</p>
+                            <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{site.name}</p>
                           </Link>
                         </div>
                       </div>
@@ -326,22 +326,22 @@ const SitesPage: NextPage = () => {
                     </div>
 
                     <div className="space-y-2">
-                      <div className="flex items-center text-sm text-gray-500">
-                        <MapPin className="mr-1.5 h-4 w-4 flex-shrink-0 text-gray-400" />
+                      <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                        <MapPin className="mr-1.5 h-4 w-4 flex-shrink-0 text-gray-400 dark:text-gray-500" />
                         <span className="truncate">{site.location}</span>
                       </div>
-                      <div className="flex items-center text-sm text-gray-500">
-                        <Clock className="mr-1.5 h-4 w-4 flex-shrink-0 text-gray-400" />
+                      <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                        <Clock className="mr-1.5 h-4 w-4 flex-shrink-0 text-gray-400 dark:text-gray-500" />
                         <span className="truncate">{formatTimezone(site.timezone)}</span>
                       </div>
-                      <div className="flex items-center text-sm text-gray-500">
-                        <Users className="mr-1.5 h-4 w-4 flex-shrink-0 text-gray-400" />
+                      <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                        <Users className="mr-1.5 h-4 w-4 flex-shrink-0 text-gray-400 dark:text-gray-500" />
                         <span>{site.controllers.length} controller{site.controllers.length !== 1 ? 's' : ''}</span>
                       </div>
                     </div>
 
-                    <div className="mt-4 pt-3 border-t border-gray-100">
-                      <div className="flex justify-between text-xs text-gray-400">
+                    <div className="mt-4 pt-3 border-t border-gray-100 dark:border-gray-800">
+                      <div className="flex justify-between text-xs text-gray-400 dark:text-gray-500">
                         <div>Created {new Date(site.createdAt).toLocaleDateString()}</div>
                         <div>Updated {new Date(site.updatedAt).toLocaleDateString()}</div>
                       </div>

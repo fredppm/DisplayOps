@@ -1,18 +1,21 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { discoveryService } from '@/lib/discovery-singleton';
 import { MiniPC, ApiResponse } from '@/types/shared-types';
+import { createContextLogger } from '@/utils/logger';
 // import { getGrpcHostManager } from '../grpc-manager'; // Temporarily disabled
+
+const discoveryApiLogger = createContextLogger('api-discovery');
 
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<ApiResponse<MiniPC[]>>
 ) {
   try {
-    console.log('🔍 API call received:', req.method, 'at', new Date().toISOString());
+    discoveryApiLogger.info('Discovery API call received', { method: req.method });
     
     switch (req.method) {
       case 'GET':
-        console.log('🚀 Initializing discovery service...');
+        discoveryApiLogger.info('Initializing discovery service');
         
         let hosts: MiniPC[] = [];
         let initError: string | null = null;
@@ -20,14 +23,13 @@ export default async function handler(
         // Initialize discovery singleton with detailed error handling
         try {
           await discoveryService.initialize();
-          console.log('✅ Discovery service initialized successfully');
+          discoveryApiLogger.info('Discovery service initialized successfully');
           hosts = discoveryService.getHosts();
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : String(error);
-          console.error('❌ Discovery service initialization failed:', {
+          discoveryApiLogger.error('Discovery service initialization failed', {
             error: errorMessage,
-            stack: error instanceof Error ? error.stack : undefined,
-            timestamp: new Date().toISOString()
+            stack: error instanceof Error ? error.stack : undefined
           });
           
           // Store error but don't throw - return empty list with warning
@@ -42,18 +44,22 @@ export default async function handler(
           ...(initError && { warning: `Discovery service error: ${initError}` })
         };
         
-        console.log('📡 REST API returning hosts:', hosts.length, initError ? `(with warning: ${initError})` : '(healthy)');
+        discoveryApiLogger.info('REST API returning hosts', { 
+          hostCount: hosts.length, 
+          status: initError ? 'warning' : 'healthy',
+          warning: initError || undefined
+        });
         
         res.status(200).json(response);
         break;
 
       case 'POST':
         // Manual host addition
-        console.log('📝 POST request received for manual host addition');
+        discoveryApiLogger.info('POST request received for manual host addition');
         const { host } = req.body;
         
         if (!host) {
-          console.error('❌ POST request missing host data');
+          discoveryApiLogger.error('POST request missing host data');
           const errorResponse: ApiResponse<MiniPC[]> = {
             success: false,
             error: 'Host data is required',
@@ -66,7 +72,7 @@ export default async function handler(
         try {
           await discoveryService.initialize();
           discoveryService.addManualHost(host);
-          console.log('✅ Manual host added successfully:', host.id || host.ipAddress);
+          discoveryApiLogger.info('Manual host added successfully', { hostId: host.id || host.ipAddress });
           
           const successResponse: ApiResponse<MiniPC[]> = {
             success: true,
@@ -76,17 +82,17 @@ export default async function handler(
           
           res.status(200).json(successResponse);
         } catch (error) {
-          console.error('❌ Failed to add manual host:', error);
+          discoveryApiLogger.error('Failed to add manual host', { error: error instanceof Error ? error.message : String(error) });
           throw error; // Let the outer catch handle this
         }
         break;
 
       case 'DELETE':
         // Stop discovery service
-        console.log('🛑 DELETE request received - stopping discovery service');
+        discoveryApiLogger.info('DELETE request received - stopping discovery service');
         try {
           await discoveryService.stop();
-          console.log('✅ Discovery service stopped successfully');
+          discoveryApiLogger.info('Discovery service stopped successfully');
           
           const deleteResponse: ApiResponse<MiniPC[]> = {
             success: true,
@@ -96,7 +102,7 @@ export default async function handler(
           
           res.status(200).json(deleteResponse);
         } catch (error) {
-          console.error('❌ Failed to stop discovery service:', error);
+          discoveryApiLogger.error('Failed to stop discovery service', { error: error instanceof Error ? error.message : String(error) });
           throw error; // Let the outer catch handle this
         }
         break;
@@ -113,11 +119,10 @@ export default async function handler(
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error('❌ Discovery API error:', {
+    discoveryApiLogger.error('Discovery API error', {
       method: req.method,
       error: errorMessage,
       stack: error instanceof Error ? error.stack : undefined,
-      timestamp: new Date().toISOString(),
       url: req.url
     });
     

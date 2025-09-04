@@ -1,4 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
+import { createContextLogger } from '@/utils/logger';
+
+const dashboardClosedLogger = createContextLogger('api-dashboard-closed');
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -10,7 +13,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     // Log that the dashboard management interface was closed
-    console.log('📱 Dashboard management interface closed by user (Ctrl+W or tab close)');
+    dashboardClosedLogger.info('Dashboard management interface closed by user');
     
     // In the future, we could add logic here to:
     // - Notify specific hosts if needed
@@ -22,7 +25,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       message: 'Dashboard closure notification received' 
     });
   } catch (error) {
-    console.error('Error handling dashboard closure notification:', error);
+    dashboardClosedLogger.error('Error handling dashboard closure notification', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ 
       success: false, 
       error: error instanceof Error ? error.message : 'Internal server error'

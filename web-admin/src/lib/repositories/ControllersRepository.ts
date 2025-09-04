@@ -1,5 +1,6 @@
 import { Controller } from '@/types/multi-site-types';
 import { BaseRepository } from './BaseRepository';
+import { calculateControllersStatus, getControllerStatusStats } from '@/lib/controller-status';
 
 export class ControllersRepository extends BaseRepository<Controller> {
   constructor() {
@@ -12,6 +13,12 @@ export class ControllersRepository extends BaseRepository<Controller> {
 
   protected getCollectionKey(): string {
     return 'controllers';
+  }
+
+  // Override getAll to include real-time status calculation
+  async getAll(): Promise<Controller[]> {
+    const controllers = await super.getAll();
+    return calculateControllersStatus(controllers);
   }
 
   // Controller-specific methods
@@ -37,13 +44,8 @@ export class ControllersRepository extends BaseRepository<Controller> {
     offline: number;
     error: number;
   }> {
-    const controllers = await this.getAll();
-    return {
-      total: controllers.length,
-      online: controllers.filter(c => c.status === 'online').length,
-      offline: controllers.filter(c => c.status === 'offline').length,
-      error: controllers.filter(c => c.status === 'error').length,
-    };
+    const controllers = await super.getAll(); // Get raw data to avoid double calculation
+    return getControllerStatusStats(controllers);
   }
 
   async findByName(name: string): Promise<Controller | null> {

@@ -11,10 +11,11 @@ interface AlertsPageProps {
 const AlertsPage: NextPage<AlertsPageProps> = ({ initialAlertsData }) => {
   return (
     <Layout>
-      <div className="container mx-auto p-4">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        <div className="container mx-auto p-4">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold mb-2">System Alerts</h1>
-          <p className="text-gray-600">
+          <h1 className="text-2xl font-bold mb-2 text-gray-900 dark:text-gray-100">System Alerts</h1>
+          <p className="text-gray-600 dark:text-gray-400">
             Monitor and manage system alerts and notifications
           </p>
         </div>
@@ -27,6 +28,7 @@ const AlertsPage: NextPage<AlertsPageProps> = ({ initialAlertsData }) => {
             stats: initialAlertsData.stats
           }}
         />
+        </div>
       </div>
     </Layout>
   );

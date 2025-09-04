@@ -74,6 +74,7 @@ export class GrpcAdminClient extends EventEmitter {
   private client: any;
   private config: GrpcAdminClientConfig;
   private heartbeatStream: grpc.ClientDuplexStream<any, any> | null = null;
+  private commandStream: grpc.ClientDuplexStream<any, any> | null = null;
   private isConnected: boolean = false;
   private isRegistered: boolean = false;
   private reconnectAttempts: number = 0;
@@ -136,6 +137,9 @@ export class GrpcAdminClient extends EventEmitter {
       // Start heartbeat stream
       await this.startHeartbeatStream();
       
+      // Start command stream
+      await this.startCommandStream();
+      
     } catch (error) {
       logger.error('Failed to connect to gRPC Admin server:', error);
       this.handleDisconnection();
@@ -164,6 +168,15 @@ export class GrpcAdminClient extends EventEmitter {
         logger.warn('Error ending heartbeat stream:', error);
       }
       this.heartbeatStream = null;
+    }
+
+    if (this.commandStream) {
+      try {
+        this.commandStream.end();
+      } catch (error) {
+        logger.warn('Error ending command stream:', error);
+      }
+      this.commandStream = null;
     }
 
     logger.info('gRPC Admin client disconnected');
@@ -211,6 +224,38 @@ export class GrpcAdminClient extends EventEmitter {
     } catch (error) {
       logger.error('Failed to start heartbeat stream:', error);
       this.handleDisconnection();
+      throw error;
+    }
+  }
+
+  private async startCommandStream(): Promise<void> {
+    if (this.commandStream) {
+      logger.warn('Command stream already active');
+      return;
+    }
+
+    try {
+      this.commandStream = this.client.AdminCommandStream();
+
+      // Handle commands from admin
+      this.commandStream?.on('data', (command: any) => {
+        this.handleAdminCommand(command);
+      });
+
+      this.commandStream?.on('end', () => {
+        logger.info('Command stream ended');
+        this.commandStream = null;
+      });
+
+      this.commandStream?.on('error', (error: any) => {
+        logger.error('Command stream error:', error);
+        this.commandStream = null;
+      });
+
+      logger.info('gRPC command stream established');
+
+    } catch (error) {
+      logger.error('Failed to start command stream:', error);
       throw error;
     }
   }
@@ -333,6 +378,241 @@ export class GrpcAdminClient extends EventEmitter {
     }
   }
 
+  private async handleAdminCommand(command: any): Promise<void> {
+    logger.debug('Received admin command', { 
+      type: command.type,
+      commandId: command.command_id 
+    });
+
+    let success = false;
+    let errorMessage = '';
+
+    try {
+      switch (command.type) {
+        case 'DASHBOARD_SYNC':
+          await this.handleDashboardSync(command);
+          success = true;
+          break;
+          
+        case 'COOKIE_SYNC':
+          await this.handleCookieSync(command);
+          success = true;
+          break;
+          
+        case 'CONFIG_UPDATE':
+          await this.handleConfigUpdate(command);
+          success = true;
+          break;
+          
+        case 'STATUS_REQUEST':
+          await this.handleStatusRequest(command);
+          success = true;
+          break;
+          
+        default:
+          errorMessage = `Unknown command type: ${command.type}`;
+          logger.warn('Unknown admin command type', { type: command.type });
+      }
+    } catch (error) {
+      errorMessage = error instanceof Error ? error.message : 'Command execution failed';
+      logger.error('Failed to handle admin command', { 
+        type: command.type,
+        error: errorMessage 
+      });
+    }
+
+    // Send response back to admin
+    await this.sendCommandResponse(command.command_id, success, errorMessage);
+  }
+
+  private async handleDashboardSync(command: any): Promise<void> {
+    const dashboardSync = command.dashboard_sync;
+    if (!dashboardSync) {
+      throw new Error('Dashboard sync command missing payload');
+    }
+
+    logger.info('Processing dashboard sync command', {
+      dashboardsCount: dashboardSync.dashboards?.length || 0,
+      syncType: dashboardSync.sync_type,
+      syncTimestamp: dashboardSync.sync_timestamp
+    });
+
+    // Convert dashboards from gRPC format to local format
+    const dashboards = (dashboardSync.dashboards || []).map((d: any) => ({
+      id: d.id,
+      name: d.name,
+      url: d.url,
+      description: d.description,
+      refreshInterval: d.refresh_interval,
+      requiresAuth: d.requires_auth,
+      category: d.category || ''
+    }));
+
+    // Save dashboards locally
+    await this.saveDashboards(dashboards);
+
+    // Emit event for other parts of the application
+    this.emit('dashboard_sync', {
+      dashboards,
+      syncType: dashboardSync.sync_type,
+      syncTimestamp: dashboardSync.sync_timestamp
+    });
+
+    logger.info('Dashboard sync completed successfully', {
+      dashboardsCount: dashboards.length
+    });
+  }
+
+  private async handleCookieSync(command: any): Promise<void> {
+    const cookieSync = command.cookie_sync;
+    if (!cookieSync) {
+      throw new Error('Cookie sync command missing payload');
+    }
+
+    logger.info('Processing cookie sync command', {
+      domainsCount: cookieSync.cookie_domains?.length || 0,
+      syncType: cookieSync.sync_type,
+      syncTimestamp: cookieSync.sync_timestamp
+    });
+
+    // Convert cookie domains from gRPC format to local format
+    const cookiesData = {
+      domains: {} as any,
+      lastUpdated: cookieSync.sync_timestamp
+    };
+
+    (cookieSync.cookie_domains || []).forEach((domainData: any) => {
+      const cookies = (domainData.cookies || []).map((c: any) => ({
+        name: c.name,
+        value: c.value,
+        domain: c.domain,
+        path: c.path,
+        secure: c.secure,
+        httpOnly: c.http_only,
+        sameSite: c.same_site,
+        expirationDate: c.expiration_date,
+        description: c.description || '',
+        importedAt: new Date()
+      }));
+
+      cookiesData.domains[domainData.domain] = {
+        domain: domainData.domain,
+        description: domainData.description,
+        cookies,
+        lastImport: new Date(),
+        lastUpdated: cookieSync.sync_timestamp
+      };
+    });
+
+    // Save cookies using the CookieStorageManager format
+    await this.saveCookiesData(cookiesData);
+
+    // Emit event for other parts of the application
+    this.emit('cookie_sync', {
+      cookiesData,
+      syncType: cookieSync.sync_type,
+      syncTimestamp: cookieSync.sync_timestamp
+    });
+
+    logger.info('Cookie sync completed successfully', {
+      domainsCount: Object.keys(cookiesData.domains).length,
+      totalCookies: Object.values(cookiesData.domains).reduce((sum: number, domain: any) => sum + domain.cookies.length, 0)
+    });
+  }
+
+  private async handleConfigUpdate(command: any): Promise<void> {
+    const configUpdate = command.config_update;
+    if (!configUpdate) {
+      throw new Error('Config update command missing payload');
+    }
+
+    logger.info('Processing config update command', {
+      configValues: Object.keys(configUpdate.config_values || {}).length
+    });
+
+    // TODO: Implement config update logic
+    this.emit('config_update', configUpdate);
+  }
+
+  private async handleStatusRequest(command: any): Promise<void> {
+    const statusRequest = command.status_request;
+    logger.info('Processing status request command', {
+      includeDetailedMetrics: statusRequest?.include_detailed_metrics
+    });
+
+    // TODO: Implement status request logic
+    this.emit('status_request', statusRequest);
+  }
+
+  private async sendCommandResponse(commandId: string, success: boolean, errorMessage?: string): Promise<void> {
+    if (!this.commandStream) {
+      logger.warn('Cannot send command response - command stream not active');
+      return;
+    }
+
+    const response = {
+      command_id: commandId,
+      success,
+      error_message: errorMessage || '',
+      timestamp: this.createTimestamp()
+    };
+
+    try {
+      this.commandStream.write(response);
+      logger.debug('Command response sent', { commandId, success });
+    } catch (error) {
+      logger.error('Failed to send command response', { commandId, error });
+    }
+  }
+
+  private async saveDashboards(dashboards: any[]): Promise<void> {
+    try {
+      const fs = await import('fs/promises');
+      const path = await import('path');
+      
+      const dashboardsFile = path.join(process.cwd(), 'data', 'dashboards.json');
+      const dataDir = path.dirname(dashboardsFile);
+      
+      // Ensure data directory exists
+      await fs.mkdir(dataDir, { recursive: true });
+      
+      // Save dashboards
+      await fs.writeFile(dashboardsFile, JSON.stringify(dashboards, null, 2), 'utf-8');
+      
+      logger.info('Dashboards saved locally', { 
+        count: dashboards.length,
+        file: dashboardsFile 
+      });
+    } catch (error) {
+      logger.error('Failed to save dashboards locally', { error });
+      throw new Error('Failed to save dashboards locally');
+    }
+  }
+
+  private async saveCookiesData(cookiesData: any): Promise<void> {
+    try {
+      const fs = await import('fs/promises');
+      const path = await import('path');
+      
+      const cookiesFile = path.join(process.cwd(), 'data', 'cookies.json');
+      const dataDir = path.dirname(cookiesFile);
+      
+      // Ensure data directory exists
+      await fs.mkdir(dataDir, { recursive: true });
+      
+      // Save cookies data
+      await fs.writeFile(cookiesFile, JSON.stringify(cookiesData, null, 2), 'utf-8');
+      
+      logger.info('Cookies saved locally', { 
+        domainsCount: Object.keys(cookiesData.domains).length,
+        file: cookiesFile 
+      });
+    } catch (error) {
+      logger.error('Failed to save cookies locally', { error });
+      throw new Error('Failed to save cookies locally');
+    }
+  }
+
   private startPeriodicHeartbeats(): void {
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval);
@@ -346,13 +626,14 @@ export class GrpcAdminClient extends EventEmitter {
   }
 
   private handleDisconnection(): void {
-    if (!this.isConnected && !this.heartbeatStream) {
+    if (!this.isConnected && !this.heartbeatStream && !this.commandStream) {
       return; // Already handling disconnection
     }
 
     this.isConnected = false;
     this.isRegistered = false;
     this.heartbeatStream = null;
+    this.commandStream = null;
 
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval);
@@ -377,7 +658,7 @@ export class GrpcAdminClient extends EventEmitter {
     logger.info(`Scheduling reconnection attempt ${this.reconnectAttempts} in ${delay}ms`);
     
     this.reconnectTimeout = setTimeout(() => {
-      this.setupClient(); // Create new client
+      this.setupClient(); // Recreate gRPC client but preserve controller ID
       this.connect().catch(error => {
         logger.error('Reconnection attempt failed:', error);
       });
@@ -453,8 +734,7 @@ export class GrpcAdminClient extends EventEmitter {
 
   private generateControllerId(): string {
     const hostname = os.hostname().toLowerCase().replace(/[^a-z0-9]/g, '-');
-    const timestamp = Date.now().toString(36);
-    return `ctrl-${hostname}-${timestamp}`;
+    return `ctrl-${hostname}`;
   }
 
   private async getSystemInfo() {

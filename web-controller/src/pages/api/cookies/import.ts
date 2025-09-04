@@ -2,6 +2,9 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { CookieStorageManager } from '../../../lib/cookie-storage';
 import { discoveryService } from '../../../lib/discovery-singleton';
 import { proxyToHost } from '../../../lib/host-utils';
+import { createContextLogger } from '@/utils/logger';
+
+const cookieImportLogger = createContextLogger('api-cookie-import');
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -18,25 +21,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     }
 
-    console.log(`🍪 Importing cookies for: ${domain}`);
-    console.log(`🍪 Cookie format: ${cookieFormat || 'legacy string'}`);
-    console.log(`🍪 Cookie type: ${Array.isArray(cookies) ? 'array' : typeof cookies}`);
-    console.log(`🍪 Replace all mode: ${replaceAll ? 'YES' : 'NO'}`);
+    cookieImportLogger.info('Importing cookies', {
+      domain,
+      cookieFormat: cookieFormat || 'legacy string',
+      cookieType: Array.isArray(cookies) ? 'array' : typeof cookies,
+      replaceAll: replaceAll ? 'YES' : 'NO'
+    });
 
     // Step 1: Import and persist cookies using storage manager
     let result;
     if (cookieFormat === 'structured' && Array.isArray(cookies)) {
       // New structured format from updated extension
-      console.log('🍪 Using structured cookie import');
+      cookieImportLogger.info('Using structured cookie import');
       result = CookieStorageManager.importCookiesStructured(domain, cookies);
     } else {
       // Legacy string format (backward compatibility)
-      console.log('🍪 Using legacy string cookie import');
+      cookieImportLogger.info('Using legacy string cookie import');
       result = CookieStorageManager.importCookies(domain, cookies, undefined, replaceAll !== false);
     }
 
     if (!result.success) {
-      console.error(`❌ Failed to import cookies for ${domain}:`, result.errors);
+      cookieImportLogger.error('Failed to import cookies', { domain, errors: result.errors });
       return res.status(400).json({
         success: false,
         data: {
@@ -47,7 +52,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     }
 
-    console.log(`✅ Successfully imported ${result.injectedCount} cookies for ${domain}`);
+    cookieImportLogger.info('Successfully imported cookies', { domain, injectedCount: result.injectedCount });
 
     // Step 2: Auto-distribute cookies to all discovered hosts
     let hostDistributionResults = {
@@ -64,13 +69,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       hostDistributionResults.hostsFound = hosts.length;
 
       if (hosts.length > 0) {
-        console.log(`🚀 Auto-distributing cookies to ${hosts.length} discovered hosts...`);
+        cookieImportLogger.info('Auto-distributing cookies to discovered hosts', { hostCount: hosts.length });
 
         // Prepare cookies for host distribution
         let parsedCookies;
         if (cookieFormat === 'structured' && Array.isArray(cookies)) {
           // Use structured cookies directly
-          console.log('🚀 Using structured cookies for host distribution');
+          cookieImportLogger.info('Using structured cookies for host distribution');
           parsedCookies = cookies.map((cookie: any) => ({
             name: cookie.name,
             value: cookie.value,
@@ -83,7 +88,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }));
         } else {
           // Legacy string parsing for backward compatibility
-          console.log('🚀 Using legacy string parsing for host distribution');
+          cookieImportLogger.info('Using legacy string parsing for host distribution');
           const cookieLines = cookies.split('\n').filter((line: string) => line.trim());
           parsedCookies = cookieLines.map((line: string) => {
             const trimmed = line.trim();
@@ -123,19 +128,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             const responseData = await hostResponse.json();
             
             if (hostResponse.ok && responseData.success) {
-              console.log(`✅ Cookies distributed to host ${host.id} (${host.name})`);
+              cookieImportLogger.info('Cookies distributed to host', { hostId: host.id, hostName: host.name });
               hostDistributionResults.hostsSuccess++;
               return { success: true, host: host.id };
             } else {
               const error = `Host ${host.id}: ${responseData.error || 'Unknown error'}`;
-              console.warn(`⚠️ ${error}`);
+              cookieImportLogger.warn('Cookie distribution warning', { error });
               hostDistributionResults.hostsFailed++;
               hostDistributionResults.errors.push(error);
               return { success: false, host: host.id, error };
             }
           } catch (error) {
             const errorMsg = `Host ${host.id}: ${error instanceof Error ? error.message : 'Connection failed'}`;
-            console.error(`❌ ${errorMsg}`);
+            cookieImportLogger.error('Cookie distribution error', { error: errorMsg });
             hostDistributionResults.hostsFailed++;
             hostDistributionResults.errors.push(errorMsg);
             return { success: false, host: host.id, error: errorMsg };
@@ -144,13 +149,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         await Promise.allSettled(distributionPromises);
         
-        console.log(`📊 Distribution complete: ${hostDistributionResults.hostsSuccess}/${hostDistributionResults.hostsFound} hosts successful`);
+        cookieImportLogger.info('Distribution complete', {
+          successful: hostDistributionResults.hostsSuccess,
+          total: hostDistributionResults.hostsFound
+        });
       } else {
-        console.log(`ℹ️ No hosts discovered for cookie distribution`);
+        cookieImportLogger.info('No hosts discovered for cookie distribution');
       }
 
     } catch (error) {
-      console.error('❌ Host discovery/distribution error:', error);
+      cookieImportLogger.error('Host discovery/distribution error', { error });
       hostDistributionResults.errors.push(`Discovery error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
 
@@ -175,7 +183,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
 
   } catch (error) {
-    console.error('Cookie import error:', error);
+    cookieImportLogger.error('Cookie import error', { error });
     return res.status(500).json({
       success: false,
       error: 'Internal server error processing cookies'

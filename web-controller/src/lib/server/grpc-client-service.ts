@@ -3,6 +3,9 @@ import * as protoLoader from '@grpc/proto-loader';
 import { join } from 'path';
 import { EventEmitter } from 'events';
 import { MiniPC } from '@/types/shared-types';
+import { createContextLogger } from '@/utils/logger';
+
+const grpcClientLogger = createContextLogger('grpc-client');
 
 // Load protobuf definition
 const PROTO_PATH = join(process.cwd(), '..', 'shared', 'proto', 'host-agent.proto');
@@ -92,7 +95,7 @@ export class GrpcClientService extends EventEmitter {
   private constructor() {
     super();
     const instanceId = Math.random().toString(36).substr(2, 8);
-    console.log(`🔧 GrpcClientService: Nova instância criada (ID: ${instanceId})`);
+    grpcClientLogger.info('GrpcClientService: Nova instância criada', { instanceId });
     (this as any).__instanceId = instanceId;
     this.startHeartbeatMonitoring();
   }
@@ -100,12 +103,12 @@ export class GrpcClientService extends EventEmitter {
   public static getInstance(): GrpcClientService {
     // Usar global instance para sobreviver ao hot-reload
     if (!global.__grpcClientServiceInstance) {
-      console.log('🔧 GrpcClientService: Criando instância GLOBAL singleton (sobrevive hot-reload)');
+      grpcClientLogger.info('GrpcClientService: Criando instância GLOBAL singleton (sobrevive hot-reload)');
       global.__grpcClientServiceInstance = new GrpcClientService();
       GrpcClientService.instance = global.__grpcClientServiceInstance;
     } else {
       const existingId = (global.__grpcClientServiceInstance as any).__instanceId;
-      console.log(`🔧 GrpcClientService: Reutilizando instância GLOBAL singleton existente (ID: ${existingId})`);
+      grpcClientLogger.info('GrpcClientService: Reutilizando instância GLOBAL singleton existente', { instanceId: existingId });
       GrpcClientService.instance = global.__grpcClientServiceInstance;
     }
     return GrpcClientService.instance;
@@ -116,7 +119,7 @@ export class GrpcClientService extends EventEmitter {
    */
   public async connectToHost(host: MiniPC): Promise<void> {
     // Log received host parameter for debugging
-    console.log(`🔍 connectToHost: Received host parameter:`, {
+    grpcClientLogger.debug('connectToHost: Received host parameter', {
       hostProvided: !!host,
       hostType: typeof host,
       hostKeys: host ? Object.keys(host) : 'N/A',
@@ -128,32 +131,32 @@ export class GrpcClientService extends EventEmitter {
     // Validate host parameter and its required properties
     if (!host) {
       const error = new Error('Host parameter is required and cannot be null or undefined');
-      console.error('❌ connectToHost: Host validation failed:', error.message);
+      grpcClientLogger.error('connectToHost: Host validation failed', { error: error.message });
       throw error;
     }
     
     if (!host.id) {
       const error = new Error('Host must have a valid id property');
-      console.error('❌ connectToHost: Host validation failed:', error.message, { host });
+      grpcClientLogger.error('connectToHost: Host validation failed', { error: error.message, host });
       throw error;
     }
     
     if (typeof host.id !== 'string' || host.id.trim() === '') {
       const error = new Error('Host id must be a non-empty string');
-      console.error('❌ connectToHost: Host validation failed:', error.message, { hostId: host.id, type: typeof host.id });
+      grpcClientLogger.error('connectToHost: Host validation failed', { error: error.message, hostId: host.id, type: typeof host.id });
       throw error;
     }
     
     // Validate required host properties for gRPC connection
     if (!host.ipAddress) {
       const error = new Error('Host must have a valid ipAddress property');
-      console.error('❌ connectToHost: Host validation failed:', error.message, { host });
+      grpcClientLogger.error('connectToHost: Host validation failed', { error: error.message, host });
       throw error;
     }
     
     if (typeof host.ipAddress !== 'string' || !/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host.ipAddress)) {
       const error = new Error('Host ipAddress must be a valid IPv4 address');
-      console.error('❌ connectToHost: Host validation failed:', error.message, { ipAddress: host.ipAddress, type: typeof host.ipAddress });
+      grpcClientLogger.error('connectToHost: Host validation failed', { error: error.message, ipAddress: host.ipAddress, type: typeof host.ipAddress });
       throw error;
     }
     
@@ -162,10 +165,10 @@ export class GrpcClientService extends EventEmitter {
     if (this.connections.has(hostId)) {
       const existing = this.connections.get(hostId)!;
       if (existing.isConnected) {
-        console.log(`📡 gRPC: Already connected to host ${hostId}`);
+        grpcClientLogger.info('Already connected to host', { hostId });
         return;
       } else {
-        console.log(`📡 gRPC: Existing connection to ${hostId} is not active, replacing...`);
+        grpcClientLogger.info('Existing connection not active, replacing', { hostId });
         this.disconnectFromHost(hostId, 'stale_connection');
       }
     }
@@ -177,13 +180,13 @@ export class GrpcClientService extends EventEmitter {
     // Check circuit breaker state
     if (!this.canAttemptConnection(hostId)) {
       const breaker = this.circuitBreakers.get(hostId);
-      console.warn(`⚠️ gRPC: Circuit breaker is ${breaker?.state} for ${hostId}, backing off...`);
+      grpcClientLogger.warn('Circuit breaker backing off', { hostId, state: breaker?.state });
       return;
     }
 
     const attemptCount = this.connectionAttempts.get(hostId) || 0;
 
-    console.log(`📡 gRPC: Connecting to host ${grpcAddress} (attempt ${attemptCount + 1})...`);
+    grpcClientLogger.info('Connecting to host', { grpcAddress, attempt: attemptCount + 1 });
 
     try {
       // Create gRPC client
@@ -193,12 +196,12 @@ export class GrpcClientService extends EventEmitter {
       );
 
       // Test connection with health check first
-      console.log(`🔍 gRPC: Testing connection to ${grpcAddress}...`);
+      grpcClientLogger.debug('Testing connection', { grpcAddress });
       await this.testConnection(client);
-      console.log(`✅ gRPC: Health check passed for ${grpcAddress}`);
+      grpcClientLogger.debug('Health check passed', { grpcAddress });
 
       // Create stream connection
-      console.log(`📡 gRPC: Creating event stream for ${grpcAddress}...`);
+      grpcClientLogger.debug('Creating event stream', { grpcAddress });
       const stream = client.StreamEvents({});
       
       const connection: HostConnection = {
@@ -211,7 +214,7 @@ export class GrpcClientService extends EventEmitter {
         lastHeartbeat: new Date()
       };
       
-      console.log(`🔍 SET isConnected=true: Nova conexão criada para ${hostId}`);
+      grpcClientLogger.debug('SET isConnected=true: Nova conexão criada', { hostId });
 
       // Set up stream event handlers
       this.setupStreamHandlers(connection);
@@ -222,7 +225,7 @@ export class GrpcClientService extends EventEmitter {
       this.connectionAttempts.delete(hostId);
       this.resetCircuitBreaker(hostId);
       
-      console.log(`✅ gRPC: Successfully connected to host ${hostId} (${grpcAddress})`);
+      grpcClientLogger.info('Successfully connected to host', { hostId, grpcAddress });
       
       // Emit connection established event
       this.emit('host-connected', { hostId, host });
@@ -232,11 +235,12 @@ export class GrpcClientService extends EventEmitter {
       this.connectionAttempts.set(hostId, attemptCount + 1);
       this.recordFailure(hostId);
       
-      console.error(`❌ gRPC: Failed to connect to host ${hostId} (${grpcAddress}):`, {
+      grpcClientLogger.error('Failed to connect to host', {
+        hostId,
+        grpcAddress,
         error: error instanceof Error ? error.message : error,
         stack: error instanceof Error ? error.stack : undefined,
         attempt: attemptCount + 1,
-        grpcAddress,
         circuitBreakerState: this.getCircuitBreakerState(hostId)
       });
       
@@ -250,32 +254,35 @@ export class GrpcClientService extends EventEmitter {
   public disconnectFromHost(hostId: string, reason: string = 'manual'): void {
     const connection = this.connections.get(hostId);
     if (!connection) {
-      console.log(`⚠️ gRPC: Attempted to disconnect non-existent connection ${hostId}`);
+      grpcClientLogger.warn('Attempted to disconnect non-existent connection', { hostId });
       return;
     }
 
-    console.log(`📡 gRPC: Disconnecting from host ${hostId} (${reason})`, {
+    grpcClientLogger.info('Disconnecting from host', {
+      hostId,
+      reason,
       wasConnected: connection.isConnected,
       reconnectAttempts: connection.reconnectAttempts,
       lastHeartbeat: connection.lastHeartbeat.toISOString()
     });
 
     // Mark as disconnected first to prevent race conditions
-    console.log(`🔍 SET isConnected=false: Desconectando ${hostId} (razão: ${reason})`);
+    grpcClientLogger.debug('SET isConnected=false: Desconectando', { hostId, reason });
     connection.isConnected = false;
 
     try {
       if (connection.stream) {
-        console.log(`🔄 gRPC: Cancelling stream for ${hostId}`);
+        grpcClientLogger.debug('Cancelling stream', { hostId });
         connection.stream.cancel();
         connection.stream.removeAllListeners();
       }
       if (connection.client) {
-        console.log(`🔄 gRPC: Closing client for ${hostId}`);
+        grpcClientLogger.debug('Closing client', { hostId });
         connection.client.close();
       }
     } catch (error) {
-      console.error(`❌ gRPC: Error closing connection to ${hostId}:`, {
+      grpcClientLogger.error('Error closing connection', {
+        hostId,
         error: error instanceof Error ? error.message : error,
         reason
       });
@@ -321,7 +328,7 @@ export class GrpcClientService extends EventEmitter {
         const responseTime = Date.now() - startTime;
         
         if (error) {
-          console.error('gRPC HealthCheck failed:', {
+          grpcClientLogger.error('gRPC HealthCheck failed', {
             error: error instanceof Error ? error.message : error,
             code: error.code,
             details: error.details,
@@ -329,7 +336,7 @@ export class GrpcClientService extends EventEmitter {
           });
           reject(error);
         } else {
-          console.log('gRPC HealthCheck successful:', {
+          grpcClientLogger.debug('gRPC HealthCheck successful', {
             responseTime: `${responseTime}ms`,
             hostStatus: response.host_status?.online,
             displayCount: response.display_statuses?.length || 0
@@ -350,23 +357,25 @@ export class GrpcClientService extends EventEmitter {
       try {
         this.handleHostEvent(hostId, event);
       } catch (error) {
-        console.error(`❌ gRPC: Error handling event from ${hostId}:`, error);
+        grpcClientLogger.error('Error handling event from host', { hostId, error });
       }
     });
 
     stream.on('end', () => {
-      console.log(`📡 gRPC: Stream ended for host ${hostId}`, {
+      grpcClientLogger.info('Stream ended for host', {
+        hostId,
         wasConnected: connection.isConnected,
         reconnectAttempts: connection.reconnectAttempts,
         lastHeartbeat: connection.lastHeartbeat.toISOString()
       });
-      console.log(`🔍 SET isConnected=false: Stream ended para ${hostId}`);
+      grpcClientLogger.debug('SET isConnected=false: Stream ended', { hostId });
       connection.isConnected = false;
       this.handleStreamDisconnection(connection, 'stream_ended');
     });
 
     stream.on('error', (error: any) => {
-      console.error(`❌ gRPC: Stream error for host ${hostId}:`, {
+      grpcClientLogger.error('Stream error for host', {
+        hostId,
         error: error instanceof Error ? error.message : error,
         code: error.code,
         details: error.details,
@@ -374,27 +383,28 @@ export class GrpcClientService extends EventEmitter {
         wasConnected: connection.isConnected,
         reconnectAttempts: connection.reconnectAttempts
       });
-      console.log(`🔍 SET isConnected=false: Stream error para ${hostId} (código: ${error.code})`);
+      grpcClientLogger.debug('SET isConnected=false: Stream error', { hostId, code: error.code });
       connection.isConnected = false;
       
       // Don't reconnect immediately on certain errors
       if (error.code === grpc.status.UNAVAILABLE || error.code === grpc.status.DEADLINE_EXCEEDED) {
-        console.log(`⚠️ gRPC: Service unavailable or deadline exceeded for ${hostId}, will retry later`);
+        grpcClientLogger.warn('Service unavailable or deadline exceeded, will retry later', { hostId });
       }
       
       this.handleStreamDisconnection(connection, 'stream_error');
     });
 
     stream.on('status', (status: any) => {
-      console.log(`📡 gRPC: Stream status for host ${hostId}:`, {
+      grpcClientLogger.debug('Stream status for host', {
+        hostId,
         code: status.code,
         details: status.details,
         metadata: status.metadata
       });
       
       if (status.code !== grpc.status.OK) {
-        console.error(`📡 gRPC: Stream status error for host ${hostId}:`, status);
-        console.log(`🔍 SET isConnected=false: Stream status error para ${hostId} (código: ${status.code})`);
+        grpcClientLogger.error('Stream status error for host', { hostId, status });
+        grpcClientLogger.debug('SET isConnected=false: Stream status error', { hostId, code: status.code });
         connection.isConnected = false;
         this.handleStreamDisconnection(connection, 'stream_status_error');
       }
@@ -402,8 +412,8 @@ export class GrpcClientService extends EventEmitter {
 
     // Add cancellation handler
     stream.on('cancelled', () => {
-      console.log(`🚫 gRPC: Stream cancelled for host ${hostId}`);
-      console.log(`🔍 SET isConnected=false: Stream cancelled para ${hostId}`);
+      grpcClientLogger.info('Stream cancelled for host', { hostId });
+      grpcClientLogger.debug('SET isConnected=false: Stream cancelled', { hostId });
       connection.isConnected = false;
       // Don't attempt reconnection for cancelled streams
     });
@@ -415,24 +425,30 @@ export class GrpcClientService extends EventEmitter {
   private handleHostEvent(hostId: string, event: any): void {
     const connection = this.connections.get(hostId);
     if (!connection) {
-      console.log(`🔍 HEARTBEAT: Evento recebido para ${hostId} mas conexão não encontrada no Map`);
+      grpcClientLogger.debug('HEARTBEAT: Evento recebido mas conexão não encontrada no Map', { hostId });
       return;
     }
 
     // 🔍 DIAGNÓSTICO: Log do heartbeat e estado da conexão
     const eventType = event.type || 'UNKNOWN';
     const instanceId = (this as any).__instanceId;
-    console.log(`🔍 HEARTBEAT: Recebido evento ${eventType} para ${hostId} na instância ${instanceId}:`);
-    console.log(`  - isConnected ANTES: ${connection.isConnected}`);
-    console.log(`  - reconnectAttempts ANTES: ${connection.reconnectAttempts}`);
+    grpcClientLogger.debug('HEARTBEAT: Recebido evento', {
+      eventType,
+      hostId,
+      instanceId,
+      isConnectedBefore: connection.isConnected,
+      reconnectAttemptsBefore: connection.reconnectAttempts
+    });
 
     // Update last heartbeat
     connection.lastHeartbeat = new Date();
     connection.reconnectAttempts = 0; // Reset reconnect attempts on successful communication
     
-    console.log(`🔍 HEARTBEAT: Estado APÓS processar evento:`);
-    console.log(`  - isConnected DEPOIS: ${connection.isConnected}`);
-    console.log(`  - lastHeartbeat atualizado: ${connection.lastHeartbeat.toISOString()}`);
+    grpcClientLogger.debug('HEARTBEAT: Estado após processar evento', {
+      hostId,
+      isConnectedAfter: connection.isConnected,
+      lastHeartbeatUpdated: connection.lastHeartbeat.toISOString()
+    });
 
     // Convert gRPC event to our format
     const hostEvent: GrpcHostEvent = {
@@ -463,7 +479,7 @@ export class GrpcClientService extends EventEmitter {
         });
         break;
       case 'HEARTBEAT':
-        console.log(`💓 HEARTBEAT processado para ${hostId} - isConnected: ${connection.isConnected}`);
+        grpcClientLogger.debug('HEARTBEAT processado', { hostId, isConnected: connection.isConnected });
         break;
     }
   }
@@ -474,7 +490,9 @@ export class GrpcClientService extends EventEmitter {
   private async handleStreamDisconnection(connection: HostConnection, reason: string): Promise<void> {
     const { hostId, host } = connection;
 
-    console.log(`⚠️ gRPC: Host ${hostId} disconnected (${reason})`, {
+    grpcClientLogger.warn('Host disconnected', {
+      hostId,
+      reason,
       reconnectAttempts: connection.reconnectAttempts,
       lastHeartbeat: connection.lastHeartbeat.toISOString(),
       timeSinceHeartbeat: Date.now() - connection.lastHeartbeat.getTime()
@@ -485,7 +503,7 @@ export class GrpcClientService extends EventEmitter {
 
     // Don't reconnect for certain reasons
     if (reason === 'manual' || reason === 'service_shutdown' || reason === 'stale_connection') {
-      console.log(`🚫 gRPC: Not attempting reconnection for ${hostId} (reason: ${reason})`);
+      grpcClientLogger.info('Not attempting reconnection', { hostId, reason });
       return;
     }
 
@@ -499,23 +517,28 @@ export class GrpcClientService extends EventEmitter {
         this.maxReconnectDelay
       );
       
-      console.log(`🔄 gRPC: Attempting to reconnect to ${hostId} (attempt ${connection.reconnectAttempts}/${this.maxReconnectAttempts}) in ${backoffDelay}ms`);
+      grpcClientLogger.info('Attempting to reconnect', {
+        hostId,
+        attempt: connection.reconnectAttempts,
+        maxAttempts: this.maxReconnectAttempts,
+        backoffDelay
+      });
       
       setTimeout(async () => {
         if (this.connections.has(hostId)) {
-          console.log(`🔄 gRPC: Executing reconnection attempt ${connection.reconnectAttempts} for ${hostId}`);
+          grpcClientLogger.info('Executing reconnection attempt', { hostId, attempt: connection.reconnectAttempts });
           this.disconnectFromHost(hostId, 'reconnect_attempt');
           
           try {
             await this.connectToHost(host);
           } catch (error) {
-            console.error(`🔄 gRPC: Reconnection attempt ${connection.reconnectAttempts} failed for ${hostId}:`, error);
+            grpcClientLogger.error('Reconnection attempt failed', { hostId, attempt: connection.reconnectAttempts, error });
           }
         }
       }, backoffDelay);
     } else {
       // Max reconnect attempts reached, remove connection
-      console.error(`❌ gRPC: Max reconnect attempts reached for host ${hostId}, giving up`);
+      grpcClientLogger.error('Max reconnect attempts reached, giving up', { hostId });
       this.disconnectFromHost(hostId, 'max_reconnects_exceeded');
     }
   }
@@ -542,17 +565,17 @@ export class GrpcClientService extends EventEmitter {
         };
         
         // 🔍 LOG: Dashboard information in heartbeat
-        console.log(`🔍 DASHBOARD DATA: Heartbeat received:`);
-        console.log(`  - Host Status:`, heartbeatData.hostStatus);
-        console.log(`  - Display Count:`, heartbeatData.displayStatuses.length);
-        
-        heartbeatData.displayStatuses.forEach((display: any, index: number) => {
-          console.log(`  - Display ${index + 1}:`);
-          console.log(`    - ID: ${display.display_id || 'N/A'}`);
-          console.log(`    - Active: ${display.is_active || false}`);
-          console.log(`    - Dashboard: ${display.assigned_dashboard?.dashboard_id || 'Nenhum'}`);
-          console.log(`    - URL: ${display.assigned_dashboard?.url || 'N/A'}`);
-          console.log(`    - Window ID: ${display.window_id || 'N/A'}`);
+        grpcClientLogger.debug('DASHBOARD DATA: Heartbeat received', {
+          hostStatus: heartbeatData.hostStatus,
+          displayCount: heartbeatData.displayStatuses.length,
+          displays: heartbeatData.displayStatuses.map((display: any, index: number) => ({
+            index: index + 1,
+            id: display.display_id || 'N/A',
+            active: display.is_active || false,
+            dashboard: display.assigned_dashboard?.dashboard_id || 'Nenhum',
+            url: display.assigned_dashboard?.url || 'N/A',
+            windowId: display.window_id || 'N/A'
+          }))
         });
         
         return heartbeatData;
@@ -610,7 +633,7 @@ export class GrpcClientService extends EventEmitter {
         if (now >= breaker.nextAttemptTime) {
           // Transition to half-open
           breaker.state = CircuitBreakerState.HALF_OPEN;
-          console.log(`🔄 Circuit breaker for ${hostId} transitioning to HALF_OPEN`);
+          grpcClientLogger.info('Circuit breaker transitioning to HALF_OPEN', { hostId });
           return true;
         }
         return false;
@@ -639,12 +662,12 @@ export class GrpcClientService extends EventEmitter {
       // Failed in half-open, go back to open
       breaker.state = CircuitBreakerState.OPEN;
       breaker.nextAttemptTime = Date.now() + this.circuitBreakerTimeout;
-      console.log(`❌ Circuit breaker for ${hostId} failed in HALF_OPEN, transitioning back to OPEN`);
+      grpcClientLogger.warn('Circuit breaker failed in HALF_OPEN, transitioning back to OPEN', { hostId });
     } else if (breaker.failureCount >= this.circuitBreakerFailureThreshold) {
       // Too many failures, open the circuit
       breaker.state = CircuitBreakerState.OPEN;
       breaker.nextAttemptTime = Date.now() + this.circuitBreakerTimeout;
-      console.log(`❌ Circuit breaker for ${hostId} opened after ${breaker.failureCount} failures`);
+      grpcClientLogger.warn('Circuit breaker opened after failures', { hostId, failureCount: breaker.failureCount });
     }
 
     this.circuitBreakers.set(hostId, breaker);
@@ -655,7 +678,7 @@ export class GrpcClientService extends EventEmitter {
     if (breaker) {
       breaker.state = CircuitBreakerState.CLOSED;
       breaker.failureCount = 0;
-      console.log(`✅ Circuit breaker for ${hostId} reset to CLOSED`);
+      grpcClientLogger.info('Circuit breaker reset to CLOSED', { hostId });
     }
   }
 
@@ -680,7 +703,7 @@ export class GrpcClientService extends EventEmitter {
   public resetConnectionAttempts(hostId: string): void {
     this.connectionAttempts.delete(hostId);
     this.resetCircuitBreaker(hostId);
-    console.log(`🔄 gRPC: Reset connection attempts and circuit breaker for ${hostId}`);
+    grpcClientLogger.info('Reset connection attempts and circuit breaker', { hostId });
   }
 
   /**
@@ -713,7 +736,7 @@ export class GrpcClientService extends EventEmitter {
       }))
     };
     
-    console.log('📊 gRPC Connection Stats:', stats);
+    grpcClientLogger.debug('gRPC Connection Stats', stats);
     return stats;
   }
 
@@ -721,7 +744,7 @@ export class GrpcClientService extends EventEmitter {
    * Stop the service and clean up all connections
    */
   public stop(): void {
-    console.log('🛑 gRPC: Stopping client service...');
+    grpcClientLogger.info('Stopping client service');
     
     // Clear heartbeat monitoring
     if (this.heartbeatCheckInterval) {
@@ -739,7 +762,7 @@ export class GrpcClientService extends EventEmitter {
     this.connectionAttempts.clear();
     this.circuitBreakers.clear();
 
-    console.log('✅ gRPC: Client service stopped');
+    grpcClientLogger.info('Client service stopped');
   }
 
   // ================================
@@ -754,10 +777,12 @@ export class GrpcClientService extends EventEmitter {
     
     // 🔍 DIAGNÓSTICO: Log inicial do estado
     const instanceId = (this as any).__instanceId;
-    console.log(`🔍 waitForConnection: Procurando conexão para hostId: ${hostId}`);
-    console.log(`🔍 waitForConnection: Usando instância ID: ${instanceId}`);
-    console.log(`🔍 waitForConnection: Total conexões no Map: ${this.connections.size}`);
-    console.log(`🔍 waitForConnection: HostIds disponíveis:`, Array.from(this.connections.keys()));
+    grpcClientLogger.debug('waitForConnection: Procurando conexão', {
+      hostId,
+      instanceId,
+      totalConnections: this.connections.size,
+      availableHostIds: Array.from(this.connections.keys())
+    });
     
     let attemptCount = 0;
     
@@ -767,20 +792,27 @@ export class GrpcClientService extends EventEmitter {
       
       // 🔍 DIAGNÓSTICO: Log detalhado a cada tentativa
       if (attemptCount === 1 || attemptCount % 10 === 0) { // Log na primeira tentativa e depois a cada 10
-        console.log(`🔍 waitForConnection: Tentativa ${attemptCount} para ${hostId}:`);
-        console.log(`  - Conexão encontrada: ${connection ? 'SIM' : 'NÃO'}`);
-        if (connection) {
-          console.log(`  - isConnected: ${connection.isConnected}`);
-          console.log(`  - reconnectAttempts: ${connection.reconnectAttempts}`);
-          console.log(`  - lastHeartbeat: ${connection.lastHeartbeat.toISOString()}`);
-          console.log(`  - timeSinceHeartbeat: ${Date.now() - connection.lastHeartbeat.getTime()}ms`);
-          console.log(`  - client exists: ${connection.client ? 'SIM' : 'NÃO'}`);
-          console.log(`  - stream exists: ${connection.stream ? 'SIM' : 'NÃO'}`);
-        }
+        grpcClientLogger.debug('waitForConnection: Tentativa', {
+          attemptCount,
+          hostId,
+          connectionFound: !!connection,
+          ...(connection ? {
+            isConnected: connection.isConnected,
+            reconnectAttempts: connection.reconnectAttempts,
+            lastHeartbeat: connection.lastHeartbeat.toISOString(),
+            timeSinceHeartbeat: Date.now() - connection.lastHeartbeat.getTime(),
+            clientExists: !!connection.client,
+            streamExists: !!connection.stream
+          } : {})
+        });
       }
       
       if (connection && connection.isConnected) {
-        console.log(`✅ waitForConnection: Conexão encontrada para ${hostId} após ${attemptCount} tentativas (${Date.now() - startTime}ms)`);
+        grpcClientLogger.debug('waitForConnection: Conexão encontrada', {
+          hostId,
+          attempts: attemptCount,
+          duration: Date.now() - startTime
+        });
         return connection;
       }
       
@@ -790,20 +822,23 @@ export class GrpcClientService extends EventEmitter {
     
     // 🔍 DIAGNÓSTICO: Log final de falha com estado completo
     const finalConnection = this.connections.get(hostId);
-    console.error(`❌ waitForConnection: TIMEOUT após ${Date.now() - startTime}ms para ${hostId}:`);
-    console.error(`  - Total tentativas: ${attemptCount}`);
-    console.error(`  - Conexão final encontrada: ${finalConnection ? 'SIM' : 'NÃO'}`);
-    if (finalConnection) {
-      console.error(`  - isConnected final: ${finalConnection.isConnected}`);
-      console.error(`  - lastHeartbeat final: ${finalConnection.lastHeartbeat.toISOString()}`);
-      console.error(`  - timeSinceHeartbeat final: ${Date.now() - finalConnection.lastHeartbeat.getTime()}ms`);
-    }
-    console.error(`  - Todas as conexões disponíveis:`, Array.from(this.connections.entries()).map(([id, conn]) => ({
-      hostId: id,
-      isConnected: conn.isConnected,
-      lastHeartbeat: conn.lastHeartbeat.toISOString(),
-      timeSinceHeartbeat: Date.now() - conn.lastHeartbeat.getTime()
-    })));
+    grpcClientLogger.error('waitForConnection: TIMEOUT', {
+      hostId,
+      duration: Date.now() - startTime,
+      totalAttempts: attemptCount,
+      finalConnectionFound: !!finalConnection,
+      ...(finalConnection ? {
+        isConnectedFinal: finalConnection.isConnected,
+        lastHeartbeatFinal: finalConnection.lastHeartbeat.toISOString(),
+        timeSinceHeartbeatFinal: Date.now() - finalConnection.lastHeartbeat.getTime()
+      } : {}),
+      allConnections: Array.from(this.connections.entries()).map(([id, conn]) => ({
+        hostId: id,
+        isConnected: conn.isConnected,
+        lastHeartbeat: conn.lastHeartbeat.toISOString(),
+        timeSinceHeartbeat: Date.now() - conn.lastHeartbeat.getTime()
+      }))
+    });
     
     throw new Error(`Host ${hostId} is not connected (timeout after ${timeoutMs}ms)`);
   }
@@ -816,15 +851,17 @@ export class GrpcClientService extends EventEmitter {
     
     try {
       // 🔍 DIAGNÓSTICO: Estado antes de waitForConnection
-      console.log(`🚀 gRPC: Executing command ${commandType} on host ${hostId}...`);
       const existingConnection = this.connections.get(hostId);
-      console.log(`🔍 COMMAND: Estado antes de waitForConnection:`);
-      console.log(`  - Conexão existe no Map: ${existingConnection ? 'SIM' : 'NÃO'}`);
-      if (existingConnection) {
-        console.log(`  - isConnected: ${existingConnection.isConnected}`);
-        console.log(`  - lastHeartbeat: ${existingConnection.lastHeartbeat.toISOString()}`);
-        console.log(`  - timeSinceHeartbeat: ${Date.now() - existingConnection.lastHeartbeat.getTime()}ms`);
-      }
+      grpcClientLogger.info('Executing command on host', {
+        commandType,
+        hostId,
+        connectionExists: !!existingConnection,
+        ...(existingConnection ? {
+          isConnected: existingConnection.isConnected,
+          lastHeartbeat: existingConnection.lastHeartbeat.toISOString(),
+          timeSinceHeartbeat: Date.now() - existingConnection.lastHeartbeat.getTime()
+        } : {})
+      });
       
       // Wait for connection to be established (with 10 second timeout)
       const connection = await this.waitForConnection(hostId, 10000);
@@ -852,18 +889,20 @@ export class GrpcClientService extends EventEmitter {
         request[payloadFieldName] = payload;
       }
 
-      console.log(`📫 gRPC: Sending command ${commandType} (${commandId}) to ${hostId}`, {
+      grpcClientLogger.info('Sending command', {
+        commandType,
+        commandId,
+        hostId,
         payload: payloadFieldName !== 'unknown' ? payload : 'empty',
         enum: commandTypeEnum,
-        requestType: request.type,
-        fullRequest: request
+        requestType: request.type
       });
 
       return new Promise((resolve, reject) => {
         // Set timeout for command execution
         const timeout = setTimeout(() => {
           const elapsed = Date.now() - startTime;
-          console.error(`⏰ gRPC: Command ${commandType} (${commandId}) timed out after ${elapsed}ms`);
+          grpcClientLogger.error('Command timed out', { commandType, commandId, elapsed });
           reject(new Error(`Command ${commandId} timed out after ${elapsed}ms`));
         }, 30000); // 30 second timeout
 
@@ -879,38 +918,49 @@ export class GrpcClientService extends EventEmitter {
           const elapsed = Date.now() - startTime;
           
           if (error) {
-            console.error(`❌ gRPC: Command ${commandType} (${commandId}) failed for host ${hostId}:`, {
+            grpcClientLogger.error('Command failed', {
+              commandType,
+              commandId,
+              hostId,
               error: error instanceof Error ? error.message : error,
               code: error.code,
               details: error.details,
-              elapsed: `${elapsed}ms`
+              elapsed
             });
             reject(error);
             return;
           }
 
           if (!response.success) {
-            console.error(`❌ gRPC: Command ${commandType} (${commandId}) rejected by host ${hostId}:`, {
+            grpcClientLogger.error('Command rejected by host', {
+              commandType,
+              commandId,
+              hostId,
               error: response.error,
-              elapsed: `${elapsed}ms`,
-              executionTime: response.execution_time_ms ? `${response.execution_time_ms}ms` : 'unknown'
+              elapsed,
+              executionTime: response.execution_time_ms
             });
             reject(new Error(response.error || 'Command failed'));
             return;
           }
 
-          console.log(`✅ gRPC: Command ${commandType} (${commandId}) executed successfully on host ${hostId}`, {
-            elapsed: `${elapsed}ms`,
-            executionTime: response.execution_time_ms ? `${response.execution_time_ms}ms` : 'unknown'
+          grpcClientLogger.info('Command executed successfully', {
+            commandType,
+            commandId,
+            hostId,
+            elapsed,
+            executionTime: response.execution_time_ms
           });
           resolve(response);
         });
       });
     } catch (error) {
       const elapsed = Date.now() - startTime;
-      console.error(`❌ gRPC: Command ${commandType} setup failed for host ${hostId}:`, {
+      grpcClientLogger.error('Command setup failed', {
+        commandType,
+        hostId,
         error: error instanceof Error ? error.message : error,
-        elapsed: `${elapsed}ms`
+        elapsed
       });
       throw error;
     }

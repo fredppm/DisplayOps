@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { MiniPC, ApiResponse } from '@/types/shared-types';
 import { sseService, HostDiscoveryUpdate } from '@/lib/sse-singleton';
+import { createContextLogger } from '@/utils/logger';
 
 export interface UseHostDiscoveryReturn {
   discoveredHosts: MiniPC[];
@@ -11,6 +12,8 @@ export interface UseHostDiscoveryReturn {
   reconnectAttempts: number;
   requestHostsUpdate: () => void;
 }
+
+const hostDiscoveryLogger = createContextLogger('use-host-discovery');
 
 export const useHostDiscovery = (): UseHostDiscoveryReturn => {
   const [discoveredHosts, setDiscoveredHosts] = useState<MiniPC[]>([]);
@@ -24,14 +27,15 @@ export const useHostDiscovery = (): UseHostDiscoveryReturn => {
   const handlerRef = useRef<((update: HostDiscoveryUpdate) => void) | null>(null);
 
   useEffect(() => {
-    console.log('🚀 useHostDiscovery effect starting...');
-    console.log('📍 Current window location:', window.location.href);
+    hostDiscoveryLogger.debug('useHostDiscovery effect starting', { location: window.location.href });
     
     // Create handler function
     const handleUpdate = (update: HostDiscoveryUpdate) => {
-      console.log('📡 Received hosts update via SSE Singleton:', update);
-      console.log('🔄 Setting discovered hosts:', update.data?.length || 0, 'hosts');
-      console.log('🔍 Host details:', update.data?.map(h => `${h.id} (${h.ipAddress}:${h.port})`));
+      hostDiscoveryLogger.debug('Received hosts update via SSE', { 
+        type: update.type,
+        hostCount: update.data?.length || 0,
+        hostDetails: update.data?.map(h => `${h.id} (${h.ipAddress}:${h.port})`)
+      });
       
       setDiscoveredHosts(update.data || []);
       setLastUpdate(new Date(update.timestamp));
@@ -40,13 +44,13 @@ export const useHostDiscovery = (): UseHostDiscoveryReturn => {
       if (update.changeType && update.changedHost) {
         switch (update.changeType) {
           case 'host_added':
-            console.log('🆕 New host discovered:', update.changedHost.id);
+            hostDiscoveryLogger.info('New host discovered', { hostId: update.changedHost.id });
             break;
           case 'host_updated':
-            console.log('🔄 Host updated:', update.changedHost.id);
+            hostDiscoveryLogger.debug('Host updated', { hostId: update.changedHost.id });
             break;
           case 'host_removed':
-            console.log('🗑️ Host removed:', update.changedHost.id);
+            hostDiscoveryLogger.info('Host removed', { hostId: update.changedHost.id });
             break;
           case 'initial_load':
             console.log('📋 Initial hosts loaded:', update.data?.length || 0);

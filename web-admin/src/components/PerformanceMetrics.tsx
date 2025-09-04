@@ -119,126 +119,126 @@ export const PerformanceMetrics: React.FC<PerformanceMetricsProps> = ({ initialM
 
   if (!metrics) {
     return (
-      <div className="text-gray-500">No metrics available</div>
+      <div className="text-gray-500 dark:text-gray-400">No metrics available</div>
     );
   }
 
   return (
     <div className="space-y-6">
       {refreshing && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center">
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-3 flex items-center">
           <div className="animate-spin w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full mr-2"></div>
-          <span className="text-blue-700 text-sm">Refreshing metrics...</span>
+          <span className="text-blue-700 dark:text-blue-400 text-sm">Refreshing metrics...</span>
         </div>
       )}
       
       {/* System Overview */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-semibold mb-4">System Overview</h3>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">System Overview</h3>
         
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="text-center">
             <div className="text-2xl font-bold text-blue-600">
               {formatUptime(metrics.uptime)}
             </div>
-            <div className="text-sm text-gray-500">Uptime</div>
+            <div className="text-sm text-gray-500 dark:text-gray-400">Uptime</div>
           </div>
           
           <div className="text-center">
             <div className="text-2xl font-bold text-green-600">
               {metrics.system.cpuUsage.toFixed(1)}%
             </div>
-            <div className="text-sm text-gray-500">CPU Usage</div>
+            <div className="text-sm text-gray-500 dark:text-gray-400">CPU Usage</div>
           </div>
           
           <div className="text-center">
             <div className="text-2xl font-bold text-yellow-600">
               {metrics.system.memoryUsage.toFixed(1)}%
             </div>
-            <div className="text-sm text-gray-500">Memory</div>
+            <div className="text-sm text-gray-500 dark:text-gray-400">Memory</div>
           </div>
           
           <div className="text-center">
             <div className="text-2xl font-bold text-purple-600">
               {metrics.system.loadAverage.toFixed(2)}
             </div>
-            <div className="text-sm text-gray-500">Load Avg</div>
+            <div className="text-sm text-gray-500 dark:text-gray-400">Load Avg</div>
           </div>
         </div>
       </div>
 
       {/* API Performance */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-semibold mb-4">API Performance</h3>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">API Performance</h3>
         
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="text-center">
             <div className="text-2xl font-bold text-blue-600">
               {metrics.api.averageResponseTime.toFixed(0)}ms
             </div>
-            <div className="text-sm text-gray-500">Avg Response</div>
+            <div className="text-sm text-gray-500 dark:text-gray-400">Avg Response</div>
           </div>
           
           <div className="text-center">
             <div className="text-2xl font-bold text-green-600">
               {metrics.api.totalRequests}
             </div>
-            <div className="text-sm text-gray-500">Total Requests</div>
+            <div className="text-sm text-gray-500 dark:text-gray-400">Total Requests</div>
           </div>
           
           <div className="text-center">
             <div className="text-2xl font-bold text-red-600">
               {metrics.api.errorRate.toFixed(1)}%
             </div>
-            <div className="text-sm text-gray-500">Error Rate</div>
+            <div className="text-sm text-gray-500 dark:text-gray-400">Error Rate</div>
           </div>
           
           <div className="text-center">
             <div className="text-2xl font-bold text-orange-600">
               {metrics.api.requestsPerMinute}
             </div>
-            <div className="text-sm text-gray-500">Requests/min</div>
+            <div className="text-sm text-gray-500 dark:text-gray-400">Requests/min</div>
           </div>
         </div>
       </div>
 
       {/* Application Metrics */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-semibold mb-4">Application Status</h3>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">Application Status</h3>
         
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="text-center">
             <div className="text-2xl font-bold text-indigo-600">
               {metrics.application.activeSessions}
             </div>
-            <div className="text-sm text-gray-500">Active Sessions</div>
+            <div className="text-sm text-gray-500 dark:text-gray-400">Active Sessions</div>
           </div>
           
           <div className="text-center">
             <div className="text-2xl font-bold text-teal-600">
               {metrics.application.activeConnections}
             </div>
-            <div className="text-sm text-gray-500">Connections</div>
+            <div className="text-sm text-gray-500 dark:text-gray-400">Connections</div>
           </div>
           
           <div className="text-center">
             <div className="text-2xl font-bold text-pink-600">
               {metrics.application.requestsPerMinute}
             </div>
-            <div className="text-sm text-gray-500">Requests/min</div>
+            <div className="text-sm text-gray-500 dark:text-gray-400">Requests/min</div>
           </div>
           
           <div className="text-center">
             <div className="text-2xl font-bold text-red-600">
               {metrics.application.errorRate.toFixed(1)}%
             </div>
-            <div className="text-sm text-gray-500">Error Rate</div>
+            <div className="text-sm text-gray-500 dark:text-gray-400">Error Rate</div>
           </div>
         </div>
       </div>
 
       {/* Last Updated */}
-      <div className="text-xs text-gray-400 text-center">
+      <div className="text-xs text-gray-400 dark:text-gray-500 text-center">
         Last updated: {new Date(metrics.timestamp).toLocaleTimeString()}
       </div>
     </div>

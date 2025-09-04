@@ -1,36 +1,25 @@
 {
   "controllers": [
     {
-      "id": "rio-1f",
-      "siteId": "rio",
-      "name": "1º Andar",
-      "localNetwork": "192.168.1.0/24",
+      "id": "ctrl-vtex-b9lh6z3-mf60d0n5",
+      "siteId": "auto-discovered",
+      "name": "VTEX-B9LH6Z3 - Auto-discovered",
+      "localNetwork": "10.21.0.0/24",
       "mdnsService": "_displayops._tcp.local",
-      "controllerUrl": "https://admin.displayops.com",
-      "status": "online",
-      "lastSync": "2025-09-03T13:37:55.498Z",
-      "version": "1.0.0"
-    },
-    {
-      "id": "rio-2f",
-      "siteId": "rio",
-      "name": "2º Andar",
-      "localNetwork": "192.168.2.0/24",
-      "mdnsService": "_displayops._tcp.local",
-      "controllerUrl": "https://admin.displayops.com",
+      "controllerUrl": "http://localhost:3001",
       "status": "offline",
-      "lastSync": "2024-01-01T00:00:00Z",
+      "lastSync": "2025-09-04T23:40:37.398Z",
       "version": "1.0.0"
     },
     {
-      "id": "nyc-office",
-      "siteId": "nyc",
-      "name": "NYC Office",
-      "localNetwork": "10.0.1.0/24",
+      "id": "ctrl-vtex-b9lh6z3-mf60d0m4",
+      "siteId": "auto-discovered",
+      "name": "VTEX-B9LH6Z3 - Auto-discovered",
+      "localNetwork": "10.21.0.0/24",
       "mdnsService": "_displayops._tcp.local",
-      "controllerUrl": "https://admin.displayops.com",
-      "status": "error",
-      "lastSync": "2024-01-01T00:00:00Z",
+      "controllerUrl": "http://localhost:3001",
+      "status": "offline",
+      "lastSync": "2025-09-04T23:40:37.499Z",
       "version": "1.0.0"
     }
   ]

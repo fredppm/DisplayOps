@@ -135,33 +135,36 @@ class AutoRegisterService {
       const os = await import('os');
       const interfaces = os.networkInterfaces();
       
+      logger.info('Attempting to detect MAC address from network interfaces');
+      
       for (const [name, nets] of Object.entries(interfaces)) {
         if (!nets || name.includes('lo')) continue;
         
+        logger.info(`Checking interface: ${name}`, { nets: nets.length });
+        
         for (const net of nets) {
+          logger.info(`Interface ${name} details`, {
+            family: net.family,
+            internal: net.internal,
+            address: net.address,
+            mac: net.mac || 'not available'
+          });
+          
           if (net.family === 'IPv4' && !net.internal && net.mac) {
+            logger.info('Found valid MAC address', { interface: name, mac: net.mac });
             return net.mac;
           }
         }
       }
+      
+      logger.error('No valid MAC address found in any interface - cannot proceed with registration');
+      throw new Error('Unable to determine MAC address for controller registration');
     } catch (error) {
-      logger.warn('Could not determine MAC address:', error);
+      logger.error('Could not determine MAC address:', error);
+      throw error;
     }
-    
-    // Generate a fake MAC address for fallback
-    return this.generateFakeMac();
   }
 
-  private generateFakeMac(): string {
-    const chars = '0123456789abcdef';
-    let mac = '';
-    for (let i = 0; i < 6; i++) {
-      if (i > 0) mac += ':';
-      mac += chars.charAt(Math.floor(Math.random() * chars.length));
-      mac += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return mac;
-  }
 
   private async sendRegistration(data: AutoRegisterData): Promise<boolean> {
     const adminUrl = process.env.ADMIN_REGISTER_URL || 'http://localhost:3000';
@@ -228,27 +231,9 @@ class AutoRegisterService {
   }
 }
 
-// Create a simple logger if not available
-const createLogger = () => {
-  return {
-    info: (message: string, meta?: any) => {
-      console.log(`[AutoRegister] ${message}`, meta || '');
-    },
-    warn: (message: string, meta?: any) => {
-      console.warn(`[AutoRegister] ${message}`, meta || '');
-    },
-    error: (message: string, meta?: any) => {
-      console.error(`[AutoRegister] ${message}`, meta || '');
-    }
-  };
-};
+import { createContextLogger } from '../utils/logger';
 
-let logger: any;
-try {
-  logger = require('./logger').logger;
-} catch {
-  logger = createLogger();
-}
+const logger = createContextLogger('auto-register');
 
 export const autoRegisterService = AutoRegisterService.getInstance();
 export default autoRegisterService;

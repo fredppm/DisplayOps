@@ -1,9 +1,12 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { Dashboard } from '@/types/shared-types';
+import { createContextLogger } from '@/utils/logger';
 import fs from 'fs';
 import path from 'path';
 
 const DASHBOARDS_FILE = path.join(process.cwd(), 'data', 'dashboards.json');
+
+const dashboardsApiLogger = createContextLogger('api-dashboards');
 
 // Ensure data directory exists
 const ensureDataDirectory = () => {
@@ -48,7 +51,7 @@ const loadDashboards = (): Dashboard[] => {
     const data = fs.readFileSync(DASHBOARDS_FILE, 'utf8');
     return JSON.parse(data);
   } catch (error) {
-    console.error('Error loading dashboards:', error);
+    dashboardsApiLogger.error('Error loading dashboards', { error: error instanceof Error ? error.message : String(error) });
     return [];
   }
 };
@@ -59,7 +62,7 @@ const saveDashboards = (dashboards: Dashboard[]): void => {
     ensureDataDirectory();
     fs.writeFileSync(DASHBOARDS_FILE, JSON.stringify(dashboards, null, 2), 'utf8');
   } catch (error) {
-    console.error('Error saving dashboards:', error);
+    dashboardsApiLogger.error('Error saving dashboards', { error: error instanceof Error ? error.message : String(error) });
     throw new Error('Failed to save dashboards');
   }
 };
@@ -225,7 +228,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         });
     }
   } catch (error: any) {
-    console.error('Dashboards API error:', error);
+    dashboardsApiLogger.error('Dashboards API error', { error: error instanceof Error ? error.message : String(error) });
     return res.status(500).json({
       success: false,
       error: error.message || 'Internal server error'

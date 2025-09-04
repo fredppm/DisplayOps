@@ -14,9 +14,7 @@ export default function AuthLayout({ children }: AuthLayoutProps) {
   const router = useRouter();
 
   const handleLogout = async () => {
-    if (confirm('Are you sure you want to logout?')) {
-      await logout();
-    }
+    await logout();
   };
 
   const navigation = [

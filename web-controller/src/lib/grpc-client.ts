@@ -2,6 +2,7 @@ import * as grpc from '@grpc/grpc-js';
 import * as protoLoader from '@grpc/proto-loader';
 import { join } from 'path';
 import { EventEmitter } from 'events';
+import { createContextLogger } from '@/utils/logger';
 
 // Load protobuf definition
 const PROTO_PATH = join(process.cwd(), '..', 'shared', 'proto', 'host-agent.proto');
@@ -16,6 +17,8 @@ const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
 
 const protoDescriptor = grpc.loadPackageDefinition(packageDefinition) as any;
 const displayops = protoDescriptor.displayops;
+
+const grpcClientLogger = createContextLogger('grpc-client');
 
 export interface GrpcClientConfig {
   host: string;
@@ -110,7 +113,7 @@ export class GrpcHostClient extends EventEmitter {
   // Start listening to events from host
   public startEventStream(): void {
     if (this.eventStream) {
-      console.log('Event stream already active');
+      grpcClientLogger.debug('Event stream already active');
       return;
     }
 
@@ -123,13 +126,13 @@ export class GrpcHostClient extends EventEmitter {
       });
 
       this.eventStream.on('end', () => {
-        console.log('gRPC event stream ended');
+        grpcClientLogger.info('gRPC event stream ended');
         this.eventStream = null;
         this.handleDisconnection();
       });
 
       this.eventStream.on('error', (error: any) => {
-        console.error('gRPC event stream error:', error);
+        grpcClientLogger.error('gRPC event stream error', { error: error instanceof Error ? error.message : String(error) });
         this.eventStream = null;
         this.handleDisconnection();
       });
@@ -139,7 +142,7 @@ export class GrpcHostClient extends EventEmitter {
       this.emit('connected');
       
     } catch (error) {
-      console.error('Failed to start event stream:', error);
+      grpcClientLogger.error('Failed to start event stream', { error: error instanceof Error ? error.message : String(error) });
       this.handleDisconnection();
     }
   }
@@ -147,7 +150,7 @@ export class GrpcHostClient extends EventEmitter {
   // Start bidirectional command stream
   public startCommandStream(): void {
     if (this.commandStream) {
-      console.log('Command stream already active');
+      grpcClientLogger.debug('Command stream already active');
       return;
     }
 
@@ -160,7 +163,7 @@ export class GrpcHostClient extends EventEmitter {
       });
 
       this.commandStream.on('end', () => {
-        console.log('gRPC command stream ended');
+        grpcClientLogger.info('gRPC command stream ended');
         this.commandStream = null;
       });
 
