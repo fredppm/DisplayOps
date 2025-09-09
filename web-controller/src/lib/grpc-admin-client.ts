@@ -671,7 +671,7 @@ export class GrpcAdminClient extends EventEmitter {
       macAddress: await this.getMacAddress(),
       localNetwork: await this.getLocalNetwork(),
       version: '1.0.0', // TODO: Get from package.json or env
-      location: process.env.CONTROLLER_LOCATION || `${os.hostname()} - Auto-discovered`,
+      location: process.env.CONTROLLER_LOCATION || `${os.hostname()}`,
       siteId: process.env.CONTROLLER_SITE_ID
     };
   }

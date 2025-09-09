@@ -79,7 +79,7 @@ const ImportForm: React.FC<{
       />
       
       <div className="flex justify-end space-x-3">
-        <button onClick={onCancel} className="px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded flex items-center transition-colors">
+        <button onClick={onCancel} className="px-3 py-1.5 text-xs bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded flex items-center transition-colors">
           Cancel
         </button>
         <button 
@@ -222,7 +222,7 @@ const CookieForm: React.FC<{
       </div>
 
       <div className="space-y-3">
-        <label className="flex items-center p-2 border rounded hover:bg-gray-50">
+        <label className="flex items-center p-2 border dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700">
           <input
             type="checkbox"
             checked={formData.secure}
@@ -237,7 +237,7 @@ const CookieForm: React.FC<{
             <div className="text-xs text-gray-600">Only sent over HTTPS connections</div>
           </div>
         </label>
-        <label className="flex items-center p-2 border rounded hover:bg-gray-50">
+        <label className="flex items-center p-2 border dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700">
           <input
             type="checkbox"
             checked={formData.httpOnly}
@@ -254,8 +254,8 @@ const CookieForm: React.FC<{
         </label>
       </div>
 
-      <div className="flex justify-end space-x-3 pt-4 border-t">
-        <button onClick={onCancel} className="px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded flex items-center transition-colors">
+      <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200 dark:border-gray-600">
+        <button onClick={onCancel} className="px-3 py-1.5 text-xs bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded flex items-center transition-colors">
           Cancel
         </button>
         <button 
@@ -1027,15 +1027,15 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
 
 
       {/* Cookie Management Card */}
-      <div className="border border-gray-200 rounded-lg bg-white shadow-sm">
+      <div className="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 shadow-sm">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200">
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
             <div className="min-w-0 flex-1">
-              <h2 className="text-lg font-medium text-gray-900 flex items-center">
+              <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100 flex items-center">
                 Cookie Management
               </h2>
-              <div className="mt-1 text-sm text-gray-500">
+              <div className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 Import cookies to enable automatic login on display devices
               </div>
             </div>
@@ -1053,7 +1053,7 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
         </div>
 
         {/* Domains List */}
-        <div className="divide-y divide-gray-200">
+        <div className="divide-y divide-gray-200 dark:divide-gray-600">
           {isLoadingData ? (
             // Loading skeletons - show 2 placeholder items
             Array.from({ length: 2 }).map((_, index) => (
@@ -1082,7 +1082,7 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
           ) : authDomains.length === 0 ? (
             <div className="px-6 py-8 text-center">
               <Cookie className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No domains configured yet</h3>
+              <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">No domains configured yet</h3>
               <p className="text-gray-600">
                 Use the &quot;Add Domain&quot; button above to start managing cookies
               </p>
@@ -1098,7 +1098,7 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
           <div 
             key={domain.id} 
             className={`px-6 py-6 ${
-              selectedDomain === domain.id ? 'bg-gray-50' : 'hover:bg-gray-50'
+              selectedDomain === domain.id ? 'bg-gray-50 dark:bg-gray-700' : 'hover:bg-gray-50 dark:hover:bg-gray-700'
             } cursor-pointer transition-colors`}
             onClick={() => setSelectedDomain(
               selectedDomain === domain.id ? null : domain.id
@@ -1109,7 +1109,7 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
               <div className="min-w-0 flex-1">
                 <div className="flex items-center space-x-1">
                   <span
-                    className="text-lg font-medium text-gray-900 bg-transparent border-none p-0 focus:outline-none focus:ring-0"
+                    className="text-lg font-medium text-gray-900 dark:text-gray-100 bg-transparent border-none p-0 focus:outline-none focus:ring-0"
                   >{domain.domain}</span>
                   <button
                     onClick={(e) => {
@@ -1124,7 +1124,7 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
                 </div>
                 
                 {/* Description with statistics */}
-                <div className="mt-1 flex items-center space-x-4 text-sm text-gray-500">
+                <div className="mt-1 flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400">
                   <span className="flex items-center">
                     <Cookie className="w-4 h-4 mr-1" />
                     {storedCookies.length} {storedCookies.length === 1 ? 'cookie' : 'cookies'}
@@ -1179,7 +1179,7 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
                     e.stopPropagation();
                     confirmRemoveDomain(domain.id);
                   }}
-                  className="inline-flex items-center px-2 py-1 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="inline-flex items-center px-2 py-1 text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/30 border border-red-100 dark:border-red-800 rounded hover:bg-red-100 dark:hover:bg-red-900/50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
                   disabled={removingDomains.has(domain.id)}
                   title="Remove domain"
                 >
@@ -1200,7 +1200,7 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
                 {getStoredCookiesForDomain(domain.id).length > 0 && (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <h4 className="text-sm font-medium text-gray-900 flex items-center">
+                    <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100 flex items-center">
                       <Cookie className="w-4 h-4 mr-2 text-indigo-600" />
                       Stored Cookies ({getStoredCookiesForDomain(domain.id).length})
                     </h4>
@@ -1210,7 +1210,7 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
                           e.stopPropagation();
                           openImportModal(domain.id);
                         }}
-                        className="inline-flex items-center px-2 py-1 text-xs font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                        className="inline-flex items-center px-2 py-1 text-xs font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                       >
                         <Upload className="w-3 h-3 mr-1" />
                         Import
@@ -1220,7 +1220,7 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
                           e.stopPropagation();
                           openAddCookieModal(domain.id);
                         }}
-                        className="inline-flex items-center px-2 py-1 text-xs font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                        className="inline-flex items-center px-2 py-1 text-xs font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                       >
                         <Plus className="w-3 h-3 mr-1" />
                         Add
@@ -1230,14 +1230,14 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
                   
                   <div className="space-y-3 max-h-64 overflow-y-auto">
                     {getStoredCookiesForDomain(domain.id).map((cookie, index) => (
-                      <div key={index} className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-sm transition-shadow">
+                      <div key={index} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg p-4 hover:shadow-sm transition-shadow">
                         <div className="flex items-start justify-between">
                           <div className="flex-1 min-w-0">
                             {/* Cookie Name and Value */}
                             <div className="flex items-center space-x-3 mb-3">
                               <div className="flex-1 min-w-0">
-                                <div className="text-sm font-medium text-gray-900">{cookie.name}</div>
-                                <div className="text-sm text-gray-500 truncate font-mono">
+                                <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{cookie.name}</div>
+                                <div className="text-sm text-gray-500 dark:text-gray-400 truncate font-mono">
                                   {cookie.value.length > 60 ? `${cookie.value.substring(0, 60)}...` : cookie.value}
                                 </div>
                               </div>
@@ -1245,32 +1245,32 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
                             
                             {/* Cookie Attributes */}
                             <div className="flex flex-wrap items-center gap-2">
-                              <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-800">
+                              <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200">
                                 Path: {cookie.path || '/'}
                               </span>
                               
                               {cookie.secure && (
-                                <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-green-100 text-green-800">
+                                <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200">
                                   <Lock className="w-3 h-3 mr-1" />
                                   Secure
                                 </span>
                               )}
                               
                               {cookie.httpOnly && (
-                                <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-blue-100 text-blue-800">
+                                <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200">
                                   <Shield className="w-3 h-3 mr-1" />
                                   HttpOnly
                                 </span>
                               )}
                               
                               {cookie.sameSite && (
-                                <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-purple-100 text-purple-800">
+                                <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200">
                                   SameSite: {cookie.sameSite}
                                 </span>
                               )}
                               
                               {cookie.expirationDate && (
-                                <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-yellow-100 text-yellow-800">
+                                <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200">
                                   <Calendar className="w-3 h-3 mr-1" />
                                   {new Date(cookie.expirationDate * 1000).toLocaleDateString()}
                                 </span>
@@ -1317,7 +1317,7 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
               {getStoredCookiesForDomain(domain.id).length === 0 && (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <h4 className="text-sm font-medium text-gray-900 flex items-center">
+                    <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100 flex items-center">
                       <Cookie className="w-4 h-4 mr-2 text-indigo-600" />
                       Stored Cookies (0)
                     </h4>
@@ -1327,7 +1327,7 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
                           e.stopPropagation();
                           openImportModal(domain.id);
                         }}
-                        className="inline-flex items-center px-2 py-1 text-xs font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                        className="inline-flex items-center px-2 py-1 text-xs font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                       >
                         <Upload className="w-3 h-3 mr-1" />
                         Import
@@ -1337,7 +1337,7 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
                           e.stopPropagation();
                           openAddCookieModal(domain.id);
                         }}
-                        className="inline-flex items-center px-2 py-1 text-xs font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                        className="inline-flex items-center px-2 py-1 text-xs font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                       >
                         <Plus className="w-3 h-3 mr-1" />
                         Add
@@ -1366,13 +1366,13 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" style={{margin: 0, top: 0}}>
           <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-semibold mb-2 text-gray-600">Import from DevTools</h3>
-            <div className="mb-4 p-2 bg-blue-50 border border-blue-200 rounded text-sm">
+            <div className="mb-4 p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded text-sm">
               <strong>Domain:</strong> {getDomainFromId(currentDomainId) || 'No domain selected'}
             </div>
             
             <details className="mb-4">
               <summary className="text-sm text-gray-600 cursor-pointer hover:text-gray-800">📋 Show instructions</summary>
-              <div className="mt-2 p-3 bg-gray-50 border border-gray-200 rounded text-sm">
+              <div className="mt-2 p-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded text-sm">
                 <ol className="text-gray-700 space-y-1">
                   <li><strong>1.</strong> Open DevTools (F12) → <strong>Application</strong> tab</li>
                   <li><strong>2.</strong> Click <strong>Cookies</strong> in sidebar → Select your domain</li>
@@ -1439,7 +1439,7 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
             <div className="flex justify-end space-x-3">
               <button 
                 onClick={() => setShowRemoveConfirm('')}
-                className="px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded flex items-center transition-colors"
+                className="px-3 py-1.5 text-xs bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded flex items-center transition-colors"
               >
                 Cancel
               </button>

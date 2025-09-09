@@ -17,24 +17,37 @@ import { globalThrottler } from './log-throttler';
 
 // Environment-based log level configuration
 const getLogLevel = () => {
-  const level = process.env.LOG_LEVEL || 'info';
-  if (process.env.NODE_ENV === 'production' && level === 'debug') {
-    return 'info'; // Prevent debug in production unless explicitly set
+  const level = process.env.LOG_LEVEL;
+  
+  // Default levels per environment
+  if (process.env.NODE_ENV === 'production') {
+    return level || 'warn'; // Production: only warnings and errors by default
+  } else if (process.env.NODE_ENV === 'development') {
+    return level || 'info'; // Development: info level by default
   }
-  return level;
+  
+  return level || 'info';
 };
 
 // Context-specific log level overrides for web-controller
 const getContextLogLevel = (context: string): string => {
+  // Environment-based defaults
+  const isProduction = process.env.NODE_ENV === 'production';
+  const defaultLevel = isProduction ? 'warn' : 'info';
+  const debugLevel = isProduction ? 'silent' : 'debug'; // No debug in production
+  
   const contextLevels: Record<string, string> = {
     discovery: process.env.LOG_DISCOVERY === 'false' ? 'silent' : 
-               process.env.LOG_DISCOVERY_LEVEL || 'info',
-    grpc: process.env.LOG_GRPC_LEVEL || 'info',
-    'auto-register': process.env.LOG_AUTO_REGISTER_LEVEL || 'info',
-    'auto-init': process.env.LOG_AUTO_INIT_LEVEL || 'info',
-    'dashboard-manager': process.env.LOG_DASHBOARD_MANAGER_LEVEL || 'info',
-    'auth-manager': process.env.LOG_AUTH_MANAGER_LEVEL || 'info',
-    'extension-dropdown': process.env.LOG_EXTENSION_DROPDOWN_LEVEL || 'info',
+               process.env.LOG_DISCOVERY_LEVEL || (isProduction ? 'warn' : 'info'),
+    'grpc-client': process.env.LOG_GRPC_LEVEL || (isProduction ? 'error' : 'info'),
+    'windows-discovery': process.env.LOG_WINDOWS_DISCOVERY_LEVEL || (isProduction ? 'warn' : 'info'),
+    'mdns-discovery': process.env.LOG_MDNS_DISCOVERY_LEVEL || (isProduction ? 'warn' : 'info'),
+    'auto-init': process.env.LOG_AUTO_INIT_LEVEL || defaultLevel,
+    'dashboard-manager': process.env.LOG_DASHBOARD_MANAGER_LEVEL || defaultLevel,
+    'auth-manager': process.env.LOG_AUTH_MANAGER_LEVEL || defaultLevel,
+    'extension-dropdown': process.env.LOG_EXTENSION_DROPDOWN_LEVEL || defaultLevel,
+    'api-discovery-events': debugLevel, // High-frequency events
+    app: defaultLevel
   };
   
   return contextLevels[context] || getLogLevel();
@@ -58,7 +71,7 @@ const logger = winston ? winston.createLogger({
       format: winston.format.combine(
         winston.format.colorize(),
         winston.format.timestamp({ format: 'HH:mm:ss' }),
-        winston.format.printf(({ timestamp, level, message, context, ...meta }) => {
+        winston.format.printf(({ timestamp, level, message, context, ...meta }: any) => {
           const contextStr = context ? `[${context}]` : '';
           const metaStr = Object.keys(meta).length > 0 ? ` ${JSON.stringify(meta)}` : '';
           return `${timestamp} ${level}${contextStr}: ${message}${metaStr}`;

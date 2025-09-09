@@ -32,8 +32,8 @@ export const useHostDiscovery = (): UseHostDiscoveryReturn => {
     // Create handler function
     const handleUpdate = (update: HostDiscoveryUpdate) => {
       hostDiscoveryLogger.debug('Received hosts update via SSE', { 
-        type: update.type,
         hostCount: update.data?.length || 0,
+        changeType: update.changeType,
         hostDetails: update.data?.map(h => `${h.id} (${h.ipAddress}:${h.port})`)
       });
       

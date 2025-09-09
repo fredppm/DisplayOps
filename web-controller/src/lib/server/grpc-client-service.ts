@@ -69,6 +69,8 @@ interface CircuitBreakerInfo {
   failureCount: number;
   lastFailureTime: number;
   nextAttemptTime: number;
+  consecutiveFailures: number; // Track consecutive failures for exponential backoff
+  lastSuccessTime: number; // Track last successful connection
 }
 
 // Global instance para sobreviver ao hot-reload do Next.js
@@ -88,9 +90,10 @@ export class GrpcClientService extends EventEmitter {
   
   // Circuit Breaker configuration
   private circuitBreakers: Map<string, CircuitBreakerInfo> = new Map();
-  private circuitBreakerFailureThreshold = 5;
-  private circuitBreakerTimeout = 60000; // 1 minute
-  private circuitBreakerHalfOpenMaxCalls = 3;
+  private circuitBreakerFailureThreshold = 3; // Reduced threshold for faster detection
+  private circuitBreakerBaseTimeout = 30000; // 30 seconds base timeout
+  private circuitBreakerMaxTimeout = 300000; // 5 minutes max timeout
+  private circuitBreakerHalfOpenMaxCalls = 2; // Reduced for safer testing
 
   private constructor() {
     super();
@@ -314,37 +317,95 @@ export class GrpcClientService extends EventEmitter {
   }
 
   /**
-   * Test gRPC connection with health check
+   * Test gRPC connection with health check and connectivity validation
    */
   private async testConnection(client: any): Promise<void> {
     return new Promise((resolve, reject) => {
       const deadline = new Date();
-      deadline.setSeconds(deadline.getSeconds() + 10); // Increased timeout to 10 seconds
+      deadline.setSeconds(deadline.getSeconds() + 5); // Reduced timeout to 5 seconds for faster failure detection
 
       const startTime = Date.now();
       
-      // Use HealthCheck RPC directly (expects Empty message)
-      client.HealthCheck({}, { deadline }, (error: any, response: any) => {
+      // Set connection timeout and retry options  
+      const options = { 
+        deadline,
+        retry: false, // No automatic retry for health checks
+        maxReceiveMessageLength: 1024 * 1024, // 1MB limit
+        maxSendMessageLength: 1024 * 1024
+      };
+      
+      // Use HealthCheck RPC with enhanced error handling
+      client.HealthCheck({}, options, (error: any, response: any) => {
         const responseTime = Date.now() - startTime;
         
         if (error) {
+          // Classify errors for better circuit breaker decisions
+          const errorType = this.classifyGrpcError(error);
+          
           grpcClientLogger.error('gRPC HealthCheck failed', {
             error: error instanceof Error ? error.message : error,
             code: error.code,
             details: error.details,
+            errorType,
             responseTime: `${responseTime}ms`
           });
-          reject(error);
+          
+          // Enhance error with classification for circuit breaker
+          const enhancedError = error;
+          enhancedError.errorType = errorType;
+          enhancedError.responseTime = responseTime;
+          
+          reject(enhancedError);
         } else {
-          grpcClientLogger.debug('gRPC HealthCheck successful', {
-            responseTime: `${responseTime}ms`,
-            hostStatus: response.host_status?.online,
-            displayCount: response.display_statuses?.length || 0
-          });
-          resolve(response);
+          // Validate response structure
+          if (this.isValidHealthResponse(response)) {
+            grpcClientLogger.debug('gRPC HealthCheck successful', {
+              responseTime: `${responseTime}ms`,
+              hostStatus: response.host_status?.online,
+              displayCount: response.display_statuses?.length || 0
+            });
+            resolve();
+          } else {
+            const validationError = new Error('Invalid health check response structure');
+            grpcClientLogger.warn('Health check response validation failed', { response });
+            reject(validationError);
+          }
         }
       });
     });
+  }
+
+  /**
+   * Classify gRPC errors for better circuit breaker decisions
+   */
+  private classifyGrpcError(error: any): string {
+    if (!error.code) return 'UNKNOWN';
+    
+    switch (error.code) {
+      case 14: // UNAVAILABLE
+        return error.details?.includes('ECONNRESET') ? 'CONNECTION_RESET' : 
+               error.details?.includes('ECONNREFUSED') ? 'CONNECTION_REFUSED' :
+               error.details?.includes('ENETUNREACH') ? 'NETWORK_UNREACHABLE' : 'UNAVAILABLE';
+      case 4: // DEADLINE_EXCEEDED
+        return 'TIMEOUT';
+      case 13: // INTERNAL
+        return 'INTERNAL_ERROR';
+      case 12: // UNIMPLEMENTED
+        return 'METHOD_NOT_FOUND';
+      case 16: // UNAUTHENTICATED
+        return 'AUTH_ERROR';
+      default:
+        return `GRPC_${error.code}`;
+    }
+  }
+
+  /**
+   * Validate health check response structure
+   */
+  private isValidHealthResponse(response: any): boolean {
+    // For HealthCheck, we expect at least some response structure
+    // Even an empty response is valid for basic connectivity test
+    return response !== undefined && response !== null;
   }
 
   /**
@@ -648,29 +709,61 @@ export class GrpcClientService extends EventEmitter {
   }
 
   private recordFailure(hostId: string): void {
+    const now = Date.now();
     const breaker = this.circuitBreakers.get(hostId) || {
       state: CircuitBreakerState.CLOSED,
       failureCount: 0,
       lastFailureTime: 0,
-      nextAttemptTime: 0
+      nextAttemptTime: 0,
+      consecutiveFailures: 0,
+      lastSuccessTime: now
     };
 
     breaker.failureCount++;
-    breaker.lastFailureTime = Date.now();
+    breaker.consecutiveFailures++;
+    breaker.lastFailureTime = now;
+
+    // Calculate exponential backoff with jitter
+    const backoffDelay = this.calculateBackoffDelay(breaker.consecutiveFailures);
 
     if (breaker.state === CircuitBreakerState.HALF_OPEN) {
-      // Failed in half-open, go back to open
+      // Failed in half-open, go back to open with increased backoff
       breaker.state = CircuitBreakerState.OPEN;
-      breaker.nextAttemptTime = Date.now() + this.circuitBreakerTimeout;
-      grpcClientLogger.warn('Circuit breaker failed in HALF_OPEN, transitioning back to OPEN', { hostId });
+      breaker.nextAttemptTime = now + backoffDelay;
+      grpcClientLogger.warn('Circuit breaker failed in HALF_OPEN, transitioning back to OPEN', { 
+        hostId, 
+        consecutiveFailures: breaker.consecutiveFailures,
+        nextAttemptInMs: backoffDelay
+      });
     } else if (breaker.failureCount >= this.circuitBreakerFailureThreshold) {
-      // Too many failures, open the circuit
+      // Too many failures, open the circuit with backoff
       breaker.state = CircuitBreakerState.OPEN;
-      breaker.nextAttemptTime = Date.now() + this.circuitBreakerTimeout;
-      grpcClientLogger.warn('Circuit breaker opened after failures', { hostId, failureCount: breaker.failureCount });
+      breaker.nextAttemptTime = now + backoffDelay;
+      grpcClientLogger.warn('Circuit breaker opened after failures', { 
+        hostId, 
+        failureCount: breaker.failureCount,
+        consecutiveFailures: breaker.consecutiveFailures,
+        nextAttemptInMs: backoffDelay
+      });
     }
 
     this.circuitBreakers.set(hostId, breaker);
+  }
+
+  /**
+   * Calculate exponential backoff delay with jitter to prevent thundering herd
+   */
+  private calculateBackoffDelay(consecutiveFailures: number): number {
+    // Exponential backoff: baseTimeout * (2^failures)
+    const exponentialDelay = this.circuitBreakerBaseTimeout * Math.pow(2, Math.min(consecutiveFailures - 1, 5));
+    
+    // Cap at maximum timeout
+    const cappedDelay = Math.min(exponentialDelay, this.circuitBreakerMaxTimeout);
+    
+    // Add jitter (±25% random variation) to prevent thundering herd
+    const jitter = cappedDelay * 0.25 * (Math.random() - 0.5);
+    
+    return Math.round(cappedDelay + jitter);
   }
 
   private resetCircuitBreaker(hostId: string): void {
@@ -678,6 +771,8 @@ export class GrpcClientService extends EventEmitter {
     if (breaker) {
       breaker.state = CircuitBreakerState.CLOSED;
       breaker.failureCount = 0;
+      breaker.consecutiveFailures = 0; // Reset consecutive failures on success
+      breaker.lastSuccessTime = Date.now();
       grpcClientLogger.info('Circuit breaker reset to CLOSED', { hostId });
     }
   }

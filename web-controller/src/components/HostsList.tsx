@@ -346,16 +346,16 @@ export const HostsList: React.FC<HostsListProps> = ({ hosts, isDiscovering, disc
     <div className="space-y-6">
         {/* Hosts Grid */}
       {hosts.length === 0 ? (
-        <div className="card text-center py-12">
+        <div className="bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700 shadow-sm text-center py-12">
           <div className="flex flex-col items-center">
             <div className="relative mb-4">
               <Wifi className="w-12 h-12 text-blue-400" />
               <div className="absolute inset-0 w-12 h-12 border-2 border-blue-200 rounded-full animate-ping"></div>
             </div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">
+            <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
               Searching for hosts...
             </h3>
-            <p className="text-gray-500 mb-4">
+            <p className="text-gray-500 dark:text-gray-400 mb-4">
               Scanning network for available DisplayOps agents
             </p>
             <div className="flex items-center justify-center space-x-1">

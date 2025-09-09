@@ -1,6 +1,7 @@
 /**
  * Auto-inicialização dos serviços core via API call
  * Este arquivo só será executado no server-side via API routes
+ * Usa apenas gRPC (não mais HTTP REST)
  */
 
 import { createContextLogger } from '../utils/logger';
@@ -46,15 +47,6 @@ export async function autoInitializeServices() {
       }
     } else {
       autoInitLogger.info('gRPC Client desabilitado via configuração');
-    }
-    
-    // 3. Verificar outros serviços (fallback)
-    try {
-      const grpcClientService = require('./server/grpc-client-service').grpcClientService;
-      autoInitLogger.info('gRPC Client Service (legacy) instanciado');
-      services.push('gRPC Client Service (legacy)');
-    } catch (error) {
-      autoInitLogger.debug('gRPC Client Service (legacy) não disponível');
     }
     
     const message = services.length > 0 
