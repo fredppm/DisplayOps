@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useHealthDashboard } from '@/hooks/useSyncMonitor';
+import { useAdminStatus } from '@/contexts/AdminStatusContext';
 
 interface ControllerSyncStatus {
   controllerId: string;
@@ -98,7 +98,7 @@ const formatTimestamp = (timestamp: string): string => {
 };
 
 export default function SyncStatusCard() {
-  const { syncStatus, alerts, loading, error, refresh } = useHealthDashboard();
+  const { syncStatus, alerts, loading, error, refresh } = useAdminStatus();
   const [showAlerts, setShowAlerts] = useState(false);
   const [showControllers, setShowControllers] = useState(false);
 
@@ -137,7 +137,8 @@ export default function SyncStatusCard() {
     return null;
   }
 
-  const { overall, controllers, data, grpc, alerts } = syncStatus;
+  const { sync, controllers, data, grpc } = syncStatus;
+  const { overall, alerts } = sync;
 
   return (
     <div className="bg-white dark:bg-gray-800 shadow rounded-lg border border-gray-200 dark:border-gray-600">
@@ -235,12 +236,12 @@ export default function SyncStatusCard() {
 
         {/* Action Buttons */}
         <div className="flex flex-wrap gap-3">
-          {(alerts.length > 0 || (syncStatus && syncStatus.alerts.length > 0)) && (
+          {alerts.length > 0 && (
             <button
               onClick={() => setShowAlerts(!showAlerts)}
               className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded text-sm flex items-center gap-2"
             >
-              ⚠️ View Alerts ({(syncStatus?.alerts.length || 0) + alerts.length})
+              ⚠️ View Alerts ({alerts.length})
             </button>
           )}
           
@@ -260,41 +261,17 @@ export default function SyncStatusCard() {
         </div>
 
         {/* Alerts Details */}
-        {showAlerts && ((syncStatus && syncStatus.alerts.length > 0) || alerts.length > 0) && (
+        {showAlerts && alerts.length > 0 && (
           <div className="mt-6 border-t border-gray-200 dark:border-gray-600 pt-6">
             <h3 className="font-medium text-gray-900 dark:text-gray-100 mb-4">Active Alerts</h3>
             <div className="space-y-3">
-              {/* System alerts from sync status */}
-              {syncStatus?.alerts.map((alert) => (
+              {alerts.map((alert) => (
                 <div key={alert.id} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
                   <div className="flex items-start gap-3">
                     <span className="text-lg">{getAlertIcon(alert.type)}</span>
                     <div className="flex-1">
                       <div className="font-medium text-gray-900 dark:text-gray-100">
                         {alert.title}
-                      </div>
-                      <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                        {alert.message}
-                      </div>
-                      <div className="text-xs text-gray-500 dark:text-gray-500 mt-2">
-                        {formatTimestamp(alert.timestamp)}
-                        {alert.controllerId && (
-                          <span className="ml-2">Controller: {alert.controllerId}</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-              
-              {/* Real-time alerts from hook */}
-              {alerts.map((alert) => (
-                <div key={alert.id} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 border-l-4 border-blue-500">
-                  <div className="flex items-start gap-3">
-                    <span className="text-lg">{getAlertIcon(alert.type)}</span>
-                    <div className="flex-1">
-                      <div className="font-medium text-gray-900 dark:text-gray-100">
-                        {alert.title} <span className="text-blue-600 text-xs">(Real-time)</span>
                       </div>
                       <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                         {alert.message}
@@ -318,7 +295,7 @@ export default function SyncStatusCard() {
           <div className="mt-6 border-t border-gray-200 dark:border-gray-600 pt-6">
             <h3 className="font-medium text-gray-900 dark:text-gray-100 mb-4">Controllers Status</h3>
             <div className="space-y-3">
-              {syncStatus.controllers.map((controller) => (
+              {sync.controllers.map((controller) => (
                 <div key={controller.controllerId} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">

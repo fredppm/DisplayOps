@@ -1,8 +1,8 @@
 {
   "sites": [
     {
-      "id": "escrit-rio-rio-teste",
-      "name": "Escritório Rio Teste",
+      "id": "escrit-rio-rio",
+      "name": "Escritório Rio",
       "location": "Rio de Janeiro",
       "timezone": "America/Sao_Paulo",
       "status": "online",
@@ -11,22 +11,7 @@
         "rio-2f"
       ],
       "createdAt": "2024-01-01T00:00:00Z",
-      "updatedAt": "2025-09-03T20:33:04.151Z"
-    },
-    {
-      "id": "auto-discovered",
-      "name": "Auto-Discovered Controllers",
-      "location": "Various Locations",
-      "timezone": "America/Sao_Paulo",
-      "controllers": [
-        "ctrl-vtex-b9lh6z3-mf5t4yq1",
-        "ctrl-vtex-b9lh6z3-mf5tknr1",
-        "ctrl-vtex-b9lh6z3-mf5txdhg",
-        "ctrl-vtex-b9lh6z3-mf60d0n5",
-        "ctrl-vtex-b9lh6z3-mf60d0m4"
-      ],
-      "createdAt": "2025-09-04T17:53:55.979Z",
-      "updatedAt": "2025-09-04T23:37:36.008Z"
+      "updatedAt": "2025-09-09T15:51:59.111Z"
     }
   ]
 }

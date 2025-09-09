@@ -275,6 +275,9 @@ export class ControllerAdminGrpcServer extends EventEmitter {
         // Start connection cleanup interval
         this.startConnectionCleanup();
         
+        // Emit event for health status updates
+        this.emit('grpc-server-started', { port: this.port });
+        
         resolve();
       });
     });
@@ -307,6 +310,10 @@ export class ControllerAdminGrpcServer extends EventEmitter {
         } else {
           grpcServerLogger.info('gRPC ControllerAdminServer stopped gracefully');
         }
+        
+        // Emit event for health status updates
+        this.emit('grpc-server-stopped');
+        
         resolve();
       });
     });
@@ -331,6 +338,9 @@ export class ControllerAdminGrpcServer extends EventEmitter {
     // Force shutdown immediately (for hotreload scenarios)
     this.server.forceShutdown();
     grpcServerLogger.info('gRPC ControllerAdminServer force stopped immediately');
+    
+    // Emit event for health status updates
+    this.emit('grpc-server-stopped');
   }
 
   private handleHeartbeatStream(stream: grpc.ServerDuplexStream<any, any>): void {
@@ -441,6 +451,9 @@ export class ControllerAdminGrpcServer extends EventEmitter {
       // Emit event for other parts of the application
       this.emit('controller_registered', controller);
       
+      // Emit event for health status updates
+      this.emit('controller-registered', controller);
+      
       // Process pending dashboard syncs for this controller
       await this.processPendingSyncs(controller.id);
       
@@ -501,6 +514,13 @@ export class ControllerAdminGrpcServer extends EventEmitter {
         status: statusData,
         timestamp: new Date()
       });
+      
+      // Emit event for health status updates
+      this.emit('controller-status-updated', {
+        controllerId: controller_id,
+        status: statusData,
+        timestamp: new Date()
+      });
 
     } catch (error) {
       grpcServerLogger.error('Failed to update controller status:', error);
@@ -512,20 +532,18 @@ export class ControllerAdminGrpcServer extends EventEmitter {
   private async registerController(controllerId: string, registrationData: any): Promise<Controller> {
     const CONTROLLERS_FILE = path.join(process.cwd(), 'data', 'controllers.json');
     const SITES_FILE = path.join(process.cwd(), 'data', 'sites.json');
-    const AUTO_DISCOVERED_SITE_ID = 'auto-discovered';
 
     // Read existing data
     const controllersData = await this.readControllersData(CONTROLLERS_FILE);
     const sitesData = await this.readSitesData(SITES_FILE);
-
-    // Ensure auto-discovered site exists
-    await this.ensureAutoDiscoveredSite(sitesData, SITES_FILE);
     
-    // Determine target site ID
-    let targetSiteId = registrationData.site_id || AUTO_DISCOVERED_SITE_ID;
-    const site = sitesData.sites.find((s: any) => s.id === targetSiteId);
-    if (!site) {
-      targetSiteId = AUTO_DISCOVERED_SITE_ID;
+    // Determine target site ID (pode ser undefined/null)
+    let targetSiteId = registrationData.site_id || undefined;
+    if (targetSiteId) {
+      const site = sitesData.sites.find((s: any) => s.id === targetSiteId);
+      if (!site) {
+        targetSiteId = undefined; // Site não existe, deixar sem site
+      }
     }
 
     // Check if controller already exists
@@ -564,13 +582,15 @@ export class ControllerAdminGrpcServer extends EventEmitter {
     controllersData.controllers.push(newController);
     await this.writeControllersData(CONTROLLERS_FILE, controllersData);
 
-    // Update site's controllers list
-    const targetSite = sitesData.sites.find((s: any) => s.id === targetSiteId);
-    if (targetSite) {
-      if (!targetSite.controllers.includes(controllerId)) {
-        targetSite.controllers.push(controllerId);
-        targetSite.updatedAt = new Date().toISOString();
-        await this.writeSitesData(SITES_FILE, sitesData);
+    // Update site's controllers list (somente se tiver site)
+    if (targetSiteId) {
+      const targetSite = sitesData.sites.find((s: any) => s.id === targetSiteId);
+      if (targetSite) {
+        if (!targetSite.controllers.includes(controllerId)) {
+          targetSite.controllers.push(controllerId);
+          targetSite.updatedAt = new Date().toISOString();
+          await this.writeSitesData(SITES_FILE, sitesData);
+        }
       }
     }
 
@@ -636,6 +656,10 @@ export class ControllerAdminGrpcServer extends EventEmitter {
     const connection = this.connections.get(connectionId);
     if (connection) {
       this.emit('controller_disconnected', connection.controllerId);
+      
+      // Emit event for health status updates
+      this.emit('controller-disconnected', connection.controllerId);
+      
       this.connections.delete(connectionId);
     }
   }
@@ -691,23 +715,6 @@ export class ControllerAdminGrpcServer extends EventEmitter {
     await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf-8');
   }
 
-  private async ensureAutoDiscoveredSite(sitesData: { sites: any[] }, filePath: string): Promise<void> {
-    const AUTO_DISCOVERED_SITE_ID = 'auto-discovered';
-    const autoSite = sitesData.sites.find(s => s.id === AUTO_DISCOVERED_SITE_ID);
-    
-    if (!autoSite) {
-      sitesData.sites.push({
-        id: AUTO_DISCOVERED_SITE_ID,
-        name: 'Auto-Discovered Controllers',
-        location: 'Various Locations',
-        timezone: 'America/Sao_Paulo',
-        controllers: [],
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      });
-      await this.writeSitesData(filePath, sitesData);
-    }
-  }
 
   // Public methods for external access
   public getActiveConnections(): Array<{ controllerId: string; lastHeartbeat: Date; isRegistered: boolean }> {

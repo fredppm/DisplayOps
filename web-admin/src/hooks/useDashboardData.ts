@@ -90,7 +90,7 @@ export const useDashboardData = (
     try {
       setError(null);
       
-      const [monitoringRes, alertsRes, healthRes] = await Promise.all([
+      const [monitoringRes, alertsRes] = await Promise.all([
         fetch('/api/monitoring/summary', {
           cache: 'no-store',
           headers: {
@@ -102,28 +102,20 @@ export const useDashboardData = (
           headers: {
             'Cache-Control': 'no-cache'
           }
-        }),
-        fetch('/api/health/checks', {
-          cache: 'no-store',
-          headers: {
-            'Cache-Control': 'no-cache'
-          }
         })
       ]);
 
-      if (!monitoringRes.ok || !alertsRes.ok || !healthRes.ok) {
+      if (!monitoringRes.ok || !alertsRes.ok) {
         throw new Error('Failed to fetch dashboard data');
       }
 
-      const [monitoring, alerts, health] = await Promise.all([
+      const [monitoring, alerts] = await Promise.all([
         monitoringRes.json(),
-        alertsRes.json(),
-        healthRes.json()
+        alertsRes.json()
       ]);
 
       setMonitoringData(monitoring.success ? monitoring.data : null);
       setAlertData(alerts.success ? alerts : null);
-      setHealthChecksData(health.success ? health : null);
     } catch (err) {
       console.error('Error fetching dashboard data:', err);
       setError(err instanceof Error ? err.message : 'Unknown error occurred');

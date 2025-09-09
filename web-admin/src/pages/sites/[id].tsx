@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import Layout from '@/components/Layout';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
-import TimezoneCombobox from '@/components/forms/TimezoneCombobox';
+import TimezoneCombobox, { TimezoneOption, TIMEZONE_OPTIONS } from '@/components/forms/TimezoneCombobox';
 import { Site } from '@/types/multi-site-types';
 import { useToastContext } from '@/contexts/ToastContext';
 import { useToastStore } from '@/stores/toastStore';
@@ -96,6 +96,12 @@ const SiteDetailsPage: NextPage = () => {
   const siteControllers = controllers.filter(controller => 
     site?.controllers.includes(controller.id)
   );
+
+  // Helper function to get timezone display label
+  const getTimezoneLabel = (timezoneValue: string): string => {
+    const timezoneOption = TIMEZONE_OPTIONS.find(option => option.value === timezoneValue);
+    return timezoneOption ? timezoneOption.label : timezoneValue;
+  };
 
   const handleSave = async () => {
     if (!site) return;
@@ -360,8 +366,8 @@ const SiteDetailsPage: NextPage = () => {
                           />
                         </div>
                       ) : (
-                        <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg">
-                          <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{site.name}</p>
+                        <div className="px-4 py-3 bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg">
+                          <p className="text-sm font-medium text-gray-700 dark:text-gray-400">{site.name}</p>
                         </div>
                       )}
                     </div>
@@ -384,8 +390,8 @@ const SiteDetailsPage: NextPage = () => {
                           />
                         </div>
                       ) : (
-                        <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg">
-                          <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{site.location}</p>
+                        <div className="px-4 py-3 bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg">
+                          <p className="text-sm font-medium text-gray-700 dark:text-gray-400">{site.location}</p>
                         </div>
                       )}
                     </div>
@@ -403,8 +409,8 @@ const SiteDetailsPage: NextPage = () => {
                           placeholder="Select timezone..."
                         />
                       ) : (
-                        <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg">
-                          <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{site.timezone}</p>
+                        <div className="px-4 py-3 bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg">
+                          <p className="text-sm font-medium text-gray-700 dark:text-gray-400">{getTimezoneLabel(site.timezone)}</p>
                         </div>
                       )}
                     </div>
@@ -462,7 +468,7 @@ const SiteDetailsPage: NextPage = () => {
 
           {/* Sidebar */}
           <div className="lg:col-span-1">
-            <div className="bg-white shadow rounded-lg p-6">
+            <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
               <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-gray-100 mb-4">
                 General Information
               </h3>
@@ -513,9 +519,6 @@ const SiteDetailsPage: NextPage = () => {
               </dl>
             </div>
           </div>
-        </div>
-      </div>
-
         </div>
       </div>
       </Layout>

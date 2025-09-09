@@ -1,25 +1,13 @@
 {
   "controllers": [
     {
-      "id": "ctrl-vtex-b9lh6z3-mf60d0n5",
-      "siteId": "auto-discovered",
-      "name": "VTEX-B9LH6Z3 - Auto-discovered",
-      "localNetwork": "10.21.0.0/24",
+      "id": "ctrl-vtex-b9lh6z3",
+      "name": "VTEX-B9LH6Z3",
+      "localNetwork": "172.28.64.0/24",
       "mdnsService": "_displayops._tcp.local",
       "controllerUrl": "http://localhost:3001",
       "status": "offline",
-      "lastSync": "2025-09-04T23:40:37.398Z",
-      "version": "1.0.0"
-    },
-    {
-      "id": "ctrl-vtex-b9lh6z3-mf60d0m4",
-      "siteId": "auto-discovered",
-      "name": "VTEX-B9LH6Z3 - Auto-discovered",
-      "localNetwork": "10.21.0.0/24",
-      "mdnsService": "_displayops._tcp.local",
-      "controllerUrl": "http://localhost:3001",
-      "status": "offline",
-      "lastSync": "2025-09-04T23:40:37.499Z",
+      "lastSync": "2025-09-09T15:55:37.079Z",
       "version": "1.0.0"
     }
   ]

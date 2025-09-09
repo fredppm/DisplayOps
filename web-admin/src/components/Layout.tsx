@@ -6,6 +6,7 @@ import { ToastProvider } from '@/contexts/ToastContext';
 import ThemeToggle from '@/components/ThemeToggle';
 import { SyncAlertManager, createSyncAlert } from '@/components/SyncAlert';
 import { useAuth } from '@/contexts/AuthContext';
+import { useAdminStatus } from '@/contexts/AdminStatusContext';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -20,67 +21,43 @@ const LayoutContent: React.FC<LayoutProps> = ({ children }) => {
   const [syncAlerts, setSyncAlerts] = useState<any[]>([]);
   const userDropdownRef = useRef<HTMLDivElement>(null);
   const systemDropdownRef = useRef<HTMLDivElement>(null);
+  
+  // Use SSE for sync monitoring instead of polling
+  const { status: sseStatus, alerts: sseAlerts } = useAdminStatus();
 
   const isActiveRoute = (path: string): boolean => {
     return router.pathname.startsWith(path);
   };
 
-  // Monitor sync status and generate alerts
-  const checkSyncStatus = async () => {
-    try {
-      const response = await fetch('/api/health/sync-status');
-      const data = await response.json();
+  // Generate alerts from SSE data
+  useEffect(() => {
+    if (!sseStatus) return;
+    
+    const newAlerts: any[] = [...sseAlerts];
+
+    // Check for controllers with pending syncs from SSE data
+    sseStatus.sync.controllers.forEach((controller: any) => {
+      const pendingSyncs: string[] = [];
+      if (controller.dashboardSync.pending) pendingSyncs.push('Dashboards');
+      if (controller.cookieSync.pending) pendingSyncs.push('Cookies');
       
-      if (data.success) {
-        const status = data.data;
-        const newAlerts: any[] = [];
-
-        // Check for gRPC server issues
-        // Suppressed: No longer showing gRPC server down alerts
-        // if (!status.grpc.isRunning) {
-        //   newAlerts.push(createSyncAlert.grpcServerDown());
-        // }
-
-        // Check for controllers with pending syncs
-        status.controllers.forEach((controller: any) => {
-          const pendingSyncs: string[] = [];
-          if (controller.dashboardSync.pending) pendingSyncs.push('Dashboards');
-          if (controller.cookieSync.pending) pendingSyncs.push('Cookies');
-          
-          if (pendingSyncs.length > 0) {
-            newAlerts.push(createSyncAlert.syncPending(
-              controller.controllerId,
-              controller.name,
-              pendingSyncs
-            ));
-          }
-
-          // Check for offline controllers
-          // Suppressed: No longer showing controller offline alerts
-          // if (controller.status === 'offline') {
-          //   const lastSyncTime = new Date(controller.lastSync).getTime();
-          //   const hoursOffline = (Date.now() - lastSyncTime) / (1000 * 60 * 60);
-          //   
-          //   if (hoursOffline > 24) { // Alert if offline for more than 24 hours
-          //     newAlerts.push(createSyncAlert.controllerOffline(
-          //       controller.controllerId,
-          //       controller.name
-          //     ));
-          //   }
-          // }
-        });
-
-        // Update alerts (filter duplicates by ID)
-        setSyncAlerts(prevAlerts => {
-          const existingIds = prevAlerts.map(alert => alert.id);
-          const uniqueNewAlerts = newAlerts.filter(alert => !existingIds.includes(alert.id));
-          return [...prevAlerts, ...uniqueNewAlerts];
+      if (pendingSyncs.length > 0) {
+        newAlerts.push({
+          id: `controller-sync-${controller.controllerId}-${Date.now()}`,
+          type: 'warning',
+          title: `${controller.name} Sync Pending`,
+          message: `Pending sync: ${pendingSyncs.join(', ')}`,
+          timestamp: new Date().toISOString(),
+          controllerId: controller.controllerId,
+          autoHide: false,
+          persist: true
         });
       }
-    } catch (error) {
-      console.warn('Failed to check sync status for alerts:', error);
-    }
-  };
+    });
+
+    setSyncAlerts(newAlerts);
+  }, [sseStatus, sseAlerts]);
+
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -98,14 +75,6 @@ const LayoutContent: React.FC<LayoutProps> = ({ children }) => {
     };
   }, []);
 
-  // Check sync status on mount and periodically
-  useEffect(() => {
-    checkSyncStatus();
-    
-    // Check every 60 seconds
-    const interval = setInterval(checkSyncStatus, 60000);
-    return () => clearInterval(interval);
-  }, []);
 
   const navigationItems = [
     { name: 'Sites', href: '/sites', current: isActiveRoute('/sites') },

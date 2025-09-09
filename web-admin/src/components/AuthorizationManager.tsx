@@ -913,15 +913,12 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
   // Helper to get domain from domainId
   const getDomainFromId = (domainId: string): string => {
     const domain = authDomains.find(d => d.id === domainId);
-    console.log('getDomainFromId:', { domainId, domain: domain?.domain, allDomains: authDomains });
     return domain?.domain || '';
   };
 
   // Open import modal for DevTools table format
   const openImportModal = (domainId: string) => {
-    console.log('Opening import modal for domainId:', domainId);
     const domainObj = authDomains.find(d => d.id === domainId);
-    console.log('Domain object:', domainObj);
     setCurrentDomainId(domainId);
     setShowImportModal(true);
     // Cookies will be loaded automatically from storage
@@ -1383,7 +1380,6 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
             <ImportForm 
               domain={getDomainFromId(currentDomainId)}
               onSuccess={() => {
-                console.log('Import success, currentDomainId:', currentDomainId);
                 setShowImportModal(false);
                 // Reload data to show imported cookies
                 loadSavedCookieData(true);

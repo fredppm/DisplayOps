@@ -8,7 +8,7 @@ export interface TimezoneOption {
   offset: string;
 }
 
-const TIMEZONE_OPTIONS: TimezoneOption[] = [
+export const TIMEZONE_OPTIONS: TimezoneOption[] = [
   {
     value: 'America/New_York',
     label: 'Eastern Time (ET)',
@@ -185,7 +185,7 @@ export default function TimezoneCombobox({
           onFocus={() => setIsOpen(true)}
           placeholder={placeholder}
           disabled={disabled}
-          className="block w-full px-4 py-3 text-sm border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors disabled:bg-gray-50 disabled:text-gray-500 bg-white dark:bg-gray-900 dark:border-gray-600 dark:text-white dark:placeholder-gray-400 dark:focus:ring-blue-500 dark:focus:border-blue-500"
+          className="block w-full px-4 py-3 text-sm border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors disabled:bg-gray-50 disabled:text-gray-500 bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:placeholder-gray-400 dark:focus:ring-blue-500 dark:focus:border-blue-500"
         />
         <button
           type="button"

@@ -42,16 +42,13 @@ const ControllersPage: NextPage = () => {
       const response = await fetch('/api/controllers');
       const data = await response.json();
       
-      console.log('Controllers API Response:', data); // Debug: ver o que a API está retornando
-      
       if (data.success) {
-        console.log('Controllers data:', data.data); // Debug: ver os controllers
         setControllers(data.data || []);
       } else {
         setError(data.error || 'Failed to fetch controllers');
       }
     } catch (err: any) {
-      console.error('Fetch error:', err); // Debug: ver erros
+      console.error('Fetch error:', err);
       setError('Network error: ' + err.message);
     } finally {
       setLoading(false);

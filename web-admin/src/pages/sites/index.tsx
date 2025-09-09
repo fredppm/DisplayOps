@@ -32,16 +32,13 @@ const SitesPage: NextPage = () => {
       const response = await fetch('/api/sites');
       const data = await response.json();
       
-      console.log('API Response:', data); // Debug: ver o que a API está retornando
-      
       if (data.success) {
-        console.log('Sites data:', data.data); // Debug: ver os sites
         setSites(data.data || []);
       } else {
         setError(data.error || 'Failed to fetch sites');
       }
     } catch (err: any) {
-      console.error('Fetch error:', err); // Debug: ver erros
+      console.error('Fetch error:', err);
       setError('Network error: ' + err.message);
     } finally {
       setLoading(false);

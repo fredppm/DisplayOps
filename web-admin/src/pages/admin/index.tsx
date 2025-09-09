@@ -14,7 +14,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { CheckCircleIcon, ExclamationTriangleIcon, XCircleIcon } from '@heroicons/react/24/solid';
 import { useDashboardData, useSystemHealth } from '@/hooks/useDashboardData';
-import { useAdminEvents } from '@/hooks/useAdminEvents';
+import { useAdminStatus, useAdminEvents } from '@/contexts/AdminStatusContext';
 import { 
   MetricCardSkeleton, 
   PerformanceCardSkeleton, 
@@ -55,13 +55,21 @@ interface AdminPageProps {
 
 const AdminPage: NextPage<AdminPageProps> = ({ dashboardData }) => {
   // Hook para dados dinâmicos (CSR) com refresh automático
-  const { monitoringData, alertData, healthChecksData, loading, error, refetch } = useDashboardData(30000);
+  const { monitoringData, alertData, loading: dashboardLoading, error: dashboardError, refetch } = useDashboardData(30000);
+  const { healthChecksData, loading: healthLoading, error: healthError } = useAdminStatus();
+  
+  // Combine loading and error states
+  const loading = dashboardLoading || healthLoading;
+  const error = dashboardError || healthError;
   
   // Hook para dados em tempo real via SSE
   const { systemHealth: realtimeHealth, controllers: realtimeControllers, sites: realtimeSites, isConnected } = useAdminEvents();
   
   // Hook para status do sistema com fallback
   const systemHealth = useSystemHealth(monitoringData);
+  
+  // Hook para status completo incluindo gRPC
+  const { status: adminStatus } = useAdminStatus();
   
   // Usar dados em tempo real quando disponíveis, senão fallback para SSR
   const totalUsers = dashboardData.users.length;
@@ -193,7 +201,7 @@ const AdminPage: NextPage<AdminPageProps> = ({ dashboardData }) => {
 
             {realtimeHealth ? (
               <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 animate-fade-in">
-                <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center justify-between mb-3">
                   <div>
                     <div className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${
                       realtimeHealth.status === 'healthy' 
@@ -213,38 +221,25 @@ const AdminPage: NextPage<AdminPageProps> = ({ dashboardData }) => {
                     }`}></div>
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <div className="flex items-center space-x-2">
-                      <div className={`w-2 h-2 rounded-full ${
-                        realtimeHealth.controllers.percentage >= 80 ? 'bg-green-500' :
-                        realtimeHealth.controllers.percentage >= 50 ? 'bg-yellow-500' : 'bg-red-500'
-                      }`}></div>
-                      <span className="text-gray-700 dark:text-gray-300">Controllers</span>
+                {adminStatus?.grpc && (
+                  <div className="pt-3 border-t border-gray-100 dark:border-gray-700">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-600 dark:text-gray-400">gRPC Service</span>
+                      <div className="flex items-center space-x-2">
+                        <div className={`w-2 h-2 rounded-full ${adminStatus.grpc.isRunning ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                        <span className={`text-xs font-medium ${adminStatus.grpc.isRunning ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                          {adminStatus.grpc.isRunning ? 'Running' : 'Offline'}
+                        </span>
+                      </div>
                     </div>
-                    <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
-                      {realtimeHealth.controllers.online}/{realtimeHealth.controllers.total} ({realtimeHealth.controllers.percentage}%)
-                    </span>
                   </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <div className="flex items-center space-x-2">
-                      <div className={`w-2 h-2 rounded-full ${
-                        realtimeHealth.sites.percentage >= 80 ? 'bg-green-500' :
-                        realtimeHealth.sites.percentage >= 50 ? 'bg-yellow-500' : 'bg-red-500'
-                      }`}></div>
-                      <span className="text-gray-700 dark:text-gray-300">Sites</span>
-                    </div>
-                    <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
-                      {realtimeHealth.sites.healthy}/{realtimeHealth.sites.total} ({realtimeHealth.sites.percentage}%)
-                    </span>
-                  </div>
-                </div>
+                )}
               </div>
             ) : loading ? (
               <MetricCardSkeleton />
             ) : healthChecksData ? (
               <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 animate-fade-in">
-                <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center justify-between mb-3">
                   <div>
                     <div className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${
                       healthChecksData.data.overallStatus === 'healthy' 
@@ -264,31 +259,23 @@ const AdminPage: NextPage<AdminPageProps> = ({ dashboardData }) => {
                     }`}></div>
                   </div>
                 </div>
-                <div className="space-y-2">
-                  {healthChecksData.data.checks.map((check) => (
-                    <div key={check.name} className="flex items-center justify-between text-sm">
+                {adminStatus?.grpc && (
+                  <div className="pt-3 border-t border-gray-100 dark:border-gray-700">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-600 dark:text-gray-400">gRPC Service</span>
                       <div className="flex items-center space-x-2">
-                        <div className={`w-2 h-2 rounded-full ${
-                          check.status === 'healthy' ? 'bg-green-500' :
-                          check.status === 'warning' ? 'bg-yellow-500' :
-                          check.status === 'critical' ? 'bg-red-500' : 'bg-gray-400'
-                        }`}></div>
-                        <span className="text-gray-700 dark:text-gray-300">{check.name}</span>
+                        <div className={`w-2 h-2 rounded-full ${adminStatus.grpc.isRunning ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                        <span className={`text-xs font-medium ${adminStatus.grpc.isRunning ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                          {adminStatus.grpc.isRunning ? 'Running' : 'Offline'}
+                        </span>
                       </div>
-                      <span className={`text-xs font-medium capitalize ${
-                        check.status === 'healthy' ? 'text-green-600 dark:text-green-400' :
-                        check.status === 'warning' ? 'text-yellow-600 dark:text-yellow-400' :
-                        check.status === 'critical' ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'
-                      }`}>
-                        {check.status}
-                      </span>
                     </div>
-                  ))}
-                </div>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 animate-fade-in">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between mb-3">
                   <div>
                     <div className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium text-gray-500 bg-gray-50 dark:bg-gray-800/50 ring-1 ring-inset ring-gray-300 dark:ring-gray-600">
                       Loading
@@ -299,6 +286,19 @@ const AdminPage: NextPage<AdminPageProps> = ({ dashboardData }) => {
                     <div className="w-6 h-6 rounded-full bg-gray-400"></div>
                   </div>
                 </div>
+                {adminStatus?.grpc && (
+                  <div className="pt-3 border-t border-gray-100 dark:border-gray-700">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-600 dark:text-gray-400">gRPC Service</span>
+                      <div className="flex items-center space-x-2">
+                        <div className={`w-2 h-2 rounded-full ${adminStatus.grpc.isRunning ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                        <span className={`text-xs font-medium ${adminStatus.grpc.isRunning ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                          {adminStatus.grpc.isRunning ? 'Running' : 'Offline'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

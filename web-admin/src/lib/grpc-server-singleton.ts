@@ -34,6 +34,7 @@ class GrpcServerSingleton {
 
   public async start(): Promise<ControllerAdminGrpcServer> {
     if (this.isStarted && this.server) {
+      grpcLogger.debug('gRPC server already running, returning existing instance');
       return this.server;
     }
 
@@ -43,6 +44,8 @@ class GrpcServerSingleton {
         grpcLogger.warn('Cleaning up previous server instance before starting new one');
         this.server.forceStop();
         this.server = null;
+        // Wait a bit for cleanup
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
 
       this.server = new ControllerAdminGrpcServer(this.port);
@@ -79,12 +82,27 @@ class GrpcServerSingleton {
       // Check if it's a bind error (port in use)
       const errorMessage = error instanceof Error ? error.message : String(error);
       if (errorMessage.includes('bind') || errorMessage.includes('address already in use')) {
-        grpcLogger.error('Port already in use, likely from previous instance. Force stopping and retrying...');
+        grpcLogger.warn('Port already in use, attempting cleanup and retry...');
         if (this.server) {
           this.server.forceStop();
           this.server = null;
         }
         this.isStarted = false;
+        
+        // Wait longer and try once more
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        try {
+          grpcLogger.info('Retrying gRPC server start after port cleanup...');
+          this.server = new ControllerAdminGrpcServer(this.port);
+          await this.server.start();
+          this.isStarted = true;
+          controllerStatusMonitor.start();
+          grpcLogger.info(`gRPC Controller-Admin server started on port ${this.port} (after retry)`);
+          return this.server;
+        } catch (retryError) {
+          grpcLogger.error('Retry failed, giving up:', retryError);
+          throw retryError;
+        }
       }
       
       grpcLogger.error('Failed to start gRPC Controller-Admin server:', error);
@@ -105,7 +123,7 @@ class GrpcServerSingleton {
   }
 
   public forceStop(): void {
-    if (this.server && this.isStarted) {
+    if (this.server) {
       // Stop controller status monitor
       controllerStatusMonitor.stop();
       
@@ -113,6 +131,11 @@ class GrpcServerSingleton {
       this.server = null;
       this.isStarted = false;
       grpcLogger.info('gRPC Controller-Admin server force stopped');
+      
+      // Small delay to ensure port is released
+      setTimeout(() => {
+        grpcLogger.debug('Port cleanup delay completed');
+      }, 1000);
     }
   }
 
@@ -137,6 +160,19 @@ class GrpcServerSingleton {
       connected: this.server.getConnectionCount(),
       connections: this.server.getActiveConnections()
     };
+  }
+
+  public async restart(): Promise<ControllerAdminGrpcServer> {
+    grpcLogger.info('Restarting gRPC Controller-Admin server...');
+    
+    // Force stop first
+    this.forceStop();
+    
+    // Wait a bit for cleanup
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Start again
+    return await this.start();
   }
 
   public isControllerConnected(controllerId: string): boolean {

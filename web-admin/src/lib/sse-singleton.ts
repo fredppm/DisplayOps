@@ -52,7 +52,6 @@ class SSESingleton {
   public connect(): Promise<boolean> {
     if (this.connectionState === ConnectionState.CONNECTING || 
         this.connectionState === ConnectionState.CONNECTED) {
-      console.log('🔄 SSE already connected or connecting, state:', this.connectionState);
       return Promise.resolve(this.connectionState === ConnectionState.CONNECTED);
     }
 
@@ -66,8 +65,6 @@ class SSESingleton {
 
   private doConnect(): Promise<boolean> {
     return new Promise((resolve) => {
-      console.log('🔌 SSE Singleton connecting to /api/discovery/events...');
-      console.log('🌐 Base URL:', window.location.origin);
       
       this.connectionState = ConnectionState.CONNECTING;
       this.clearTimers();
@@ -80,7 +77,6 @@ class SSESingleton {
       this.eventSource = new EventSource('/api/discovery/events');
 
       this.eventSource.onopen = () => {
-        console.log('✅ SSE Singleton connected');
         this.connectionState = ConnectionState.CONNECTED;
         this.reconnectAttempts = 0;
         this.startHeartbeatMonitoring();
@@ -101,7 +97,6 @@ class SSESingleton {
       };
 
       this.eventSource.addEventListener('hosts_update', (event) => {
-        console.log('📡 SSE Singleton received hosts_update');
         this.lastHeartbeat = new Date(); // Data reception counts as heartbeat
         
         try {
@@ -123,7 +118,6 @@ class SSESingleton {
       });
 
       this.eventSource.addEventListener('heartbeat', (event) => {
-        console.log('💓 SSE Singleton heartbeat');
         this.lastHeartbeat = new Date();
       });
 
@@ -183,7 +177,6 @@ class SSESingleton {
       SSE_CONFIG.MAX_RECONNECT_DELAY
     );
     
-    console.log(`🔄 SSE Scheduling reconnection attempt ${this.reconnectAttempts}/${SSE_CONFIG.MAX_RECONNECT_ATTEMPTS} in ${delay}ms`);
     this.connectionState = ConnectionState.RECONNECTING;
     
     this.reconnectTimer = setTimeout(() => {
@@ -225,12 +218,10 @@ class SSESingleton {
   }
 
   private handleBeforeUnload(): void {
-    console.log('🔄 Page unloading, closing SSE connection');
     this.disconnect();
   }
 
   public disconnect(): void {
-    console.log('🔌 SSE Singleton disconnecting');
     
     this.connectionState = ConnectionState.DISCONNECTED;
     this.clearTimers();
@@ -247,7 +238,6 @@ class SSESingleton {
   }
   
   public forceReconnect(): Promise<boolean> {
-    console.log('🔄 SSE Force reconnecting...');
     this.reconnectAttempts = 0;
     this.disconnect();
     return this.connect();

@@ -60,8 +60,8 @@ export async function initializeGrpcServer(): Promise<void> {
         });
         
         // Handle webpack HMR dispose
-        if (module.hot) {
-          module.hot.dispose(() => {
+        if (typeof module !== 'undefined' && (module as any).hot) {
+          (module as any).hot.dispose(() => {
             grpcInitLogger.info('HMR dispose detected, force stopping gRPC server');
             grpcServerSingleton.forceStop();
             // Reset initialization flag
@@ -69,7 +69,7 @@ export async function initializeGrpcServer(): Promise<void> {
             initPromise = null;
           });
           
-          module.hot.accept(() => {
+          (module as any).hot.accept(() => {
             grpcInitLogger.info('HMR accept detected, preparing for server restart');
           });
         }
@@ -90,10 +90,14 @@ export async function initializeGrpcServer(): Promise<void> {
           grpcServerSingleton.forceStop();
         });
         
+        // Disable hot reload detection temporarily to avoid port conflicts
+        // TODO: Re-enable when hot reload logic is more stable
+        /*
         // Next.js specific hot reload detection via file watching
         if (typeof window === 'undefined') {
           const fs = require('fs');
           let hotReloadDetected = false;
+          let restartTimeout: NodeJS.Timeout | null = null;
           
           // Watch for Next.js build indicator files
           const buildIndicators = ['.next/trace', '.next/BUILD_ID'];
@@ -105,12 +109,33 @@ export async function initializeGrpcServer(): Promise<void> {
                   hotReloadDetected = true;
                   grpcInitLogger.info('Next.js hot reload detected via build indicator, stopping gRPC server');
                   grpcServerSingleton.forceStop();
-                  setTimeout(() => { hotReloadDetected = false; }, 5000);
+                  
+                  // Reset initialization flags to allow restart
+                  isInitialized = false;
+                  initPromise = null;
+                  
+                  // Clear any existing restart timeout
+                  if (restartTimeout) {
+                    clearTimeout(restartTimeout);
+                  }
+                  
+                  // Schedule restart after hot reload settles - only once
+                  restartTimeout = setTimeout(async () => { 
+                    hotReloadDetected = false;
+                    restartTimeout = null;
+                    try {
+                      grpcInitLogger.info('Attempting to restart gRPC server after hot reload');
+                      await initializeGrpcServer();
+                    } catch (error) {
+                      grpcInitLogger.error('Failed to restart gRPC server after hot reload:', error);
+                    }
+                  }, 5000); // Wait 5 seconds for hot reload to settle completely
                 }
               });
             }
           });
         }
+        */
       }
 
     } catch (error) {
