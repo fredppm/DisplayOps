@@ -58,12 +58,13 @@ jobs:
         run: |
           npm version ${{ steps.version.outputs.version }} --no-git-tag-version
 
-      - name: Install root dependencies
-        run: npm install
-
       - name: Install dependencies
         working-directory: host-agent
-        run: npm ci
+        run: |
+          cd ..
+          npm install
+          cd host-agent
+          npm ci
 
       - name: Setup virtual display (Linux)
         if: matrix.os == 'ubuntu-latest'
