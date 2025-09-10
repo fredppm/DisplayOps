@@ -31,6 +31,7 @@ import { ConfigManager } from './managers/config-manager';
 import { DebugOverlayManager } from './managers/debug-overlay-manager';
 import { SystemTrayManager } from './managers/system-tray-manager';
 import { CookieManager } from './managers/cookie-manager';
+import { AutoUpdaterService } from './auto-updater';
 import { logger } from './utils/logger';
 
 // Port availability check
@@ -78,6 +79,7 @@ class HostAgent {
   private debugOverlayManager: DebugOverlayManager;
   private systemTrayManager: SystemTrayManager;
   private cookieManager: CookieManager;
+  private autoUpdaterService: AutoUpdaterService;
   // 🚀 gRPC Migration: Express/REST server removed - using gRPC only
   // private expressApp: express.Application;
   // private server: any;
@@ -113,6 +115,7 @@ class HostAgent {
     );
     this.systemTrayManager = new SystemTrayManager(this.configManager);
     this.cookieManager = new CookieManager();
+    this.autoUpdaterService = new AutoUpdaterService();
     // 🚀 gRPC Migration: Express/REST API removed - using gRPC only
     // this.expressApp = express();
     // this.setupExpress();
@@ -201,7 +204,8 @@ class HostAgent {
       this.systemTrayManager.setCallbacks({
         onRefreshDisplays: () => this.handleRefreshDisplays(),
         onShowDebugOverlay: () => this.handleToggleDebugOverlay(),
-        onOpenCookieEditor: () => this.handleOpenCookieEditor()
+        onOpenCookieEditor: () => this.handleOpenCookieEditor(),
+        onCheckForUpdates: () => this.autoUpdaterService.manualCheckForUpdates()
       });
       
       // Update display configuration from system
@@ -235,6 +239,9 @@ class HostAgent {
         
         // Update system tray with initial status
         this.updateSystemTrayStatus();
+        
+        // Check for updates after startup
+        this.autoUpdaterService.checkForUpdates();
       }, 3000); // 3 second delay
     });
 

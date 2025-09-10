@@ -11,8 +11,11 @@
     "copy-assets": "copyfiles -u 1 \"src/preload/*.js\" \"src/renderer/*.html\" dist/host-agent/src/",
     "start": "electron .",
     "start:prod": "npm run build && electron .",
-    "pack": "electron-builder",
-    "dist": "electron-builder --publish=never",
+    "pack": "npm run build && electron-builder --dir",
+    "dist": "npm run build && electron-builder",
+    "dist:win": "npm run build && electron-builder --win",
+    "dist:mac": "npm run build && electron-builder --mac",
+    "dist:linux": "npm run build && electron-builder --linux",
     "lint": "eslint src --ext .ts,.tsx",
     "lint:fix": "eslint src --ext .ts,.tsx --fix"
   },
@@ -20,19 +23,84 @@
     "appId": "com.displayops.host-agent",
     "productName": "DisplayOps Host Agent",
     "directories": {
-      "output": "release"
+      "output": "release",
+      "buildResources": "build"
     },
     "files": [
       "dist/**/*",
-      "node_modules/**/*"
+      "node_modules/**/*",
+      "!node_modules/.bin/**/*"
     ],
     "win": {
-      "target": "nsis",
-      "icon": "assets/icon.ico"
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.png"
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "runAfterFinish": true,
+      "menuCategory": "DisplayOps",
+      "uninstallDisplayName": "DisplayOps Host Agent"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.icns",
+      "category": "public.app-category.business"
+    },
+    "dmg": {
+      "iconSize": 100,
+      "contents": [
+        {
+          "x": 380,
+          "y": 280,
+          "type": "link",
+          "path": "/Applications"
+        },
+        {
+          "x": 110,
+          "y": 280,
+          "type": "file"
+        }
+      ]
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.png",
+      "category": "Office"
+    },
+    "publish": {
+      "provider": "generic",
+      "url": "https://displayops.vtex.com/api/updates/host"
     }
   },
   "keywords": [
@@ -61,7 +129,8 @@
     "@grpc/proto-loader": "^0.7.10",
     "@types/bonjour": "^3.5.13",
     "bonjour": "^3.5.0",
-    "electron-updater": "^6.1.7",
-    "displayops-management-system": "file:.."
+    "displayops-management-system": "file:..",
+    "electron-log": "^5.4.3",
+    "electron-updater": "^6.1.7"
   }
 }
