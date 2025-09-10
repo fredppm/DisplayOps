@@ -81,6 +81,8 @@ jobs:
         if: matrix.os == 'macos-latest'
         working-directory: web-controller-electron
         run: |
+          echo "Starting macOS build..."
+          npm run build
           npm run dist:mac
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
