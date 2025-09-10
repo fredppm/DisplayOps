@@ -61,10 +61,8 @@ jobs:
       - name: Install dependencies
         working-directory: host-agent
         run: |
-          cd ..
-          npm install
-          cd host-agent
-          npm ci
+          # Install dependencies without workspace conflicts
+          npm install --no-workspaces
 
       - name: Setup virtual display (Linux)
         if: matrix.os == 'ubuntu-latest'

@@ -61,14 +61,15 @@ jobs:
       - name: Install dependencies
         working-directory: web-controller-electron
         run: |
-          cd ..
-          npm install
-          cd web-controller-electron
-          npm ci
+          # Install dependencies without workspace conflicts
+          npm install --no-workspaces
 
       - name: Build web-controller
         working-directory: web-controller
-        run: npm run build
+        run: |
+          # Install web-controller dependencies first
+          npm install --no-workspaces
+          npm run build
 
       - name: Setup virtual display (Linux)
         if: matrix.os == 'ubuntu-latest'
