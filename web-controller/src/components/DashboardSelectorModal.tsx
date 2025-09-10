@@ -74,10 +74,10 @@ export const DashboardSelectorModal: React.FC<DashboardSelectorModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-modal p-4" style={{ margin: 0 }}>
-      <div className="bg-white rounded-xl max-w-2xl w-full p-6 shadow-2xl max-h-[80vh] overflow-hidden flex flex-col">
+      <div className="bg-white dark:bg-gray-800 rounded-xl max-w-2xl w-full p-6 shadow-2xl max-h-[80vh] overflow-hidden flex flex-col">
         {/* Modal Header */}
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold text-gray-900">Select Dashboard</h2>
+          <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Select Dashboard</h2>
           <button
             onClick={onClose}
             disabled={isDeploying}
@@ -96,7 +96,7 @@ export const DashboardSelectorModal: React.FC<DashboardSelectorModalProps> = ({
               placeholder="Search dashboards..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               autoFocus
               disabled={isDeploying}
             />
@@ -127,18 +127,18 @@ export const DashboardSelectorModal: React.FC<DashboardSelectorModalProps> = ({
                   key={dashboard.id}
                   onClick={() => handleDashboardSelection(dashboard.id)}
                   disabled={isDeploying}
-                  className="w-full p-3 text-left border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition-colors group disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full p-3 text-left border border-gray-200 dark:border-gray-700 rounded-lg hover:border-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors group disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <div className="font-medium text-gray-900 group-hover:text-blue-700">
+                      <div className="font-medium text-gray-900 dark:text-gray-100 group-hover:text-blue-700 dark:group-hover:text-blue-300">
                         {dashboard.name}
                       </div>
                       <div className="text-sm text-gray-500 mt-1">
-                        {dashboard.type && (
+                        {dashboard.category && (
                           <span className="inline-flex items-center">
                             <LayoutDashboard className="w-3 h-3 mr-1" />
-                            {dashboard.type}
+                            {dashboard.category}
                           </span>
                         )}
                       </div>
@@ -156,7 +156,7 @@ export const DashboardSelectorModal: React.FC<DashboardSelectorModalProps> = ({
         </div>
 
         {/* Modal Footer */}
-        <div className="flex justify-between items-center pt-4 border-t border-gray-200">
+        <div className="flex justify-between items-center pt-4 border-t border-gray-200 dark:border-gray-700">
           {isDeploying && (
             <div className="flex items-center text-blue-600">
               <Loader className="w-4 h-4 animate-spin mr-2" />

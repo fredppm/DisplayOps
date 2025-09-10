@@ -6,7 +6,11 @@ const nextConfig = {
     typedRoutes: true
   },
   env: {
-    CUSTOM_KEY: 'office-tv-controller'
+    CUSTOM_KEY: 'office-tv-controller',
+    ADMIN_REGISTER_URL: process.env.ADMIN_REGISTER_URL || 'http://localhost:3000',
+    CONTROLLER_AUTO_REGISTER: process.env.CONTROLLER_AUTO_REGISTER || 'true',
+    CONTROLLER_LOCATION: process.env.CONTROLLER_LOCATION || '',
+    CONTROLLER_SITE_ID: process.env.CONTROLLER_SITE_ID || ''
   },
   async headers() {
     return [

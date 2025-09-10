@@ -1,233 +1,413 @@
-# DisplayOps Management System - API Reference
+# API Reference - Sistema Atual
 
-## Overview
+## Visão Geral
+Este documento descreve todas as APIs disponíveis no sistema atual, incluindo endpoints, parâmetros, respostas e exemplos de uso.
 
-The DisplayOps Management System consists of three main components:
-- **Web Controller**: NextJS-based management interface
-- **Host Agent**: Electron-based agent running on display devices
-- **Browser Extension**: Chrome extension for authentication sync
+## Base URL
+- **Desenvolvimento**: `http://localhost:3000`
+- **Produção**: Configurável via variáveis de ambiente
 
-This document provides a comprehensive reference of all active APIs and integrations.
+## Autenticação
+Atualmente o sistema não possui autenticação. Todas as APIs são públicas.
 
-## Web Controller APIs
+## Endpoints
 
-### Host Management
+### 1. Discovery APIs
 
-#### Execute Host Command
-**Endpoint**: `POST /api/host/{hostId}/command`
+#### GET `/api/discovery/hosts`
+Lista todos os hosts descobertos via mDNS.
 
-Execute commands on remote host agents via gRPC.
-
-**Supported Commands**:
-- `REFRESH_PAGE` - Refresh current dashboard
-- `identify_displays` - Show display identification overlay
-- `open_dashboard` - Deploy dashboard to specific display
-- `SYNC_COOKIES` - Synchronize authentication cookies
-
-**Request Body**:
+**Resposta:**
 ```json
 {
-  "type": "open_dashboard",
-  "display_id": "display-1",
-  "dashboard_id": "dash-123",
-  "url": "https://example.com/dashboard",
-  "fullscreen": true
+  "hosts": [
+    {
+      "id": "host-001",
+      "name": "Display-001",
+      "address": "192.168.1.100",
+      "port": 50051,
+      "status": "online",
+      "lastSeen": "2024-01-01T10:00:00Z",
+      "capabilities": ["display", "browser"],
+      "metadata": {
+        "location": "1º Andar",
+        "department": "Marketing"
+      }
+    }
+  ]
 }
 ```
 
-#### Debug Management
-**Endpoints**:
-- `POST /api/host/{hostId}/debug/toggle` - Enable/disable debug mode
-- `GET /api/host/{hostId}/debug/events?limit=1000` - Download debug logs
-- `DELETE /api/host/{hostId}/debug/events` - Clear debug logs
+#### GET `/api/discovery/events`
+Endpoint para Server-Sent Events (SSE) que fornece atualizações em tempo real sobre descoberta de hosts.
 
-#### Display Management
-**Endpoints**:
-- `GET /api/host/{hostId}/windows` - Get active browser windows
-- `DELETE /api/host/{hostId}/display/{displayId}/remove-dashboard` - Remove dashboard
+**Headers necessários:**
+```
+Accept: text/event-stream
+Cache-Control: no-cache
+Connection: keep-alive
+```
 
-### Discovery System
+**Eventos:**
+```javascript
+// Host descoberto
+event: host-discovered
+data: {"id": "host-001", "name": "Display-001", "status": "online"}
 
-#### Host Discovery
-**Endpoints**:
-- `GET /api/discovery/events` - **Server-Sent Events stream** for real-time host discovery
-- `GET /api/discovery/hosts` - HTTP fallback for host list
+// Host perdido
+event: host-lost
+data: {"id": "host-001", "name": "Display-001", "status": "offline"}
 
-**SSE Event Types**:
-- `host_discovered` - New host found on network
-- `host_updated` - Host information changed
-- `host_lost` - Host no longer reachable
+// Status atualizado
+event: host-updated
+data: {"id": "host-001", "status": "error", "error": "Connection failed"}
+```
 
-### Dashboard Management
+### 2. Host Management APIs
 
-#### Dashboard CRUD Operations
-**Endpoints**:
-- `GET /api/dashboards` - List all dashboards
-- `POST /api/dashboards` - Create new dashboard
-- `PUT /api/dashboards/{id}` - Update existing dashboard
-- `DELETE /api/dashboards/{id}` - Delete dashboard
+#### POST `/api/host/[hostId]/command`
+Envia comandos para um host específico.
 
-**Dashboard Schema**:
+**Parâmetros:**
+- `hostId` (path): ID do host alvo
+
+**Body:**
 ```json
 {
-  "id": "string",
-  "name": "string", 
-  "url": "string",
-  "refresh_interval_ms": "number",
-  "fullscreen": "boolean"
+  "command": "navigate",
+  "params": {
+    "url": "https://example.com",
+    "timeout": 5000
+  }
 }
 ```
 
-### Authentication & Cookies
+**Comandos disponíveis:**
+- `navigate`: Navega para uma URL
+- `refresh`: Atualiza a página atual
+- `close`: Fecha todas as janelas
+- `restart`: Reinicia o host agent
+- `ping`: Testa conectividade
 
-#### Cookie Management
-**Endpoints**:
-- `GET /api/cookies/status` - Get cookie storage overview
-- `GET /api/cookies/domain/{domain}` - Get cookies for specific domain
-- `POST /api/cookies/add` - Add individual cookie
-- `POST /api/cookies/remove` - Remove specific cookie
-- `POST /api/cookies/import` - Import structured cookies
-- `POST /api/cookies/import-devtools` - Import DevTools format cookies
-- `DELETE /api/cookies/domain` - Remove entire domain
-
-**Cookie Schema**:
+**Resposta:**
 ```json
 {
-  "name": "string",
-  "value": "string", 
-  "domain": "string",
-  "path": "string",
-  "expires": "number",
-  "httpOnly": "boolean",
-  "secure": "boolean",
-  "sameSite": "string"
+  "success": true,
+  "commandId": "cmd-123",
+  "timestamp": "2024-01-01T10:00:00Z",
+  "result": {
+    "status": "executed",
+    "message": "Navigation successful"
+  }
 }
 ```
 
-### Extension System
+#### GET `/api/host/[hostId]/windows`
+Lista janelas abertas no host.
 
-#### Extension Download
-**Endpoint**: `GET /api/extension/download`
+**Resposta:**
+```json
+{
+  "windows": [
+    {
+      "id": "window-001",
+      "title": "Example Page",
+      "url": "https://example.com",
+      "status": "active",
+      "openedAt": "2024-01-01T10:00:00Z"
+    }
+  ]
+}
+```
 
-Downloads the DisplayOps browser extension as a zip file.
+#### GET `/api/host/[hostId]/display/state`
+Obtém o estado atual do display.
 
-### Application Lifecycle
+**Resposta:**
+```json
+{
+  "display": {
+    "status": "active",
+    "currentUrl": "https://example.com",
+    "lastUpdate": "2024-01-01T10:00:00Z",
+    "error": null
+  }
+}
+```
 
-#### System Management
-**Endpoints**:
-- `POST /api/auto-init` - Initialize application state
-- `POST /api/dashboard-closed` - Notify dashboard closure (via sendBeacon)
+#### POST `/api/host/[hostId]/display/override`
+Força uma URL específica no display (override de emergência).
 
-## gRPC Service Reference
+**Body:**
+```json
+{
+  "url": "https://emergency.com",
+  "duration": 300000,
+  "reason": "Emergency broadcast"
+}
+```
 
-### Host Agent Service
+#### GET `/api/host/[hostId]/debug/info`
+Obtém informações de debug do host.
 
-The host agent exposes a gRPC service on port 8082 with the following methods:
+**Resposta:**
+```json
+{
+  "debug": {
+    "version": "1.0.0",
+    "uptime": 3600,
+    "memory": {
+      "used": 512,
+      "total": 2048
+    },
+    "cpu": {
+      "usage": 25.5
+    },
+    "logs": [
+      {
+        "level": "info",
+        "message": "Host agent started",
+        "timestamp": "2024-01-01T10:00:00Z"
+      }
+    ]
+  }
+}
+```
 
-#### ExecuteCommand
-Execute single commands on the host agent.
+### 3. Dashboard APIs
 
-**Command Types**:
-| Command | Purpose |
-|---------|---------|
-| `OPEN_DASHBOARD` | Deploy dashboard to display |
-| `REFRESH_DASHBOARD` | Refresh current dashboard |
-| `SET_COOKIES` | Sync authentication cookies |
-| `HEALTH_CHECK` | Get system status |
-| `IDENTIFY_DISPLAYS` | Show display identification |
-| `TAKE_SCREENSHOT` | Capture display screenshot |
-| `RESTART_DASHBOARD` | Restart dashboard process |
-| `DEBUG_ENABLE` | Enable debug mode |
-| `DEBUG_DISABLE` | Disable debug mode |
-| `REMOVE_DASHBOARD` | Remove dashboard from display |
+#### GET `/api/dashboards`
+Lista todos os dashboards configurados.
 
-#### StreamEvents
-Server streaming for real-time events.
+**Resposta:**
+```json
+{
+  "dashboards": [
+    {
+      "id": "dashboard-001",
+      "name": "Marketing Dashboard",
+      "description": "Dashboard para equipe de marketing",
+      "urls": [
+        "https://analytics.google.com",
+        "https://facebook.com/insights"
+      ],
+      "rotationInterval": 30000,
+      "assignedHosts": ["host-001", "host-002"],
+      "createdAt": "2024-01-01T00:00:00Z",
+      "updatedAt": "2024-01-01T00:00:00Z"
+    }
+  ]
+}
+```
 
-**Event Types**:
-| Event | Description |
-|-------|-------------|
-| `HEARTBEAT` | System status updates (every 30s) |
-| `DISPLAY_STATE_CHANGED` | Display status changes |
-| `HOST_STATUS_CHANGED` | Host system status updates |
+#### POST `/api/dashboards`
+Cria um novo dashboard.
 
-#### HealthCheck
-Unary RPC for health status checking.
+**Body:**
+```json
+{
+  "name": "New Dashboard",
+  "description": "Dashboard description",
+  "urls": ["https://example.com"],
+  "rotationInterval": 30000,
+  "assignedHosts": ["host-001"]
+}
+```
 
-**Response includes**:
-- Host system status (CPU, memory, uptime)
-- Display states and assignments
-- System information
+#### PUT `/api/dashboards/[dashboardId]`
+Atualiza um dashboard existente.
 
-## Browser Extension Integration
+#### DELETE `/api/dashboards/[dashboardId]`
+Remove um dashboard.
 
-### Extension APIs
+#### POST `/api/dashboards/[dashboardId]/assign`
+Atribui hosts a um dashboard.
 
-The browser extension communicates with host agents via HTTP:
+**Body:**
+```json
+{
+  "hostIds": ["host-001", "host-002"]
+}
+```
 
-#### Connection Health
-**Endpoint**: `GET /api/cookies/status`
+#### POST `/api/dashboards/[dashboardId]/unassign`
+Remove hosts de um dashboard.
 
-Check connection status and cookie storage health.
+**Body:**
+```json
+{
+  "hostIds": ["host-001"]
+}
+```
 
-#### Cookie Sync
-**Endpoint**: `POST /api/cookies/import`
+### 4. Cookie Management APIs
 
-Sync detected authentication cookies from browser sessions.
+#### GET `/api/cookies`
+Lista todas as configurações de cookies.
 
-### Extension Features
+**Resposta:**
+```json
+{
+  "cookies": [
+    {
+      "id": "cookie-001",
+      "name": "session",
+      "domain": ".example.com",
+      "value": "abc123",
+      "assignedHosts": ["host-001"],
+      "createdAt": "2024-01-01T00:00:00Z"
+    }
+  ]
+}
+```
 
-- **Auto-Detection**: Identifies dashboard domains (Grafana, Tableau, etc.)
-- **Login Monitoring**: Detects successful authentication events
-- **Cookie Extraction**: Extracts relevant authentication cookies
-- **Auto-Sync**: Automatically syncs to discovered DisplayOps systems
+#### POST `/api/cookies`
+Cria uma nova configuração de cookie.
 
-## Network Architecture
+**Body:**
+```json
+{
+  "name": "session",
+  "domain": ".example.com",
+  "value": "abc123",
+  "assignedHosts": ["host-001"]
+}
+```
 
-### Service Discovery
+#### PUT `/api/cookies/[cookieId]`
+Atualiza uma configuração de cookie.
 
-Uses mDNS (Multicast DNS) for automatic host discovery:
-- **Service Type**: `_displayops._tcp.local`
-- **Port**: UDP 5353
-- **TXT Records**: Host metadata (displays, version, capabilities)
+#### DELETE `/api/cookies/[cookieId]`
+Remove uma configuração de cookie.
 
-### Communication Protocols
+### 5. Extension APIs
 
-- **Web Controller ↔ Host Agent**: gRPC (port 8082)
-- **Browser Extension ↔ Host Agent**: HTTP APIs (port 8080)
-- **Host Discovery**: mDNS (UDP 5353)
-- **Web Interface**: HTTP/WebSocket (NextJS default ports)
+#### GET `/api/extension/status`
+Obtém o status da extensão do navegador.
 
-### Real-Time Updates
+**Resposta:**
+```json
+{
+  "extension": {
+    "status": "connected",
+    "version": "1.0.0",
+    "lastSync": "2024-01-01T10:00:00Z",
+    "connectedHosts": ["host-001"]
+  }
+}
+```
 
-- **Primary**: Server-Sent Events for host discovery
-- **Secondary**: gRPC streaming for host events
-- **Fallback**: HTTP polling when connections fail
+#### POST `/api/extension/sync`
+Força sincronização com a extensão.
 
-## Error Handling
+### 6. Auto-Initialization API
 
-### Circuit Breaker Pattern
+#### POST `/api/auto-init`
+Inicializa automaticamente o sistema com configurações padrão.
 
-gRPC connections implement circuit breakers with:
-- Connection timeouts
-- Automatic retry with exponential backoff
-- Graceful fallback to cached data
+**Body:**
+```json
+{
+  "defaultDashboard": {
+    "name": "Default Dashboard",
+    "urls": ["https://example.com"]
+  },
+  "autoAssign": true
+}
+```
 
-### Resilience Features
+### 7. Dashboard Closed API
 
-- **Connection Recovery**: Automatic reconnection on network changes
-- **Cached Data**: Local caching for offline operation
-- **Timeout Handling**: Configurable timeouts for all operations
-- **Error Reporting**: Structured error responses with proper HTTP codes
+#### POST `/api/dashboard-closed`
+Notifica que um dashboard foi fechado.
 
-## Authentication Flow
+**Body:**
+```json
+{
+  "hostId": "host-001",
+  "dashboardId": "dashboard-001",
+  "reason": "user_closed"
+}
+```
 
-1. User logs into dashboard via browser
-2. Browser extension detects successful login
-3. Extension extracts authentication cookies
-4. Extension syncs cookies to discovered DisplayOps hosts
-4. Extension syncs cookies to discovered DisplayOps hosts
-5. Host agents store cookies for dashboard authentication
-6. Dashboards deployed with pre-authenticated sessions
+## Códigos de Erro
 
-This architecture provides seamless authentication across all display devices without manual credential management.
+### HTTP Status Codes
+- `200`: Sucesso
+- `400`: Bad Request - Parâmetros inválidos
+- `404`: Not Found - Recurso não encontrado
+- `500`: Internal Server Error - Erro interno do servidor
+
+### Error Response Format
+```json
+{
+  "error": {
+    "code": "INVALID_PARAMETER",
+    "message": "Invalid host ID provided",
+    "details": {
+      "field": "hostId",
+      "value": "invalid-id"
+    }
+  }
+}
+```
+
+### Error Codes
+- `INVALID_PARAMETER`: Parâmetro inválido
+- `HOST_NOT_FOUND`: Host não encontrado
+- `DASHBOARD_NOT_FOUND`: Dashboard não encontrado
+- `COMMAND_FAILED`: Comando falhou
+- `CONNECTION_ERROR`: Erro de conexão
+- `VALIDATION_ERROR`: Erro de validação
+
+## Exemplos de Uso
+
+### JavaScript/TypeScript
+
+```typescript
+// Listar hosts
+const hosts = await fetch('/api/discovery/hosts').then(r => r.json());
+
+// Enviar comando
+const command = await fetch('/api/host/host-001/command', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    command: 'navigate',
+    params: { url: 'https://example.com' }
+  })
+}).then(r => r.json());
+
+// Escutar eventos SSE
+const eventSource = new EventSource('/api/discovery/events');
+eventSource.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  console.log('Host update:', data);
+};
+```
+
+### cURL
+
+```bash
+# Listar hosts
+curl http://localhost:3000/api/discovery/hosts
+
+# Enviar comando
+curl -X POST http://localhost:3000/api/host/host-001/command \
+  -H "Content-Type: application/json" \
+  -d '{"command": "navigate", "params": {"url": "https://example.com"}}'
+
+# Criar dashboard
+curl -X POST http://localhost:3000/api/dashboards \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Test Dashboard", "urls": ["https://example.com"]}'
+```
+
+## Rate Limiting
+Atualmente não há rate limiting implementado.
+
+## Logs e Debugging
+Todas as requisições são logadas no console do servidor com timestamp e detalhes da operação.
+
+## Versionamento
+Esta documentação refere-se à versão atual do sistema. Mudanças futuras serão documentadas em novas versões.

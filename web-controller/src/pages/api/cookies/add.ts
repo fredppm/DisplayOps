@@ -1,5 +1,8 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { CookieStorageManager } from '../../../lib/cookie-storage';
+import { createContextLogger } from '@/utils/logger';
+
+const cookieAddLogger = createContextLogger('api-cookie-add');
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -16,7 +19,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     }
 
-    console.log(`🍪 Adding/updating cookie ${cookie.name} for domain: ${domain}`);
+    cookieAddLogger.info('Adding/updating cookie', { cookieName: cookie.name, domain });
     
     const result = CookieStorageManager.addOrUpdateCookie(domain, cookie);
     
@@ -37,7 +40,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
   } catch (error) {
-    console.error('Cookie add error:', error);
+    cookieAddLogger.error('Cookie add error', { error: error instanceof Error ? error.message : String(error) });
     return res.status(500).json({
       success: false,
       error: 'Internal server error adding cookie'

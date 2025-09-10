@@ -1,27 +1,61 @@
 /**
  * Auto-inicialização dos serviços core via API call
  * Este arquivo só será executado no server-side via API routes
+ * Usa apenas gRPC (não mais HTTP REST)
  */
+
+import { createContextLogger } from '../utils/logger';
+
+const autoInitLogger = createContextLogger('auto-init');
 
 // Função para auto-inicializar os serviços (apenas server-side)
 export async function autoInitializeServices() {
-  console.log('🚀 Iniciando auto-inicialização dos serviços...');
+  autoInitLogger.info('Iniciando auto-inicialização dos serviços...');
   
   try {
-    // Importar os services apenas no server-side usando require
-    const discoveryService = require('./discovery-singleton').discoveryService;
-    const grpcClientService = require('./server/grpc-client-service').grpcClientService;
+    const services = [];
     
-    // Inicializar gRPC service (garante que singleton seja criado)
-    console.log('✅ gRPC Client Service instanciado');
+    // 1. Inicializar Discovery Service
+    try {
+      const discoveryService = require('./discovery-singleton').discoveryService;
+      await discoveryService.initialize();
+      autoInitLogger.info('Discovery Service auto-inicializado com sucesso');
+      services.push('Discovery Service');
+    } catch (error) {
+      autoInitLogger.warn('Discovery Service não disponível', { error: error instanceof Error ? error.message : String(error) });
+    }
     
-    // Inicializar discovery service automaticamente
-    await discoveryService.initialize();
-    console.log('✅ Discovery Service auto-inicializado com sucesso');
+    // 2. Inicializar gRPC Client (se habilitado)
+    const grpcEnabled = process.env.GRPC_ADMIN_ENABLED !== 'false' && 
+                       process.env.CONTROLLER_AUTO_REGISTER !== 'false';
     
-    return { success: true, message: 'Services initialized successfully' };
+    autoInitLogger.debug('gRPC auto-init check', {
+      GRPC_ADMIN_ENABLED: process.env.GRPC_ADMIN_ENABLED,
+      CONTROLLER_AUTO_REGISTER: process.env.CONTROLLER_AUTO_REGISTER,
+      grpcEnabled
+    });
+    
+    if (grpcEnabled) {
+      try {
+        // Usar import dinâmico para evitar problemas de dependência
+        const { grpcClientSingleton } = await import('./grpc-client-singleton');
+        await grpcClientSingleton.start();
+        autoInitLogger.info('gRPC Client auto-inicializado com sucesso');
+        services.push('gRPC Client');
+      } catch (error) {
+        autoInitLogger.warn('gRPC Client não disponível', { error: error instanceof Error ? error.message : String(error) });
+      }
+    } else {
+      autoInitLogger.info('gRPC Client desabilitado via configuração');
+    }
+    
+    const message = services.length > 0 
+      ? `Services initialized: ${services.join(', ')}`
+      : 'No services were initialized';
+      
+    return { success: true, message, services };
   } catch (error) {
-    console.error('❌ Erro na auto-inicialização dos services:', error);
+    autoInitLogger.error('Erro na auto-inicialização dos services', { error });
     throw error;
   }
 }

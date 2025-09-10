@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { MiniPC } from '@/types/shared-types';
+import { createContextLogger } from '@/utils/logger';
 
 export interface UseSSEHostDiscoveryReturn {
   discoveredHosts: MiniPC[];
@@ -18,6 +19,8 @@ const CIRCUIT_BREAKER_CONFIG = {
   OFFLINE_RETRY_DELAY: 300000,     // Wait 5 minutes before retry when offline
   CONNECTION_REFUSED_MAX_ATTEMPTS: 3, // Stop quickly for CONNECTION_REFUSED
 };
+
+const sseDiscoveryLogger = createContextLogger('sse-host-discovery');
 
 export const useSSEHostDiscovery = (): UseSSEHostDiscoveryReturn => {
   // State
@@ -54,18 +57,18 @@ export const useSSEHostDiscovery = (): UseSSEHostDiscoveryReturn => {
   const connect = useCallback(() => {
     // Circuit breaker check
     if (isCircuitBreakerOpen) {
-      console.log('🔴 Circuit breaker open - not attempting connection');
+      sseDiscoveryLogger.warn('Circuit breaker open - not attempting connection');
       return;
     }
 
     // Prevent multiple simultaneous connection attempts
     if (isConnectingRef.current) {
-      console.log('🔄 Already attempting to connect');
+      sseDiscoveryLogger.debug('Already attempting to connect');
       return;
     }
 
     if (eventSourceRef.current?.readyState === EventSource.OPEN) {
-      console.log('🔄 SSE already connected');
+      sseDiscoveryLogger.debug('SSE already connected');
       return;
     }
 
@@ -87,10 +90,6 @@ export const useSSEHostDiscovery = (): UseSSEHostDiscoveryReturn => {
       setConnectionError(null);
     };
 
-    // Handle all messages, not just specific events
-    eventSource.onmessage = (event) => {
-      // Generic message handler (not used for typed events)
-    };
 
     // Handle hosts_update events specifically
     const handleHostsUpdate = (event: MessageEvent) => {
@@ -103,7 +102,7 @@ export const useSSEHostDiscovery = (): UseSSEHostDiscoveryReturn => {
           setIsDiscovering(false);
         }
       } catch (error) {
-        console.error('Error parsing SSE hosts_update:', error);
+        sseDiscoveryLogger.error('Error parsing SSE hosts_update', { error: error instanceof Error ? error.message : String(error) });
       }
     };
     
@@ -111,12 +110,9 @@ export const useSSEHostDiscovery = (): UseSSEHostDiscoveryReturn => {
     
     // Also listen for any errors in event handling
     eventSource.addEventListener('error', (event) => {
-      console.error('❌ SSE error event:', event);
+      sseDiscoveryLogger.error('SSE error event', { event });
     });
 
-    eventSource.addEventListener('heartbeat', (event) => {
-      // Heartbeat received - connection alive
-    });
 
     eventSource.onerror = (error) => {
       isConnectingRef.current = false;
@@ -130,12 +126,12 @@ export const useSSEHostDiscovery = (): UseSSEHostDiscoveryReturn => {
         
         // Check if we should open circuit breaker
         if (newFailures >= CIRCUIT_BREAKER_CONFIG.MAX_CONSECUTIVE_FAILURES) {
-          console.log('🔴 Circuit breaker opened - too many consecutive failures');
+          sseDiscoveryLogger.warn('Circuit breaker opened - too many consecutive failures');
           setIsCircuitBreakerOpen(true);
           
           // Schedule a retry after offline delay
           reconnectTimeoutRef.current = setTimeout(() => {
-            console.log('🟡 Circuit breaker retry attempt after offline period');
+            sseDiscoveryLogger.info('Circuit breaker retry attempt after offline period');
             setIsCircuitBreakerOpen(false);
             setConsecutiveFailures(0);
             connect();
@@ -202,7 +198,7 @@ export const useSSEHostDiscovery = (): UseSSEHostDiscoveryReturn => {
         setLastUpdate(new Date());
       }
     } catch (error) {
-      console.error('HTTP discovery fallback failed:', error);
+      sseDiscoveryLogger.error('HTTP discovery fallback failed', { error: error instanceof Error ? error.message : String(error) });
     } finally {
       setIsDiscovering(false);
     }

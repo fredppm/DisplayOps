@@ -193,7 +193,7 @@ export const ExtensionDropdown: React.FC = () => {
       <div className="relative extension-dropdown-container">
         <button
           onClick={() => setIsOpen(!isOpen)}
-          className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
+          className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
         >
           <Download className="w-4 h-4" />
           <span className="hidden sm:inline">Extension</span>
@@ -210,19 +210,19 @@ export const ExtensionDropdown: React.FC = () => {
             />
             
             {/* Menu Content */}
-            <div className="absolute right-0 mt-1 w-72 bg-white border border-gray-200 rounded-lg shadow-lg z-dropdown">
+            <div className="absolute right-0 mt-1 w-72 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-dropdown">
               <div className="p-4">
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-semibold text-gray-900">Browser Extension</h3>
+                  <h3 className="font-semibold text-gray-900 dark:text-gray-100">Browser Extension</h3>
                   <button
                     onClick={() => setIsOpen(false)}
-                    className="text-gray-400 hover:text-gray-600"
+                    className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-400"
                   >
                     <X className="w-4 h-4" />
                   </button>
                 </div>
                 
-                <p className="text-sm text-gray-600 mb-4">
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
                   Automate dashboard credential capture and sync.
                 </p>
                 
@@ -240,7 +240,7 @@ export const ExtensionDropdown: React.FC = () => {
                       setIsOpen(false);
                       setShowFullModal(true);
                     }}
-                    className="w-full bg-gray-100 hover:bg-gray-200 text-gray-900 py-2 px-3 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                    className="w-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 py-2 px-3 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2"
                   >
                     <ExternalLink className="w-4 h-4" />
                     Full Instructions
@@ -256,13 +256,13 @@ export const ExtensionDropdown: React.FC = () => {
       {/* Installation Modal - same as after download */}
       {showFullModal && (
         <div className="fixed top-0 left-0 right-0 bottom-0 bg-black bg-opacity-50 flex items-center justify-center z-modal p-4" style={{ margin: 0 }}>
-          <div className="bg-white rounded-xl max-w-md w-full p-6 shadow-2xl">
+          <div className="bg-white dark:bg-gray-800 rounded-xl max-w-md w-full p-6 shadow-2xl">
             {/* Modal Header */}
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-gray-900">Extension Installation</h2>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Extension Installation</h2>
               <button
                 onClick={() => setShowFullModal(false)}
-                className="text-gray-400 hover:text-gray-600"
+                className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-400"
               >
                 <X className="w-6 h-6" />
               </button>
@@ -286,16 +286,16 @@ export const ExtensionDropdown: React.FC = () => {
                 <div className="flex items-start gap-3">
                   <div className="w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-semibold flex-shrink-0">1</div>
                   <div>
-                    <div className="font-medium text-gray-900">Extract file</div>
-                    <div className="text-sm text-gray-600">Unzip the file to a folder on your computer</div>
+                    <div className="font-medium text-gray-900 dark:text-gray-100">Extract file</div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">Unzip the file to a folder on your computer</div>
                   </div>
                 </div>
 
                 <div className="flex items-start gap-3">
                   <div className="w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-semibold flex-shrink-0">2</div>
                   <div>
-                    <div className="font-medium text-gray-900">Open extensions</div>
-                    <div className="text-sm text-gray-600 mb-2">
+                    <div className="font-medium text-gray-900 dark:text-gray-100">Open extensions</div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">
                       Go to your {currentBrowser?.name || 'browser'} extensions page
                     </div>
                     {currentBrowser && (
@@ -313,16 +313,16 @@ export const ExtensionDropdown: React.FC = () => {
                 <div className="flex items-start gap-3">
                   <div className="w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-semibold flex-shrink-0">3</div>
                   <div>
-                    <div className="font-medium text-gray-900">Enable developer mode</div>
-                    <div className="text-sm text-gray-600">Turn on "Developer mode" toggle in the top right corner</div>
+                    <div className="font-medium text-gray-900 dark:text-gray-100">Enable developer mode</div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">Turn on &quot;Developer mode&quot; toggle in the top right corner</div>
                   </div>
                 </div>
 
                 <div className="flex items-start gap-3">
                   <div className="w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-semibold flex-shrink-0">4</div>
                   <div>
-                    <div className="font-medium text-gray-900">Load extension</div>
-                    <div className="text-sm text-gray-600">Click "Load unpacked" and select the extracted folder</div>
+                    <div className="font-medium text-gray-900 dark:text-gray-100">Load extension</div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">Click &quot;Load unpacked&quot; and select the extracted folder</div>
                   </div>
                 </div>
               </div>
@@ -338,7 +338,7 @@ export const ExtensionDropdown: React.FC = () => {
               </button>
               <button
                 onClick={openExtensionsPage}
-                className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-900 py-3 px-4 rounded-lg font-medium transition-colors"
+                className="flex-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 py-3 px-4 rounded-lg font-medium transition-colors"
               >
                 Open Extensions
               </button>

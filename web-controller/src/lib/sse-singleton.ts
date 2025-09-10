@@ -1,4 +1,7 @@
 import { MiniPC } from '@/types/shared-types';
+import { createContextLogger } from '@/utils/logger';
+
+const sseLogger = createContextLogger('sse-singleton');
 
 export interface HostDiscoveryUpdate {
   success: boolean;
@@ -52,7 +55,7 @@ class SSESingleton {
   public connect(): Promise<boolean> {
     if (this.connectionState === ConnectionState.CONNECTING || 
         this.connectionState === ConnectionState.CONNECTED) {
-      console.log('🔄 SSE already connected or connecting, state:', this.connectionState);
+      sseLogger.info('SSE already connected or connecting', { state: this.connectionState });
       return Promise.resolve(this.connectionState === ConnectionState.CONNECTED);
     }
 
@@ -66,8 +69,7 @@ class SSESingleton {
 
   private doConnect(): Promise<boolean> {
     return new Promise((resolve) => {
-      console.log('🔌 SSE Singleton connecting to /api/discovery/events...');
-      console.log('🌐 Base URL:', window.location.origin);
+      sseLogger.info('SSE Singleton connecting to /api/discovery/events', { baseUrl: window.location.origin });
       
       this.connectionState = ConnectionState.CONNECTING;
       this.clearTimers();
@@ -80,7 +82,7 @@ class SSESingleton {
       this.eventSource = new EventSource('/api/discovery/events');
 
       this.eventSource.onopen = () => {
-        console.log('✅ SSE Singleton connected');
+        sseLogger.info('SSE Singleton connected');
         this.connectionState = ConnectionState.CONNECTED;
         this.reconnectAttempts = 0;
         this.startHeartbeatMonitoring();
@@ -88,7 +90,7 @@ class SSESingleton {
       };
 
       this.eventSource.onerror = (error) => {
-        console.error('❌ SSE Singleton error:', error, 'ReadyState:', this.eventSource?.readyState);
+        sseLogger.error('SSE Singleton error', { error, readyState: this.eventSource?.readyState });
         
         if (this.eventSource?.readyState === EventSource.CLOSED) {
           this.connectionState = ConnectionState.DISCONNECTED;
@@ -101,7 +103,7 @@ class SSESingleton {
       };
 
       this.eventSource.addEventListener('hosts_update', (event) => {
-        console.log('📡 SSE Singleton received hosts_update');
+        sseLogger.debug('SSE Singleton received hosts_update');
         this.lastHeartbeat = new Date(); // Data reception counts as heartbeat
         
         try {
@@ -114,36 +116,39 @@ class SSESingleton {
             try {
               handler(update);
             } catch (error) {
-              console.error('❌ Error in SSE handler:', error);
+              sseLogger.error('Error in SSE handler', { error });
             }
           });
         } catch (error) {
-          console.error('❌ Error parsing SSE data:', error);
+          sseLogger.error('Error parsing SSE data', { error });
         }
       });
 
       this.eventSource.addEventListener('heartbeat', (event) => {
-        console.log('💓 SSE Singleton heartbeat');
+        sseLogger.debug('SSE Singleton heartbeat');
         this.lastHeartbeat = new Date();
       });
 
       // Connection timeout
       const timeoutId = setTimeout(() => {
         if (this.connectionState === ConnectionState.CONNECTING) {
-          console.error('❌ SSE Singleton connection timeout');
+          sseLogger.error('SSE Singleton connection timeout');
           this.connectionState = ConnectionState.DISCONNECTED;
           this.eventSource?.close();
           resolve(false);
         }
       }, SSE_CONFIG.CONNECTION_TIMEOUT);
       
+      // Store original onopen handler
+      const originalOnOpen = this.eventSource.onopen;
+      
       // Clear timeout on successful connection
-      this.eventSource.onopen = (originalOnOpen => {
-        return (event) => {
-          clearTimeout(timeoutId);
-          if (originalOnOpen) originalOnOpen(event);
-        };
-      })(this.eventSource.onopen);
+      this.eventSource.onopen = (event) => {
+        clearTimeout(timeoutId);
+        if (originalOnOpen && this.eventSource) {
+          originalOnOpen.call(this.eventSource, event);
+        }
+      };
     });
   }
   
@@ -159,7 +164,7 @@ class SSESingleton {
       const timeSinceLastHeartbeat = now.getTime() - (this.lastHeartbeat?.getTime() || 0);
       
       if (timeSinceLastHeartbeat > SSE_CONFIG.HEARTBEAT_TIMEOUT) {
-        console.error('💔 SSE heartbeat timeout, connection lost');
+        sseLogger.error('SSE heartbeat timeout, connection lost');
         this.connectionState = ConnectionState.DISCONNECTED;
         this.eventSource?.close();
         this.scheduleReconnect();
@@ -169,7 +174,7 @@ class SSESingleton {
   
   private scheduleReconnect(): void {
     if (this.reconnectAttempts >= SSE_CONFIG.MAX_RECONNECT_ATTEMPTS) {
-      console.error('❌ Max SSE reconnection attempts reached');
+      sseLogger.error('Max SSE reconnection attempts reached');
       this.connectionState = ConnectionState.FAILED;
       return;
     }
@@ -184,12 +189,16 @@ class SSESingleton {
       SSE_CONFIG.MAX_RECONNECT_DELAY
     );
     
-    console.log(`🔄 SSE Scheduling reconnection attempt ${this.reconnectAttempts}/${SSE_CONFIG.MAX_RECONNECT_ATTEMPTS} in ${delay}ms`);
+    sseLogger.info('SSE Scheduling reconnection attempt', {
+      attempt: this.reconnectAttempts,
+      maxAttempts: SSE_CONFIG.MAX_RECONNECT_ATTEMPTS,
+      delay
+    });
     this.connectionState = ConnectionState.RECONNECTING;
     
     this.reconnectTimer = setTimeout(() => {
       this.doConnect().catch(error => {
-        console.error('❌ SSE Reconnection failed:', error);
+        sseLogger.error('SSE Reconnection failed', { error });
         this.scheduleReconnect();
       });
     }, delay);
@@ -226,12 +235,12 @@ class SSESingleton {
   }
 
   private handleBeforeUnload(): void {
-    console.log('🔄 Page unloading, closing SSE connection');
+    sseLogger.info('Page unloading, closing SSE connection');
     this.disconnect();
   }
 
   public disconnect(): void {
-    console.log('🔌 SSE Singleton disconnecting');
+    sseLogger.info('SSE Singleton disconnecting');
     
     this.connectionState = ConnectionState.DISCONNECTED;
     this.clearTimers();
@@ -248,7 +257,7 @@ class SSESingleton {
   }
   
   public forceReconnect(): Promise<boolean> {
-    console.log('🔄 SSE Force reconnecting...');
+    sseLogger.info('SSE Force reconnecting');
     this.reconnectAttempts = 0;
     this.disconnect();
     return this.connect();

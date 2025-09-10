@@ -1,0 +1,143 @@
+name: Release Controller
+
+on:
+  push:
+    tags:
+      - 'controller-v*'  # Triggers on tags like controller-v1.0.3
+  workflow_dispatch:     # Allow manual trigger
+    inputs:
+      version:
+        description: 'Version to release (e.g., 1.0.3)'
+        required: true
+        type: string
+
+env:
+  # Electron build settings
+  ELECTRON_CACHE: ~/.cache/electron
+  ELECTRON_BUILDER_CACHE: ~/.cache/electron-builder
+
+jobs:
+  build-and-release:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            platform: win32
+          - os: macos-latest  
+            platform: darwin
+          - os: ubuntu-latest
+            platform: linux
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: web-controller-electron/package-lock.json
+
+      - name: Get version from tag or input
+        id: version
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "version=${{ inputs.version }}" >> $GITHUB_OUTPUT
+            echo "tag_name=controller-v${{ inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            # Extract version from tag (controller-v1.0.3 -> 1.0.3)
+            VERSION=${GITHUB_REF#refs/tags/controller-v}
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "tag_name=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Update package.json version
+        shell: bash
+        working-directory: web-controller-electron
+        run: |
+          npm version ${{ steps.version.outputs.version }} --no-git-tag-version
+
+      - name: Install dependencies
+        working-directory: web-controller-electron
+        run: npm ci
+
+      - name: Build web-controller
+        working-directory: web-controller
+        run: |
+          npm ci
+          npm run build
+
+      - name: Build Electron app (Windows)
+        if: matrix.os == 'windows-latest'
+        working-directory: web-controller-electron
+        run: |
+          npm run dist:win
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Electron app (macOS)
+        if: matrix.os == 'macos-latest'
+        working-directory: web-controller-electron
+        run: |
+          npm run dist:mac
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Electron app (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        working-directory: web-controller-electron
+        run: |
+          npm run dist:linux
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: List build artifacts
+        shell: bash
+        working-directory: web-controller-electron
+        run: |
+          echo "Build artifacts:"
+          find release -type f -name "*.exe" -o -name "*.dmg" -o -name "*.AppImage" -o -name "*.deb" 2>/dev/null || echo "No artifacts found"
+
+      - name: Upload artifacts to release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.version.outputs.tag_name }}
+          name: DisplayOps Controller v${{ steps.version.outputs.version }}
+          body: |
+            ## DisplayOps Controller v${{ steps.version.outputs.version }}
+            
+            ### Changes
+            - Auto-generated release from GitHub Actions
+            - Built on ${{ matrix.os }}
+            
+            ### Downloads
+            - **Windows:** `.exe` installer
+            - **macOS:** `.dmg` installer  
+            - **Linux:** `.AppImage` or `.deb` package
+            
+            ### Installation
+            1. Download the appropriate file for your platform
+            2. Run the installer
+            3. The app will auto-update from this point forward
+            
+            ---
+            Built with ❤️ by DisplayOps Team
+          files: |
+            web-controller-electron/release/*.exe
+            web-controller-electron/release/*.dmg
+            web-controller-electron/release/*.AppImage
+            web-controller-electron/release/*.deb
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Trigger Vercel deployment
+        if: matrix.os == 'ubuntu-latest'  # Only run once
+        run: |
+          echo "Release created successfully!"
+          echo "Vercel will automatically deploy the updated API"
+          echo "Controller apps can now auto-update to v${{ steps.version.outputs.version }}"

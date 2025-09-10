@@ -1,0 +1,17 @@
+{
+  "sites": [
+    {
+      "id": "escrit-rio-rio",
+      "name": "Escritório Rio",
+      "location": "Rio de Janeiro",
+      "timezone": "America/Sao_Paulo",
+      "status": "online",
+      "controllers": [
+        "rio-1f",
+        "rio-2f"
+      ],
+      "createdAt": "2024-01-01T00:00:00Z",
+      "updatedAt": "2025-09-09T15:51:59.111Z"
+    }
+  ]
+}

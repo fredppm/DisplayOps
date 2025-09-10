@@ -1,5 +1,8 @@
 import { WindowsDiscoveryService } from './windows-discovery-service';
 import { MiniPC } from '@/types/shared-types';
+import { createContextLogger } from '../utils/logger';
+
+const discoveryLogger = createContextLogger('discovery');
 
 // Global instance para sobreviver ao hot-reload do Next.js
 declare global {
@@ -17,19 +20,19 @@ class DiscoverySingleton {
 
   private constructor() {
     const instanceId = Math.random().toString(36).substr(2, 8);
-    console.log(`🔧 DiscoverySingleton: Nova instância criada (ID: ${instanceId})`);
+    discoveryLogger.info(`🔧 DiscoverySingleton: Nova instância criada (ID: ${instanceId})`);
     (this as any).__instanceId = instanceId;
   }
 
   public static getInstance(): DiscoverySingleton {
     // Usar global instance para sobreviver ao hot-reload
     if (!global.__discoverySingletonInstance) {
-      console.log('🔧 DiscoverySingleton: Criando instância GLOBAL singleton (sobrevive hot-reload)');
+      discoveryLogger.info('🔧 DiscoverySingleton: Criando instância GLOBAL singleton (sobrevive hot-reload)');
       global.__discoverySingletonInstance = new DiscoverySingleton();
       DiscoverySingleton.instance = global.__discoverySingletonInstance;
     } else {
       const existingId = (global.__discoverySingletonInstance as any).__instanceId;
-      console.log(`🔧 DiscoverySingleton: Reutilizando instância GLOBAL singleton existente (ID: ${existingId})`);
+      discoveryLogger.info(`🔧 DiscoverySingleton: Reutilizando instância GLOBAL singleton existente (ID: ${existingId})`);
       DiscoverySingleton.instance = global.__discoverySingletonInstance;
     }
     return DiscoverySingleton.instance;
@@ -38,12 +41,12 @@ class DiscoverySingleton {
   public async initialize(): Promise<void> {
     // Return existing initialization promise if already in progress
     if (this.initializationPromise) {
-      console.log('⏳ Discovery service initialization in progress, waiting...');
+      discoveryLogger.info('⏳ Discovery service initialization in progress, waiting...');
       return this.initializationPromise;
     }
 
     if (this.isInitialized) {
-      console.log('🔄 Discovery service already initialized');
+      discoveryLogger.info('🔄 Discovery service already initialized');
       return;
     }
 
@@ -73,13 +76,13 @@ class DiscoverySingleton {
           const { updateHostCache } = require('./host-utils');
           updateHostCache(host.id, host.ipAddress, host.port);
         } catch (error) {
-          console.debug('Could not update host cache:', error);
+          discoveryLogger.debug('Could not update host cache:', error);
         }
 
         // Notify all event handlers
         const changeType = isNewHost ? 'host_added' : 'host_updated';
         this.notifyHandlers(changeType, host);
-        console.log(`📡 ${isNewHost ? 'New host discovered' : 'Host updated'}:`, host.id);
+        discoveryLogger.info(`📡 ${isNewHost ? 'New host discovered' : 'Host updated'}:`, host.id);
       });
 
       this.discoveryService.onHostRemoved((hostId) => {
@@ -88,32 +91,32 @@ class DiscoverySingleton {
 
         // Notify all event handlers
         this.notifyHandlers('host_removed', removedHost);
-        console.log('📡 Host removed:', hostId);
+        discoveryLogger.info('📡 Host removed:', hostId);
       });
 
       // Start discovery service
       try {
-        console.log('🚀 Starting discovery singleton service...');
+        discoveryLogger.info('🚀 Starting discovery singleton service...');
         
         await this.discoveryService.startDiscovery();
         
         // 🔄 SINCRONIZAÇÃO: Recuperar hosts já conectados do gRPC service
-        console.log('🔄 Iniciando sincronização de hosts existentes...');
+        discoveryLogger.info('🔄 Iniciando sincronização de hosts existentes...');
         this.syncExistingHostsFromGrpc();
         
         // 🔄 SINCRONIZAÇÃO ATRASADA: Verificar novamente após mDNS discovery
         setTimeout(() => {
-          console.log('🔄 Verificação atrasada de hosts conectados via gRPC...');
+          discoveryLogger.info('🔄 Verificação atrasada de hosts conectados via gRPC...');
           this.syncExistingHostsFromGrpc();
         }, 2000); // 2 segundos após inicialização
         
         this.isInitialized = true;
         
-        console.log('✅ Discovery singleton service started');
-        console.log('📋 Current discovered hosts:', this.discoveredHosts.length);
+        discoveryLogger.info('✅ Discovery singleton service started');
+        discoveryLogger.info('📋 Current discovered hosts:', this.discoveredHosts.length);
         
       } catch (error) {
-        console.error('❌ Failed to initialize discovery singleton service:', error);
+        discoveryLogger.error('❌ Failed to initialize discovery singleton service:', error);
         this.initializationPromise = null; // Reset so it can be retried
         throw error;
       }
@@ -125,21 +128,21 @@ class DiscoverySingleton {
     try {
       const grpcService = this.discoveryService?.getGrpcService();
       if (!grpcService) {
-        console.log('🔄 No gRPC service available for host sync');
+        discoveryLogger.info('🔄 No gRPC service available for host sync');
         return;
       }
 
       const connectedHosts = grpcService.getConnectedHosts();
-      console.log(`🔄 Syncing ${connectedHosts.length} existing hosts from gRPC service`);
+      discoveryLogger.info(`🔄 Syncing ${connectedHosts.length} existing hosts from gRPC service`);
 
       connectedHosts.forEach(host => {
         const existingIndex = this.discoveredHosts.findIndex(h => h.id === host.id);
         if (existingIndex >= 0) {
           this.discoveredHosts[existingIndex] = host;
-          console.log(`🔄 Updated existing host: ${host.id}`);
+          discoveryLogger.info(`🔄 Updated existing host: ${host.id}`);
         } else {
           this.discoveredHosts.push(host);
-          console.log(`🔄 Added previously connected host: ${host.id}`);
+          discoveryLogger.info(`🔄 Added previously connected host: ${host.id}`);
         }
 
         // Update host cache for host-utils
@@ -147,16 +150,16 @@ class DiscoverySingleton {
           const { updateHostCache } = require('./host-utils');
           updateHostCache(host.id, host.ipAddress, host.port);
         } catch (error) {
-          console.debug('Could not update host cache during sync:', error);
+          discoveryLogger.debug('Could not update host cache during sync:', error);
         }
 
         // Notify all event handlers
         this.notifyHandlers('host_synced', host);
       });
 
-      console.log(`✅ Host sync completed: ${this.discoveredHosts.length} total hosts available`);
+      discoveryLogger.info(`✅ Host sync completed: ${this.discoveredHosts.length} total hosts available`);
     } catch (error) {
-      console.error('❌ Failed to sync hosts from gRPC service:', error);
+      discoveryLogger.error('❌ Failed to sync hosts from gRPC service:', error);
     }
   }
 
@@ -187,7 +190,7 @@ class DiscoverySingleton {
       try {
         handler([...this.discoveredHosts], changeType, changedHost);
       } catch (error) {
-        console.error('❌ Error in discovery event handler:', error);
+        discoveryLogger.error('❌ Error in discovery event handler:', error);
       }
     });
   }
@@ -200,7 +203,7 @@ class DiscoverySingleton {
       this.isInitialized = false;
       this.initializationPromise = null;
       this.eventHandlers.clear();
-      console.log('🛑 Discovery singleton service stopped');
+      discoveryLogger.info('🛑 Discovery singleton service stopped');
     }
   }
 

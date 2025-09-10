@@ -1,0 +1,215 @@
+import { NextApiRequest, NextApiResponse } from 'next';
+import { createContextLogger } from '@/utils/logger';
+import { grpcServerSingleton } from '@/lib/grpc-server-singleton';
+import { loadCookies, saveCookie, deleteCookie, Cookie, CookiesData } from '@/lib/data-adapter';
+
+const cookiesApiLogger = createContextLogger('api-cookies');
+
+// Validate cookie data
+const validateCookie = (data: any): data is Omit<Cookie, 'description'> => {
+  return (
+    typeof data.name === 'string' &&
+    typeof data.value === 'string' &&
+    typeof data.domain === 'string' &&
+    typeof data.path === 'string' &&
+    typeof data.secure === 'boolean' &&
+    typeof data.httpOnly === 'boolean' &&
+    typeof data.sameSite === 'string' &&
+    typeof data.expirationDate === 'number'
+  );
+};
+
+// Trigger cookie sync to all controllers
+const triggerCookieSync = async (): Promise<void> => {
+  try {
+    await grpcServerSingleton.triggerCookieSync();
+    cookiesApiLogger.info('Cookie sync triggered successfully');
+  } catch (error) {
+    cookiesApiLogger.error('Failed to trigger cookie sync', { 
+      error: error instanceof Error ? error.message : String(error) 
+    });
+  }
+};
+
+async function handler(req: NextApiRequest, res: NextApiResponse) {
+  try {
+    switch (req.method) {
+      case 'GET':
+        // List all cookies by domain
+        const cookiesData = await loadCookies();
+        return res.status(200).json({
+          success: true,
+          data: cookiesData
+        });
+
+      case 'POST':
+        // Add cookie to domain
+        const { domain, cookie } = req.body;
+        
+        if (!domain || !cookie || !validateCookie(cookie)) {
+          return res.status(400).json({
+            success: false,
+            error: 'Domain and valid cookie data are required. Required fields: name, value, domain, path, secure, httpOnly, sameSite, expirationDate'
+          });
+        }
+
+        const newCookie: Cookie = {
+          ...cookie,
+          description: (cookie as any).description || `Cookie ${cookie.name} for ${domain}`
+        };
+
+        // Save cookie to PostgreSQL
+        await saveCookie(domain, newCookie);
+        cookiesApiLogger.info('Cookie saved', { domain, cookieName: cookie.name });
+
+        // Trigger sync to all controllers
+        await triggerCookieSync();
+
+        return res.status(201).json({
+          success: true,
+          data: {
+            domain,
+            cookie: newCookie
+          }
+        });
+
+      case 'PUT':
+        // Update domain description or bulk update cookies
+        const { domain: updateDomain, description, cookies } = req.body;
+        
+        if (!updateDomain) {
+          return res.status(400).json({
+            success: false,
+            error: 'Domain is required'
+          });
+        }
+
+        // Check if domain exists by loading cookies
+        const currentCookies = await loadCookies();
+        if (!currentCookies.domains[updateDomain]) {
+          return res.status(404).json({
+            success: false,
+            error: 'Domain not found'
+          });
+        }
+
+        // Update cookies if provided
+        if (cookies && Array.isArray(cookies)) {
+          // Validate all cookies first
+          for (const cookie of cookies) {
+            if (!validateCookie(cookie)) {
+              return res.status(400).json({
+                success: false,
+                error: 'Invalid cookie data in cookies array'
+              });
+            }
+          }
+          
+          // Delete all existing cookies for this domain first
+          await deleteCookie(updateDomain);
+          
+          // Add all new cookies
+          for (const cookie of cookies) {
+            const cookieWithDescription = {
+              ...cookie,
+              description: cookie.description || `Cookie ${cookie.name} for ${updateDomain}`
+            };
+            await saveCookie(updateDomain, cookieWithDescription);
+          }
+        }
+
+        // Trigger sync to all controllers
+        await triggerCookieSync();
+
+        // Return updated domain data
+        const updatedCookies = await loadCookies();
+        return res.status(200).json({
+          success: true,
+          data: updatedCookies.domains[updateDomain]
+        });
+
+      case 'DELETE':
+        // Delete cookie or entire domain
+        const { domain: deleteDomain, cookieName } = req.query;
+        
+        if (!deleteDomain || typeof deleteDomain !== 'string') {
+          return res.status(400).json({
+            success: false,
+            error: 'Domain is required'
+          });
+        }
+
+        // Check if domain exists
+        const cookiesBeforeDelete = await loadCookies();
+        if (!cookiesBeforeDelete.domains[deleteDomain]) {
+          return res.status(404).json({
+            success: false,
+            error: 'Domain not found'
+          });
+        }
+
+        if (cookieName && typeof cookieName === 'string') {
+          // Delete specific cookie
+          const domainCookies = cookiesBeforeDelete.domains[deleteDomain].cookies;
+          const cookieToDelete = domainCookies.find(c => c.name === cookieName);
+          
+          if (!cookieToDelete) {
+            return res.status(404).json({
+              success: false,
+              error: 'Cookie not found'
+            });
+          }
+
+          const deleted = await deleteCookie(deleteDomain, cookieName);
+          if (!deleted) {
+            return res.status(500).json({
+              success: false,
+              error: 'Failed to delete cookie'
+            });
+          }
+          
+          // Trigger sync to all controllers
+          await triggerCookieSync();
+
+          return res.status(200).json({
+            success: true,
+            data: { deletedCookie: cookieToDelete, domain: deleteDomain }
+          });
+        } else {
+          // Delete entire domain
+          const deletedDomain = cookiesBeforeDelete.domains[deleteDomain];
+          const deleted = await deleteCookie(deleteDomain);
+          
+          if (!deleted) {
+            return res.status(500).json({
+              success: false,
+              error: 'Failed to delete domain'
+            });
+          }
+
+          // Trigger sync to all controllers
+          await triggerCookieSync();
+
+          return res.status(200).json({
+            success: true,
+            data: { deletedDomain }
+          });
+        }
+
+      default:
+        res.setHeader('Allow', ['GET', 'POST', 'PUT', 'DELETE']);
+        return res.status(405).json({
+          success: false,
+          error: `Method ${req.method} Not Allowed`
+        });
+    }
+  } catch (error: any) {
+    cookiesApiLogger.error('Cookies API error', { error: error instanceof Error ? error.message : String(error) });
+    return res.status(500).json({
+      success: false,
+      error: error.message || 'Internal server error'
+    });
+  }
+}
+
+export default handler;

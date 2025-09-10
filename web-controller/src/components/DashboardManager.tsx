@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Dashboard } from '@/types/shared-types';
+import { createContextLogger } from '@/utils/logger';
 import { 
   Plus, 
   ExternalLink, 
@@ -13,6 +14,8 @@ import {
 } from 'lucide-react';
 
 interface DashboardManagerProps {}
+
+const dashboardManagerLogger = createContextLogger('dashboard-manager');
 
 export const DashboardManager: React.FC<DashboardManagerProps> = () => {
   const [dashboards, setDashboards] = useState<Dashboard[]>([]);
@@ -74,7 +77,7 @@ export const DashboardManager: React.FC<DashboardManagerProps> = () => {
       
       setDashboards(result.data);
     } catch (error: any) {
-      console.error('Error fetching dashboards:', error);
+      dashboardManagerLogger.error('Error fetching dashboards', { error: error instanceof Error ? error.message : String(error) });
       addNotification('error', 'Load Error', error.message || 'Failed to load dashboards');
     } finally {
       setLoading(false);
@@ -101,7 +104,7 @@ export const DashboardManager: React.FC<DashboardManagerProps> = () => {
       addNotification('success', 'Dashboard Created', `${result.data.name} has been created`);
       return result.data;
     } catch (error: any) {
-      console.error('Error creating dashboard:', error);
+      dashboardManagerLogger.error('Error creating dashboard', { error: error instanceof Error ? error.message : String(error) });
       addNotification('error', 'Creation Error', error.message || 'Failed to create dashboard');
       throw error;
     }
@@ -127,7 +130,7 @@ export const DashboardManager: React.FC<DashboardManagerProps> = () => {
       addNotification('success', 'Dashboard Updated', `${result.data.name} has been updated`);
       return result.data;
     } catch (error: any) {
-      console.error('Error updating dashboard:', error);
+      dashboardManagerLogger.error('Error updating dashboard', { error: error instanceof Error ? error.message : String(error) });
       addNotification('error', 'Update Error', error.message || 'Failed to update dashboard');
       throw error;
     }
@@ -149,7 +152,7 @@ export const DashboardManager: React.FC<DashboardManagerProps> = () => {
       addNotification('success', 'Dashboard Deleted', `${result.data.name} has been removed`);
       return result.data;
     } catch (error: any) {
-      console.error('Error deleting dashboard:', error);
+      dashboardManagerLogger.error('Error deleting dashboard', { error: error instanceof Error ? error.message : String(error) });
       addNotification('error', 'Deletion Error', error.message || 'Failed to delete dashboard');
       throw error;
     }
@@ -268,7 +271,7 @@ export const DashboardManager: React.FC<DashboardManagerProps> = () => {
           {notifications.map((notification) => (
             <div
               key={notification.id}
-              className={`rounded-lg shadow-lg p-4 border-l-4 bg-white ${
+              className={`rounded-lg shadow-lg p-4 border-l-4 bg-white dark:bg-gray-800 ${
                 notification.type === 'success' ? 'border-green-500' :
                 notification.type === 'error' ? 'border-red-500' :
                 notification.type === 'warning' ? 'border-yellow-500' :
@@ -289,7 +292,7 @@ export const DashboardManager: React.FC<DashboardManagerProps> = () => {
                     {notification.type === 'info' && <AlertCircle className="w-5 h-5" />}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h4 className="text-sm font-medium text-gray-900">
+                    <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100">
                       {notification.title}
                     </h4>
                     <p className="text-sm text-gray-600 mt-1">
@@ -310,15 +313,15 @@ export const DashboardManager: React.FC<DashboardManagerProps> = () => {
       )}
 
       {/* Dashboard Management Card */}
-      <div className="border border-gray-200 rounded-lg bg-white shadow-sm">
+      <div className="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 shadow-sm">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200">
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
             <div className="min-w-0 flex-1">
-              <h2 className="text-lg font-medium text-gray-900">
+              <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100">
                 Dashboard Management
               </h2>
-              <div className="mt-1 text-sm text-gray-500">
+              <div className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 Configure and deploy dashboards to display devices
               </div>
             </div>
@@ -337,7 +340,7 @@ export const DashboardManager: React.FC<DashboardManagerProps> = () => {
         </div>
 
         {/* Dashboards List */}
-        <div className="divide-y divide-gray-200">
+        <div className="divide-y divide-gray-200 dark:divide-gray-600">
           {loading ? (
             // Loading skeletons - show 3 placeholder items
             Array.from({ length: 3 }).map((_, index) => (
@@ -370,9 +373,9 @@ export const DashboardManager: React.FC<DashboardManagerProps> = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                 </svg>
               </div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No dashboards configured yet</h3>
+              <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">No dashboards configured yet</h3>
               <p className="text-gray-600">
-                Use the "Add Dashboard" button above to create your first dashboard
+                Use the &quot;Add Dashboard&quot; button above to create your first dashboard
               </p>
             </div>
           ) : (
@@ -380,7 +383,7 @@ export const DashboardManager: React.FC<DashboardManagerProps> = () => {
             <div
               key={dashboard.id} 
               className={`px-6 py-6 ${
-                selectedDashboard === dashboard.id ? 'bg-gray-50' : 'hover:bg-gray-50'
+                selectedDashboard === dashboard.id ? 'bg-gray-50 dark:bg-gray-700' : 'hover:bg-gray-50 dark:hover:bg-gray-700'
               } cursor-pointer transition-colors`}
               onClick={() => setSelectedDashboard(
                 selectedDashboard === dashboard.id ? null : dashboard.id
@@ -390,7 +393,7 @@ export const DashboardManager: React.FC<DashboardManagerProps> = () => {
                 <div className="flex items-center justify-between">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center space-x-2">
-                      <h4 className="text-lg font-medium text-gray-900">
+                      <h4 className="text-lg font-medium text-gray-900 dark:text-gray-100">
                         {dashboard.name}
                       </h4>
                       <button
@@ -406,14 +409,14 @@ export const DashboardManager: React.FC<DashboardManagerProps> = () => {
                     </div>
                     
                     {/* Description with statistics */}
-                    <div className="flex items-center text-gray-400 ">
+                    <div className="flex items-center text-gray-400 dark:text-gray-500">
                       {dashboard.description && (
                         <span className="truncate max-w-xs">
                           {dashboard.description}
                         </span>
                       )}
                     </div>
-                    <div className="mt-1 flex items-center space-x-4 text-sm text-gray-500">
+                    <div className="mt-1 flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400">
                       <span className="flex items-center">
                         <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
@@ -422,13 +425,13 @@ export const DashboardManager: React.FC<DashboardManagerProps> = () => {
                       </span>
                       
                       {dashboard.category && (
-                        <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-800">
+                        <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200">
                           {dashboard.category}
                         </span>
                       )}
                       
                       {dashboard.requiresAuth && (
-                        <span className="flex items-center text-yellow-600">
+                        <span className="flex items-center text-yellow-600 dark:text-yellow-400">
                           <AlertCircle className="w-4 h-4 mr-1" />
                           Requires Auth
                         </span>
@@ -444,7 +447,7 @@ export const DashboardManager: React.FC<DashboardManagerProps> = () => {
                         e.stopPropagation();
                         startEditingDashboard(dashboard);
                       }}
-                      className="inline-flex items-center px-2 py-1 text-xs font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                      className="inline-flex items-center px-2 py-1 text-xs font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                     >
                       <Edit3 className="w-3 h-3 mr-1" />
                       Edit
@@ -455,7 +458,7 @@ export const DashboardManager: React.FC<DashboardManagerProps> = () => {
                         e.stopPropagation();
                         confirmDeleteDashboard(dashboard.id);
                       }}
-                      className="inline-flex items-center px-2 py-1 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                      className="inline-flex items-center px-2 py-1 text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/30 border border-red-100 dark:border-red-800 rounded hover:bg-red-100 dark:hover:bg-red-900/50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
                     >
                       <Trash2 className="w-3 h-3 mr-1" />
                       Delete
@@ -467,7 +470,7 @@ export const DashboardManager: React.FC<DashboardManagerProps> = () => {
                 <div className="mt-4">
                   <div className="space-y-3">
                     <div>
-                      <span className="text-xs text-gray-500 uppercase tracking-wide font-medium">URL</span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide font-medium">URL</span>
                       <div className="text-sm text-gray-400 font-mono">
                         {dashboard.url}
                       </div>
@@ -484,7 +487,7 @@ export const DashboardManager: React.FC<DashboardManagerProps> = () => {
       {/* Add/Edit Dashboard Modal */}
       {showEditModal && editForm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" style={{margin: 0, top: 0}}>
-          <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-semibold mb-4">{editingDashboard ? 'Edit Dashboard' : 'Add New Dashboard'}</h3>
             
             <div className="space-y-4">
@@ -550,7 +553,7 @@ export const DashboardManager: React.FC<DashboardManagerProps> = () => {
               </div>
 
               <div>
-                <label className="flex items-center p-2 border rounded hover:bg-gray-50">
+                <label className="flex items-center p-2 border dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700">
                   <input
                     type="checkbox"
                     checked={editForm.requiresAuth}
@@ -558,7 +561,7 @@ export const DashboardManager: React.FC<DashboardManagerProps> = () => {
                     className="mr-3"
                   />
                   <div>
-                    <div className="font-medium text-gray-900 flex items-center">
+                    <div className="font-medium text-gray-900 dark:text-gray-100 flex items-center">
                       <AlertCircle className="w-4 h-4 mr-2 text-yellow-600" />
                       Requires Authentication
                     </div>
@@ -567,10 +570,10 @@ export const DashboardManager: React.FC<DashboardManagerProps> = () => {
                 </label>
               </div>
 
-              <div className="flex justify-end space-x-3 pt-4 border-t">
+              <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200 dark:border-gray-600">
                 <button 
                   onClick={cancelEditingDashboard}
-                  className="px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded flex items-center transition-colors"
+                  className="px-3 py-1.5 text-xs bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded flex items-center transition-colors"
                 >
                   <XCircle className="w-3 h-3 mr-1" />
                   Cancel
@@ -592,7 +595,7 @@ export const DashboardManager: React.FC<DashboardManagerProps> = () => {
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" style={{margin: 0, top: 0}}>
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
             <h3 className="text-lg font-semibold mb-4 text-red-600">⚠️ Delete Dashboard</h3>
             
             <p className="text-gray-700 mb-4">
@@ -606,7 +609,7 @@ export const DashboardManager: React.FC<DashboardManagerProps> = () => {
             <div className="flex justify-end space-x-3">
               <button 
                 onClick={() => setShowDeleteConfirm('')}
-                className="px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded flex items-center transition-colors"
+                className="px-3 py-1.5 text-xs bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded flex items-center transition-colors"
               >
                 Cancel
               </button>

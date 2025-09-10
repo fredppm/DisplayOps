@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { createContextLogger } from '@/utils/logger';
 
 interface StoredCookie {
   name: string;
@@ -27,6 +28,8 @@ interface CookieStorage {
 
 const STORAGE_FILE = path.join(process.cwd(), 'web-controller/data/cookies.json');
 
+const cookieStorageLogger = createContextLogger('cookie-storage');
+
 // Ensure data directory exists
 const dataDir = path.dirname(STORAGE_FILE);
 if (!fs.existsSync(dataDir)) {
@@ -45,7 +48,7 @@ export class CookieStorageManager {
         return JSON.parse(data);
       }
     } catch (error) {
-      console.warn('Failed to load cookie storage:', error);
+      cookieStorageLogger.warn('Failed to load cookie storage', { error: error instanceof Error ? error.message : String(error) });
     }
     
     return {
@@ -62,7 +65,7 @@ export class CookieStorageManager {
       storage.lastUpdated = new Date();
       fs.writeFileSync(STORAGE_FILE, JSON.stringify(storage, null, 2));
     } catch (error) {
-      console.error('Failed to save cookie storage:', error);
+      cookieStorageLogger.error('Failed to save cookie storage', { error: error instanceof Error ? error.message : String(error) });
     }
   }
 
@@ -143,13 +146,13 @@ export class CookieStorageManager {
     errors: string[];
   } {
     try {
-      console.log('🍪 [STORAGE] Importing structured cookies for', domain, ':', cookieObjects.length, 'cookies');
+      cookieStorageLogger.info('Importing structured cookies', { domain, cookieCount: cookieObjects.length });
       
       const storage = this.loadStorage();
       const cookies: StoredCookie[] = [];
       
       for (const cookie of cookieObjects) {
-        console.log('🍪 [STORAGE] Processing cookie:', {
+        cookieStorageLogger.debug('Processing cookie', {
           name: cookie.name,
           domain: cookie.domain,
           path: cookie.path,
@@ -215,7 +218,7 @@ export class CookieStorageManager {
 
       this.saveStorage(storage);
 
-      console.log(`📦 [STORAGE] Stored ${cookies.length} structured cookies for ${domain}`);
+      cookieStorageLogger.info('Stored structured cookies', { domain, storedCount: cookies.length });
 
       return {
         success: true,
@@ -225,7 +228,7 @@ export class CookieStorageManager {
       };
 
     } catch (error) {
-      console.error('Error importing structured cookies:', error);
+      cookieStorageLogger.error('Error importing structured cookies', { error: error instanceof Error ? error.message : String(error) });
       return {
         success: false,
         injectedCount: 0,
@@ -292,7 +295,7 @@ export class CookieStorageManager {
 
       this.saveStorage(storage);
 
-      console.log(`📦 Stored ${cookies.length} cookies for ${domain}`);
+      cookieStorageLogger.info('Stored cookies', { domain, count: cookies.length });
 
       return {
         success: true,
@@ -302,7 +305,7 @@ export class CookieStorageManager {
       };
 
     } catch (error) {
-      console.error('Error importing cookies:', error);
+      cookieStorageLogger.error('Error importing cookies', { error: error instanceof Error ? error.message : String(error) });
       return {
         success: false,
         injectedCount: 0,
@@ -359,13 +362,13 @@ export class CookieStorageManager {
       if (storage.domains[domain]) {
         delete storage.domains[domain];
         this.saveStorage(storage);
-        console.log(`🗑️ Cleared cookies for ${domain}`);
+        cookieStorageLogger.info('Cleared cookies', { domain });
         return true;
       }
       
       return false;
     } catch (error) {
-      console.error('Error clearing cookies:', error);
+      cookieStorageLogger.error('Error clearing cookies', { error: error instanceof Error ? error.message : String(error) });
       return false;
     }
   }
@@ -429,7 +432,7 @@ export class CookieStorageManager {
 
       this.saveStorage(storage);
 
-      console.log(`🍪 Added/Updated cookie ${cookieData.name} for ${domain}`);
+      cookieStorageLogger.info('Added/Updated cookie', { cookieName: cookieData.name, domain });
 
       return {
         success: true,
@@ -437,7 +440,7 @@ export class CookieStorageManager {
       };
 
     } catch (error) {
-      console.error('Error adding/updating cookie:', error);
+      cookieStorageLogger.error('Error adding/updating cookie', { error: error instanceof Error ? error.message : String(error) });
       return {
         success: false,
         message: error instanceof Error ? error.message : 'Unknown error'
@@ -471,7 +474,7 @@ export class CookieStorageManager {
       
       if (removed) {
         this.saveStorage(storage);
-        console.log(`🗑️ Removed cookie ${cookieName} from ${domain}`);
+        cookieStorageLogger.info('Removed cookie', { cookieName, domain });
       }
 
       return {
@@ -480,7 +483,7 @@ export class CookieStorageManager {
       };
 
     } catch (error) {
-      console.error('Error removing cookie:', error);
+      cookieStorageLogger.error('Error removing cookie', { error: error instanceof Error ? error.message : String(error) });
       return {
         success: false,
         message: error instanceof Error ? error.message : 'Unknown error'
@@ -509,7 +512,7 @@ export class CookieStorageManager {
       delete storage.domains[domain];
       this.saveStorage(storage);
       
-      console.log(`🗑️ Removed domain ${domain} with ${cookieCount} cookies`);
+      cookieStorageLogger.info('Removed domain', { domain, cookieCount });
 
       return {
         success: true,
@@ -517,7 +520,7 @@ export class CookieStorageManager {
       };
 
     } catch (error) {
-      console.error('Error removing domain:', error);
+      cookieStorageLogger.error('Error removing domain', { error: error instanceof Error ? error.message : String(error) });
       return {
         success: false,
         message: error instanceof Error ? error.message : 'Unknown error'

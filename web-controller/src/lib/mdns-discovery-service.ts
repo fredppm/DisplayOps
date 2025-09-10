@@ -1,4 +1,5 @@
 import bonjour, { Bonjour, Browser, RemoteService } from 'bonjour';
+import { createContextLogger } from '@/utils/logger';
 
 export interface MDNSDiscoveredHost {
   name: string;
@@ -8,6 +9,8 @@ export interface MDNSDiscoveredHost {
   txt?: Record<string, string>;
   fqdn: string;
 }
+
+const mdnsLogger = createContextLogger('mdns-discovery');
 
 export class MDNSDiscoveryService {
   private bonjourInstance: Bonjour;
@@ -22,8 +25,7 @@ export class MDNSDiscoveryService {
   }
 
   public startDiscovery(): void {
-    console.log('🔍 Starting mDNS discovery for DisplayOps hosts...');
-    console.log('📡 Looking for service type: _displayops._tcp.local');
+    mdnsLogger.info('Starting mDNS discovery for DisplayOps hosts', { serviceType: '_displayops._tcp.local' });
     
     try {
       this.stopDiscovery();
@@ -42,16 +44,16 @@ export class MDNSDiscoveryService {
         this.handleServiceDown(service);
       });
 
-      console.log('✅ mDNS discovery started for _displayops._tcp.local services');
+      mdnsLogger.info('mDNS discovery started successfully');
 
     } catch (error) {
-      console.error('❌ Failed to start mDNS discovery:', error);
+      mdnsLogger.error('Failed to start mDNS discovery', { error: error instanceof Error ? error.message : String(error) });
       throw error;
     }
   }
 
   public stopDiscovery(): void {
-    console.log('🛑 Stopping mDNS discovery...');
+    mdnsLogger.info('Stopping mDNS discovery');
     
     this.isDiscovering = false;
     
@@ -74,14 +76,14 @@ export class MDNSDiscoveryService {
       return;
     }
     
-    console.log('✅ mDNS DisplayOps service discovered:', {
+    mdnsLogger.info('mDNS DisplayOps service discovered', {
       name: service.name,
       host: service.host,
       port: service.port,
       txt: service.txt
     });
     
-    console.log(`📡 Total services discovered: ${this.discoveredServices.size + 1}`);
+    mdnsLogger.debug('Total services discovered', { totalServices: this.discoveredServices.size + 1 });
 
     const discoveredHost: MDNSDiscoveredHost = {
       name: service.name,
@@ -107,7 +109,7 @@ export class MDNSDiscoveryService {
     const serviceKey = agentId;
     
     if (this.discoveredServices.has(serviceKey)) {
-      console.log('👋 mDNS DisplayOps service removed:', service.name);
+      mdnsLogger.info('mDNS DisplayOps service removed', { serviceName: service.name });
       
       this.discoveredServices.delete(serviceKey);
       

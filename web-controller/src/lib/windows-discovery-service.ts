@@ -1,6 +1,9 @@
 import { MiniPC, HostMetrics, DisplayState } from '@/types/shared-types';
 import { MDNSDiscoveryService } from './mdns-discovery-service';
 import { GrpcClientService } from './server/grpc-client-service';
+import { createContextLogger } from '@/utils/logger';
+
+const windowsDiscoveryLogger = createContextLogger('windows-discovery');
 
 export type HostDiscoveredCallback = (host: MiniPC) => void;
 export type HostRemovedCallback = (hostId: string) => void;
@@ -34,29 +37,29 @@ export class WindowsDiscoveryService {
       this.grpcService = GrpcClientService.getInstance();
       this.setupGrpcEventHandlers();
     } catch (error) {
-      console.warn('⚠️ gRPC service not available, continuing with mDNS only:', error instanceof Error ? error.message : error);
+      windowsDiscoveryLogger.warn('gRPC service not available, continuing with mDNS only', { error: error instanceof Error ? error.message : String(error) });
       // gRPC service will be null, we'll handle this in other methods
     }
   }
 
   public async startDiscovery(): Promise<void> {
     if (this.isRunning) {
-      console.log('🚀 gRPC Discovery service already running');
+      windowsDiscoveryLogger.info('gRPC Discovery service already running');
       return;
     }
 
     try {
-      console.log('🚀 Starting modern gRPC-enabled discovery service...');
+      windowsDiscoveryLogger.info('Starting modern gRPC-enabled discovery service');
       
       this.isRunning = true;
       
       // Start mDNS discovery for host detection
       this.startMDNSDiscovery();
       
-      console.log('✅ gRPC Discovery service started - no more polling!');
+      windowsDiscoveryLogger.info('gRPC Discovery service started - no more polling!');
       
     } catch (error) {
-      console.error('❌ Failed to start gRPC discovery service:', error);
+      windowsDiscoveryLogger.error('Failed to start gRPC discovery service', { error: error instanceof Error ? error.message : String(error) });
       throw error;
     }
   }
@@ -66,7 +69,7 @@ export class WindowsDiscoveryService {
       return;
     }
 
-    console.log('🛑 Stopping gRPC discovery service...');
+    windowsDiscoveryLogger.info('Stopping gRPC discovery service');
     
     // Stop gRPC service if available
     if (this.grpcService) {
@@ -81,21 +84,21 @@ export class WindowsDiscoveryService {
     this.discoveredHosts.clear();
     this.isRunning = false;
     
-    console.log('✅ gRPC Discovery service stopped');
+    windowsDiscoveryLogger.info('gRPC Discovery service stopped');
   }
 
   private startMDNSDiscovery(): void {
-    console.log('🔍 Starting mDNS discovery for gRPC hosts...');
+    windowsDiscoveryLogger.info('Starting mDNS discovery for gRPC hosts');
     
     try {
       // Set up mDNS callbacks - now connects gRPC instead of HTTP polling
       this.mdnsService.onHostDiscovered((discoveredHost) => {
-        console.log('📡 mDNS discovered host:', discoveredHost.txt?.agentId || discoveredHost.name);
+        windowsDiscoveryLogger.info('mDNS discovered host', { agentId: discoveredHost.txt?.agentId || discoveredHost.name });
         this.connectToDiscoveredHost(discoveredHost);
       });
 
       this.mdnsService.onHostRemoved((hostId: string) => {
-        console.log('📡 mDNS host removed:', hostId);
+        windowsDiscoveryLogger.info('mDNS host removed', { hostId });
         // Note: gRPC service will handle disconnections automatically
         // via heartbeat timeouts, so no immediate action needed here
       });
@@ -104,10 +107,10 @@ export class WindowsDiscoveryService {
       this.mdnsService.startDiscovery();
       
     } catch (error) {
-      console.error('❌ Failed to start mDNS discovery:', error);
+      windowsDiscoveryLogger.error('Failed to start mDNS discovery', { error: error instanceof Error ? error.message : String(error) });
       // Continue with fallback localhost if enabled
       if (process.env.OFFICE_DISPLAY_INCLUDE_LOCALHOST === 'true') {
-        console.log('🔄 Fallback: Attempting localhost connection...');
+        windowsDiscoveryLogger.info('Fallback: Attempting localhost connection');
         const localhostHost = {
           name: 'localhost-agent',
           host: 'localhost',
@@ -131,10 +134,15 @@ export class WindowsDiscoveryService {
       // Select primary IP (prefer non link-local, non-docker IPs)
       const primaryIP = this.selectPrimaryIP(discoveredHost.addresses);
       
-      console.log(`📡 gRPC: Connecting to host ${hostId} at ${primaryIP} (from ${discoveredHost.addresses.length} IPs)`);
+      windowsDiscoveryLogger.info('Connecting to host', {
+        hostId,
+        primaryIP,
+        totalIPs: discoveredHost.addresses.length
+      });
       
       const host: MiniPC = {
         id: hostId,
+        name: discoveredHost.host, // Use hostname as name
         hostname: discoveredHost.host, // DNS name (e.g., 'VTEX-B9LH6Z3')
         ipAddress: primaryIP, // IP address (e.g., '192.168.1.227')
         port: discoveredHost.port,
@@ -170,7 +178,7 @@ export class WindowsDiscoveryService {
       }
       
     } catch (error) {
-      console.error(`❌ Failed to connect to host ${discoveredHost.txt?.agentId || discoveredHost.name}:`, error);
+      windowsDiscoveryLogger.error('Failed to connect to host', { hostId: discoveredHost.txt?.agentId || discoveredHost.name, error: error instanceof Error ? error.message : String(error) });
     }
   }
   
@@ -202,34 +210,34 @@ export class WindowsDiscoveryService {
 
   // 🚀 NEW: Setup gRPC event handlers for real-time updates
   private setupGrpcEventHandlers(): void {
-    console.log('🔧 WindowsDiscoveryService: Configurando event handlers para gRPC...');
+    windowsDiscoveryLogger.info('WindowsDiscoveryService: Configurando event handlers para gRPC');
     if (!this.grpcService) {
-      console.warn('⚠️ WindowsDiscoveryService: gRPC service é null, não configurando handlers');
+      windowsDiscoveryLogger.warn('WindowsDiscoveryService: gRPC service é null, não configurando handlers');
       return;
     }
-    console.log('✅ WindowsDiscoveryService: gRPC service disponível, configurando handlers...');
+    windowsDiscoveryLogger.info('WindowsDiscoveryService: gRPC service disponível, configurando handlers');
     
     // Handle when gRPC successfully connects to a host
     this.grpcService.on('host-connected', ({ hostId, host }) => {
-      console.log(`✅ gRPC: Connected to host ${hostId}`);
+      windowsDiscoveryLogger.info('Connected to host', { hostId });
       this.handleHostConnected(host);
     });
 
     // Handle when gRPC disconnects from a host
     this.grpcService.on('host-disconnected', ({ hostId, host, reason }) => {
-      console.log(`📡 gRPC: Disconnected from host ${hostId} (${reason})`);
+      windowsDiscoveryLogger.info('Disconnected from host', { hostId, reason });
       this.handleHostDisconnected(hostId);
     });
 
     // Handle real-time display changes from gRPC stream
     this.grpcService.on('displays-changed', ({ hostId, host, displays, changeType, changedDisplay }) => {
-      console.log(`📺 gRPC: Host ${hostId} displays changed (${changeType})`);
+      windowsDiscoveryLogger.info('Host displays changed', { hostId, changeType });
       this.handleHostDisplaysChanged(hostId, displays, changeType);
     });
 
     // Handle host metrics changes
     this.grpcService.on('host-status-changed', ({ hostId, host, status }) => {
-      console.log(`🔄 gRPC: Host ${hostId} metrics changed`);
+      windowsDiscoveryLogger.info('Host metrics changed', { hostId });
       this.handleHostMetricsChanged(hostId, status);
     });
     
@@ -237,43 +245,56 @@ export class WindowsDiscoveryService {
     this.grpcService.on('host-event', (hostEvent) => {
       if (hostEvent.type === 'HEARTBEAT') {
         // 🔍 DEBUG: Log the complete structure to identify correct field names
-        console.log(`🔍 HEARTBEAT: Recebido evento ${hostEvent.eventId || 'N/A'} para ${hostEvent.hostId} na instância ${(this as any).__instanceId}:`);
-        console.log('  - Payload completo:', JSON.stringify(hostEvent.payload, null, 2));
+        const instanceId = (this as any).__instanceId;
+        windowsDiscoveryLogger.debug('HEARTBEAT: Recebido evento', {
+          eventId: hostEvent.eventId || 'N/A',
+          hostId: hostEvent.hostId,
+          instanceId,
+          payloadComplete: JSON.stringify(hostEvent.payload, null, 2)
+        });
         
         // Try both field name variations (snake_case vs camelCase)
         const hostStatus = hostEvent.payload?.hostStatus || hostEvent.payload?.host_status;
         const displayStatuses = hostEvent.payload?.displayStatuses || hostEvent.payload?.display_statuses;
         
-        console.log('🔍 HEARTBEAT: Campos encontrados:');
-        console.log('  - hostEvent.payload?.hostStatus:', !!hostEvent.payload?.hostStatus);
-        console.log('  - hostEvent.payload?.host_status:', !!hostEvent.payload?.host_status);
-        console.log('  - hostEvent.payload?.displayStatuses:', !!hostEvent.payload?.displayStatuses);
-        console.log('  - hostEvent.payload?.display_statuses:', !!hostEvent.payload?.display_statuses);
+        windowsDiscoveryLogger.debug('HEARTBEAT: Campos encontrados', {
+          hostStatusFound: !!hostEvent.payload?.hostStatus,
+          host_statusFound: !!hostEvent.payload?.host_status,
+          displayStatusesFound: !!hostEvent.payload?.displayStatuses,
+          display_statusesFound: !!hostEvent.payload?.display_statuses
+        });
         
         if (hostStatus) {
-          console.log(`🔍 HEARTBEAT: Estado ANTES de processar:`, {
-            isConnected: this.discoveredHosts.get(hostEvent.hostId)?.metrics?.online || 'N/A',
-            reconnectAttempts: 'N/A'
+          const hostBefore = this.discoveredHosts.get(hostEvent.hostId);
+          windowsDiscoveryLogger.debug('HEARTBEAT: Estado ANTES de processar', {
+            hostId: hostEvent.hostId,
+            isConnectedBefore: hostBefore?.metrics?.online || 'N/A'
           });
           
-          console.log(`💓 gRPC: Received heartbeat for ${hostEvent.hostId}:`, {
+          windowsDiscoveryLogger.debug('Received heartbeat', {
+            hostId: hostEvent.hostId,
             cpu: hostStatus.cpu_usage_percent,
             memory: hostStatus.memory_usage_percent,
             online: hostStatus.online
           });
           this.updateHostMetricsFromHeartbeat(hostEvent.hostId, hostStatus);
           
-          console.log(`🔍 HEARTBEAT: Estado APÓS processar evento:`);
           const updatedHost = this.discoveredHosts.get(hostEvent.hostId);
-          console.log('  - isConnected DEPOIS:', updatedHost?.metrics?.online);
-          console.log('  - lastHeartbeat atualizado:', updatedHost?.lastHeartbeat);
+          windowsDiscoveryLogger.debug('HEARTBEAT: Estado APÓS processar evento', {
+            hostId: hostEvent.hostId,
+            isConnectedAfter: updatedHost?.metrics?.online,
+            lastHeartbeatUpdated: updatedHost?.lastHeartbeat
+          });
         } else {
-          console.warn(`⚠️ HEARTBEAT: Nenhum hostStatus encontrado no payload para ${hostEvent.hostId}`);
+          windowsDiscoveryLogger.warn('HEARTBEAT: Nenhum hostStatus encontrado no payload', { hostId: hostEvent.hostId });
         }
         
         // Process display states from heartbeat
         if (displayStatuses && displayStatuses.length > 0) {
-          console.log(`📺 gRPC: Processing ${displayStatuses.length} display states from heartbeat`);
+          windowsDiscoveryLogger.debug('Processing display states from heartbeat', {
+            hostId: hostEvent.hostId,
+            displayCount: displayStatuses.length
+          });
           this.updateHostDisplaysFromHeartbeat(hostEvent.hostId, displayStatuses);
         }
       }
@@ -286,7 +307,7 @@ export class WindowsDiscoveryService {
   private handleHostConnected(host: MiniPC): void {
     const existing = this.discoveredHosts.get(host.id);
     if (!existing) {
-      console.log(`✅ gRPC Discovery: New host connected ${host.id}`);
+      windowsDiscoveryLogger.info('gRPC Discovery: New host connected', { hostId: host.id });
       this.discoveredHosts.set(host.id, host);
       
       if (this.onHostDiscoveredCallback) {
@@ -295,13 +316,13 @@ export class WindowsDiscoveryService {
     } else {
       // Update existing host
       this.discoveredHosts.set(host.id, { ...existing, ...host, lastHeartbeat: new Date() });
-      console.debug(`💓 gRPC Discovery: Host ${host.id} connection refreshed`);
+      windowsDiscoveryLogger.debug('gRPC Discovery: Host connection refreshed', { hostId: host.id });
     }
   }
 
   private handleHostDisconnected(hostId: string): void {
     if (this.discoveredHosts.has(hostId)) {
-      console.log(`⬇️ gRPC Discovery: Host disconnected ${hostId}`);
+      windowsDiscoveryLogger.info('gRPC Discovery: Host disconnected', { hostId });
       this.discoveredHosts.delete(hostId);
       
       if (this.onHostRemovedCallback) {
@@ -323,7 +344,11 @@ export class WindowsDiscoveryService {
       lastHeartbeat: new Date()
     };
 
-    console.log(`📺 gRPC Discovery: Host ${hostId} displays changed (${changeType}): ${displays.length} displays`);
+    windowsDiscoveryLogger.info('gRPC Discovery: Host displays changed', {
+      hostId,
+      changeType,
+      displayCount: displays.length
+    });
 
     this.discoveredHosts.set(hostId, updatedHost);
     
@@ -338,7 +363,10 @@ export class WindowsDiscoveryService {
     if (!host) return;
 
     // 🔍 DEBUG: Log the raw hostMetrics structure
-    console.log(`🔍 updateHostMetricsFromHeartbeat: Raw hostMetrics for ${hostId}:`, hostMetrics);
+    windowsDiscoveryLogger.debug('updateHostMetricsFromHeartbeat: Raw hostMetrics', {
+      hostId,
+      hostMetrics
+    });
 
     // Convert gRPC metrics format to our internal format
     // If we're receiving a heartbeat, the host is online by definition
@@ -350,7 +378,8 @@ export class WindowsDiscoveryService {
       lastError: hostMetrics.last_error || undefined
     };
 
-    console.log(`🔍 updateHostMetricsFromHeartbeat: Final status for ${hostId}:`, {
+    windowsDiscoveryLogger.debug('updateHostMetricsFromHeartbeat: Final status', {
+      hostId,
       originalOnline: hostMetrics.online,
       finalOnline: updatedMetrics.online
     });
@@ -376,7 +405,10 @@ export class WindowsDiscoveryService {
     if (!host) return;
 
     // 🔍 DEBUG: Log raw display statuses structure
-    console.log(`🔍 updateHostDisplaysFromHeartbeat: Raw displayStatuses for ${hostId}:`, displayStatuses);
+    windowsDiscoveryLogger.debug('updateHostDisplaysFromHeartbeat: Raw displayStatuses', {
+      hostId,
+      displayStatuses
+    });
 
     // Convert gRPC display statuses to our internal format
     const displays = displayStatuses.map((display, index) => {
@@ -402,8 +434,14 @@ export class WindowsDiscoveryService {
       lastHeartbeat: new Date()
     };
 
-    console.log(`📺 gRPC: Updated ${hostId} with ${displays.length} displays:`, 
-      displays.map(d => `${d.id}(${d.assignedDashboard?.dashboardId || 'none'})`).join(', '));
+    windowsDiscoveryLogger.info('gRPC: Updated host displays', {
+      hostId,
+      displayCount: displays.length,
+      displays: displays.map(d => ({
+        id: d.id,
+        dashboard: d.assignedDashboard?.dashboardId || 'none'
+      }))
+    });
 
     this.discoveredHosts.set(hostId, updatedHost);
     
@@ -428,7 +466,7 @@ export class WindowsDiscoveryService {
     };
 
     this.discoveredHosts.set(hostId, updatedHost);
-    console.debug(`🔄 gRPC Discovery: Host ${hostId} metrics updated`);
+    windowsDiscoveryLogger.debug(`gRPC Discovery: Host ${hostId} metrics updated`);
   }
 
   // ❌ REMOVED: All HTTP polling methods replaced with gRPC streaming
@@ -470,7 +508,6 @@ export class WindowsDiscoveryService {
       lastHeartbeat: new Date(),
       lastDiscovered: new Date(),
       version: host.version || '1.0.0',
-      tvs: [], // Legacy property
       displays: host.displays || [] // Will be populated by gRPC events
     };
 
@@ -482,10 +519,10 @@ export class WindowsDiscoveryService {
       try {
         await this.grpcService.connectToHost(fullHost);
       } catch (error) {
-        console.warn(`Manual host ${fullHost.id} added but gRPC connection failed:`, error);
+        windowsDiscoveryLogger.warn('Manual host added but gRPC connection failed', { hostId: fullHost.id, error });
       }
     } else {
-      console.log(`Manual host ${fullHost.id} added (gRPC not available)`);
+      windowsDiscoveryLogger.info('Manual host added (gRPC not available)', { hostId: fullHost.id });
     }
 
     if (this.onHostDiscoveredCallback) {

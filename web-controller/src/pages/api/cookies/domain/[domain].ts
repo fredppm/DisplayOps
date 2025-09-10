@@ -1,5 +1,8 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { CookieStorageManager } from '../../../../lib/cookie-storage';
+import { createContextLogger } from '@/utils/logger';
+
+const cookieDomainByIdLogger = createContextLogger('api-cookie-domain-id');
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
@@ -17,7 +20,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const decodedDomain = decodeURIComponent(domain);
-    console.log(`🍪 Getting cookies for domain: ${decodedDomain}`);
+    cookieDomainByIdLogger.info('Getting cookies for domain', { domain: decodedDomain });
     
     const cookies = CookieStorageManager.getCookiesForDomain(decodedDomain);
     
@@ -31,7 +34,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
 
   } catch (error) {
-    console.error('Error getting domain cookies:', error);
+    cookieDomainByIdLogger.error('Error getting domain cookies', { error });
     return res.status(500).json({
       success: false,
       error: 'Internal server error getting domain cookies'

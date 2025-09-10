@@ -1,5 +1,8 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { CookieStorageManager } from '../../../lib/cookie-storage';
+import { createContextLogger } from '@/utils/logger';
+
+const cookieDomainLogger = createContextLogger('api-cookie-domain');
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'DELETE') {
@@ -16,7 +19,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     }
 
-    console.log(`🗑️ Removing all cookies for domain: ${domain}`);
+    cookieDomainLogger.info('Removing all cookies for domain', { domain });
     
     const result = CookieStorageManager.removeDomain(domain);
     
@@ -37,7 +40,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
   } catch (error) {
-    console.error('Domain remove error:', error);
+    cookieDomainLogger.error('Domain remove error', { error });
     return res.status(500).json({
       success: false,
       error: 'Internal server error removing domain'

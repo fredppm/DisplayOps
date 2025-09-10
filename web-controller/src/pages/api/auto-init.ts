@@ -1,5 +1,8 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { autoInitializeServices } from '@/lib/auto-init';
+import { createContextLogger } from '@/utils/logger';
+
+const autoInitApiLogger = createContextLogger('api-auto-init');
 
 export default async function handler(
   req: NextApiRequest,
@@ -14,12 +17,12 @@ export default async function handler(
   }
 
   try {
-    console.log('🚀 API: Auto-inicialização solicitada...');
+    autoInitApiLogger.info('Auto-inicialização solicitada via API');
     const result = await autoInitializeServices();
     
     res.status(200).json(result);
   } catch (error) {
-    console.error('❌ API: Erro na auto-inicialização:', error);
+    autoInitApiLogger.error('Erro na auto-inicialização', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error'
