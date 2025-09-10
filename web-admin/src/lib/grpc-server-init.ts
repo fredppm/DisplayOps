@@ -7,6 +7,12 @@ let isInitialized = false;
 let initPromise: Promise<void> | null = null;
 
 export async function initializeGrpcServer(): Promise<void> {
+  // Skip initialization during Vercel build
+  if (process.env.DISABLE_GRPC_INIT === 'true') {
+    grpcInitLogger.info('gRPC initialization disabled for build/deployment');
+    return;
+  }
+
   // Prevent multiple initializations
   if (isInitialized || grpcServerSingleton.isRunning()) {
     return;

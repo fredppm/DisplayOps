@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 
 interface ControllerSyncStatus {
   controllerId: string;
@@ -76,97 +76,166 @@ interface UseHealthStatusStreamResult {
   isConnected: boolean;
   error: string | null;
   reconnect: () => void;
+  loading: boolean;
 }
 
 export function useHealthStatusStream(): UseHealthStatusStreamResult {
   const [status, setStatus] = useState<HealthStatus | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   
-  const eventSourceRef = useRef<EventSource | null>(null);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectAttemptsRef = useRef(0);
+  const isMountedRef = useRef(true);
   
   const maxReconnectAttempts = 10;
   const baseReconnectDelay = 1000; // 1 second
+  const normalPollingInterval = 5000; // 5 seconds
+  const slowPollingInterval = 15000; // 15 seconds when inactive
   
-  const connect = () => {
-    // Close existing connection
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
+  const fetchHealthStatus = useCallback(async () => {
+    try {
+      const response = await fetch('/api/health/status');
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const healthStatus: HealthStatus = await response.json();
+      
+      if (isMountedRef.current) {
+        setStatus(healthStatus);
+        setIsConnected(true);
+        setError(null);
+        setLoading(false);
+        reconnectAttemptsRef.current = 0;
+      }
+      
+      return healthStatus;
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      console.error('❌ Error fetching health status:', errorMessage);
+      
+      if (isMountedRef.current) {
+        setIsConnected(false);
+        setError(errorMessage);
+        setLoading(false);
+      }
+      
+      throw err;
+    }
+  }, []);
+  
+  const startPolling = useCallback((interval = normalPollingInterval) => {
+    // Clear existing interval
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
     }
     
-    const eventSource = new EventSource('/api/health/status-stream');
-    eventSourceRef.current = eventSource;
+    // Initial fetch
+    fetchHealthStatus().catch(() => {
+      // Error already handled in fetchHealthStatus
+    });
     
-    eventSource.onopen = () => {
-      setIsConnected(true);
-      setError(null);
-      reconnectAttemptsRef.current = 0;
-    };
-    
-    eventSource.onmessage = (event) => {
-      try {
-        const healthStatus: HealthStatus = JSON.parse(event.data);
-        setStatus(healthStatus);
-      } catch (err) {
-        console.error('❌ Error parsing health status data:', err);
-        setError('Error parsing status data');
+    // Set up polling interval
+    pollingIntervalRef.current = setInterval(() => {
+      if (isMountedRef.current) {
+        fetchHealthStatus().catch(() => {
+          // Error already handled in fetchHealthStatus
+        });
       }
-    };
-    
-    eventSource.onerror = (event) => {
-      console.error('❌ Health status stream error:', event);
-      setIsConnected(false);
-      
-      // Implement exponential backoff reconnection
-      if (reconnectAttemptsRef.current < maxReconnectAttempts) {
-        const delay = Math.min(
-          baseReconnectDelay * Math.pow(2, reconnectAttemptsRef.current),
-          30000 // Max 30 seconds
-        );
-        
-        reconnectTimeoutRef.current = setTimeout(() => {
-          reconnectAttemptsRef.current++;
-          connect();
-        }, delay);
-      } else {
-        console.error('❌ Max reconnection attempts reached for health status stream');
-        setError('Connection failed after multiple attempts');
-      }
-    };
-  };
+    }, interval);
+  }, [fetchHealthStatus]);
   
-  const reconnect = () => {
+  const stopPolling = useCallback(() => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+  }, []);
+  
+  const reconnect = useCallback(() => {
     reconnectAttemptsRef.current = 0;
     setError(null);
+    setLoading(true);
     
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
     }
     
-    connect();
-  };
+    // Try to fetch immediately
+    fetchHealthStatus()
+      .then(() => {
+        // Success, restart normal polling
+        startPolling(normalPollingInterval);
+      })
+      .catch(() => {
+        // Failed, implement exponential backoff
+        if (reconnectAttemptsRef.current < maxReconnectAttempts) {
+          const delay = Math.min(
+            baseReconnectDelay * Math.pow(2, reconnectAttemptsRef.current),
+            30000 // Max 30 seconds
+          );
+          
+          reconnectTimeoutRef.current = setTimeout(() => {
+            if (isMountedRef.current) {
+              reconnectAttemptsRef.current++;
+              reconnect();
+            }
+          }, delay);
+        } else {
+          console.error('❌ Max reconnection attempts reached for health status');
+          if (isMountedRef.current) {
+            setError('Connection failed after multiple attempts');
+            setLoading(false);
+          }
+        }
+      });
+  }, [fetchHealthStatus, startPolling]);
+  
+  // Handle visibility change for smart polling
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        // Page is not visible, slow down polling
+        startPolling(slowPollingInterval);
+      } else {
+        // Page is visible, use normal polling
+        startPolling(normalPollingInterval);
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [startPolling]);
   
   useEffect(() => {
-    connect();
+    isMountedRef.current = true;
+    
+    // Start polling
+    startPolling(normalPollingInterval);
     
     // Cleanup on unmount
     return () => {
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-      }
+      isMountedRef.current = false;
+      stopPolling();
       
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
       }
     };
-  }, []);
+  }, [startPolling, stopPolling]);
   
   return {
     status,
     isConnected,
     error,
-    reconnect
+    reconnect,
+    loading
   };
 }

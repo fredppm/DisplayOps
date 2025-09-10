@@ -4,7 +4,7 @@ import { createContextLogger } from '@/utils/logger';
 import { loadControllers, loadDashboards } from '@/lib/data-adapter';
 import { db } from '@/lib/database';
 
-const logger = createContextLogger('health-sse');
+const logger = createContextLogger('health-api');
 
 interface ControllerSyncStatus {
   controllerId: string;
@@ -76,18 +76,6 @@ interface HealthStatus {
   };
   timestamp: string;
 }
-
-// Global para manter as conexões SSE ativas
-const connections = new Set<NextApiResponse>();
-
-// Cleanup connections on process exit
-process.on('SIGINT', () => {
-  connections.forEach(res => {
-    try {
-      res.end();
-    } catch (e) {}
-  });
-});
 
 async function readControllersData(): Promise<any> {
   try {
@@ -339,162 +327,24 @@ async function getHealthStatus(): Promise<HealthStatus> {
   return result;
 }
 
-function broadcastToAllClients(data: HealthStatus) {
-  try {
-    const jsonData = JSON.stringify(data);
-    const message = `data: ${jsonData}\n\n`;
-    
-    connections.forEach(res => {
-      try {
-        res.write(message);
-        (res as any).flush && (res as any).flush(); // Force flush buffer
-      } catch (error) {
-        logger.error('Error writing to SSE client:', error);
-        connections.delete(res);
-      }
-    });
-  } catch (error) {
-    logger.error('Error serializing data for SSE:', error);
-  }
-}
-
-// Immediate broadcast function for critical events
-async function broadcastImmediate() {
-  if (connections.size === 0) {
-    return; // No clients to broadcast to
-  }
-  
-  try {
-    const status = await getHealthStatus();
-    broadcastToAllClients(status);
-    logger.debug('Immediate health status broadcast triggered', { 
-      clientsCount: connections.size,
-      timestamp: status.timestamp
-    });
-  } catch (error) {
-    logger.error('Error in immediate health status broadcast:', error);
-  }
-}
-
-// Timer global para broadcast periódico
-let broadcastTimer: NodeJS.Timeout | null = null;
-
-// Event-driven broadcasting - only broadcast when changes occur
-function setupEventDrivenBroadcasting() {
-  // Listen to gRPC server events for immediate broadcasts
-  const grpcServer = grpcServerSingleton;
-  
-  // Broadcast when controllers connect/disconnect
-  if ((grpcServer as any).on && typeof (grpcServer as any).on === 'function') {
-    (grpcServer as any).on('controller-connected', () => {
-      logger.info('Controller connected - broadcasting status update');
-      broadcastImmediate();
-    });
-    
-    (grpcServer as any).on('controller-disconnected', () => {
-      logger.info('Controller disconnected - broadcasting status update');
-      broadcastImmediate();
-    });
-  }
-  
-  // Minimal fallback timer only for edge cases (30 seconds instead of 3)
-  if (broadcastTimer) return;
-  
-  broadcastTimer = setInterval(async () => {
-    if (connections.size === 0) {
-      return;
-    }
-    
-    try {
-      const status = await getHealthStatus();
-      broadcastToAllClients(status);
-    } catch (error) {
-      logger.error('Error in fallback health status broadcast:', error);
-    }
-  }, 30000); // Fallback apenas a cada 30 segundos para edge cases
-}
-
-function stopEventDrivenBroadcasting() {
-  // Remove gRPC event listeners
-  const grpcServer = grpcServerSingleton;
-  if ((grpcServer as any).removeAllListeners && typeof (grpcServer as any).removeAllListeners === 'function') {
-    (grpcServer as any).removeAllListeners('controller-connected');
-    (grpcServer as any).removeAllListeners('controller-disconnected');
-  }
-  
-  // Stop fallback timer
-  if (broadcastTimer) {
-    clearInterval(broadcastTimer);
-    broadcastTimer = null;
-  }
-}
-
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  logger.info('New SSE client connecting to health status stream');
-
-  // Configure SSE headers
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
-    'Connection': 'keep-alive',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Cache-Control'
-  });
-
-  // Add this connection to active connections
-  connections.add(res);
-  
-  // Setup event-driven broadcasting if this is the first client
-  if (connections.size === 1) {
-    setupEventDrivenBroadcasting();
-  }
-
-  // Send initial status immediately
   try {
-    const initialStatus = await getHealthStatus();
-    const initialMessage = `data: ${JSON.stringify(initialStatus)}\n\n`;
-    res.write(initialMessage);
-    (res as any).flush && (res as any).flush(); // Force flush buffer
-    logger.info('Initial health status sent to new client');
+    const status = await getHealthStatus();
+    
+    // Set cache headers for efficient polling
+    res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+    res.setHeader('Content-Type', 'application/json');
+    
+    return res.status(200).json(status);
   } catch (error) {
-    logger.error('Error sending initial health status:', error);
+    logger.error('Error getting health status:', error);
+    return res.status(500).json({ 
+      error: 'Internal server error',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
   }
-
-  // Send heartbeat every 30 seconds
-  const heartbeatInterval = setInterval(() => {
-    try {
-      res.write(`: heartbeat ${Date.now()}\n\n`);
-      (res as any).flush && (res as any).flush(); // Force flush buffer
-    } catch (error) {
-      logger.error('Error sending heartbeat:', error);
-      clearInterval(heartbeatInterval);
-      connections.delete(res);
-    }
-  }, 30000);
-
-  // Handle client disconnect
-  req.on('close', () => {
-    logger.info('SSE client disconnected from health status stream');
-    clearInterval(heartbeatInterval);
-    connections.delete(res);
-    
-    // Stop event-driven broadcasting if no more clients
-    if (connections.size === 0) {
-      stopEventDrivenBroadcasting();
-    }
-  });
-
-  req.on('error', (error) => {
-    logger.error('SSE client error:', error);
-    clearInterval(heartbeatInterval);
-    connections.delete(res);
-    
-    if (connections.size === 0) {
-      stopEventDrivenBroadcasting();
-    }
-  });
 }

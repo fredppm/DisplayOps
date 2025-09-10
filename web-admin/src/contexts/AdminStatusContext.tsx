@@ -125,7 +125,7 @@ const AdminStatusContext = createContext<AdminStatusContextType | undefined>(und
 
 // Global singleton to survive Next.js hot reloads
 declare global {
-  var __adminStatusEventSource: EventSource | undefined;
+  var __adminStatusPollingInterval: NodeJS.Timeout | undefined;
 }
 
 export function AdminStatusProvider({ children }: { children: React.ReactNode }) {
@@ -136,97 +136,117 @@ export function AdminStatusProvider({ children }: { children: React.ReactNode })
   const [localAlerts, setLocalAlerts] = useState<SyncAlert[]>([]);
   const [loading, setLoading] = useState(true);
   
-  const eventSourceRef = useRef<EventSource | null>(null);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const previousStatusRef = useRef<AdminHealthStatus | null>(null);
+  const isMountedRef = useRef(true);
   
   const maxReconnectAttempts = 10;
   const baseReconnectDelay = 1000; // 1 second
+  const normalPollingInterval = 5000; // 5 seconds
+  const slowPollingInterval = 15000; // 15 seconds when inactive
   
-  const connect = useCallback(() => {
-    // Use global singleton to prevent multiple connections
-    if (global.__adminStatusEventSource && global.__adminStatusEventSource.readyState !== EventSource.CLOSED) {
-      eventSourceRef.current = global.__adminStatusEventSource;
-      setIsConnected(global.__adminStatusEventSource.readyState === EventSource.OPEN);
+  const fetchAdminStatus = useCallback(async () => {
+    try {
+      const response = await fetch('/api/health/status');
       
-      // Wait for connection to open if it's still connecting
-      if (global.__adminStatusEventSource.readyState === EventSource.CONNECTING) {
-        global.__adminStatusEventSource.onopen = () => {
-          setIsConnected(true);
-          setError(null);
-          setLoading(false);
-        };
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
       
-      // Re-attach event listeners to the existing connection
-      global.__adminStatusEventSource.onmessage = (event) => {
-        try {
-          const adminStatus: AdminHealthStatus = JSON.parse(event.data);
-          setStatus(adminStatus);
-          generateRealtimeAlerts(previousStatusRef.current, adminStatus);
-          previousStatusRef.current = adminStatus;
-        } catch (err) {
-          console.error('Error parsing admin status data:', err);
-          setError('Error parsing status data');
-        }
+      const healthStatus = await response.json();
+      
+      // Convert HealthStatus to AdminHealthStatus format
+      const adminStatus: AdminHealthStatus = {
+        overall: healthStatus.sync.overall,
+        controllers: {
+          total: healthStatus.controllers.total,
+          online: healthStatus.controllers.online,
+          syncUpToDate: healthStatus.controllers.syncUpToDate,
+          pendingDashboards: healthStatus.controllers.pendingDashboards,
+          pendingCookies: healthStatus.controllers.pendingCookies
+        },
+        data: healthStatus.data,
+        grpc: {
+          isRunning: healthStatus.grpc.isRunning,
+          connections: healthStatus.grpc.connections
+        },
+        controllersList: healthStatus.sync.controllers,
+        alerts: healthStatus.sync.alerts
       };
       
-      return;
-    }
-    
-    // Close existing connection
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
-    }
-    
-    const eventSource = new EventSource('/api/health/status-stream');
-    eventSourceRef.current = eventSource;
-    global.__adminStatusEventSource = eventSource;
-    
-    eventSource.onopen = () => {
-      setIsConnected(true);
-      setError(null);
-      setLoading(false);
-      reconnectAttemptsRef.current = 0;
-    };
-    
-    eventSource.onmessage = (event) => {
-      try {
-        const adminStatus: AdminHealthStatus = JSON.parse(event.data);
+      if (isMountedRef.current) {
         setStatus(adminStatus);
+        setIsConnected(true);
+        setError(null);
+        setLoading(false);
+        reconnectAttemptsRef.current = 0;
         
         // Generate real-time alerts similar to useSyncMonitor
         generateRealtimeAlerts(previousStatusRef.current, adminStatus);
         previousStatusRef.current = adminStatus;
-      } catch (err) {
-        console.error('Error parsing admin status data:', err);
-        setError('Error parsing status data');
       }
-    };
-    
-    eventSource.onerror = (event) => {
-      console.error('Admin status stream error:', event);
-      setIsConnected(false);
       
-      // Implement exponential backoff reconnection
-      if (reconnectAttemptsRef.current < maxReconnectAttempts) {
-        const delay = Math.min(
-          baseReconnectDelay * Math.pow(2, reconnectAttemptsRef.current),
-          30000 // Max 30 seconds
-        );
-        
-        reconnectTimeoutRef.current = setTimeout(() => {
-          reconnectAttemptsRef.current++;
-          connect();
-        }, delay);
-      } else {
-        console.error('Max reconnection attempts reached for admin status stream');
-        setError('Connection failed after multiple attempts');
+      return adminStatus;
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      console.error('❌ Error fetching admin status:', errorMessage);
+      
+      if (isMountedRef.current) {
+        setIsConnected(false);
+        setError(errorMessage);
         setLoading(false);
       }
-    };
+      
+      throw err;
+    }
   }, []);
+
+  const startPolling = useCallback((interval = normalPollingInterval) => {
+    // Use global singleton to prevent multiple polling intervals
+    if (global.__adminStatusPollingInterval) {
+      clearInterval(global.__adminStatusPollingInterval);
+    }
+    
+    // Clear local interval as well
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+    }
+    
+    // Initial fetch
+    fetchAdminStatus().catch(() => {
+      // Error already handled in fetchAdminStatus
+    });
+    
+    // Set up polling interval
+    const intervalId = setInterval(() => {
+      if (isMountedRef.current) {
+        fetchAdminStatus().catch(() => {
+          // Error already handled in fetchAdminStatus
+        });
+      }
+    }, interval);
+    
+    pollingIntervalRef.current = intervalId;
+    global.__adminStatusPollingInterval = intervalId;
+  }, [fetchAdminStatus]);
+
+  const stopPolling = useCallback(() => {
+    if (global.__adminStatusPollingInterval) {
+      clearInterval(global.__adminStatusPollingInterval);
+      global.__adminStatusPollingInterval = undefined;
+    }
+    
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+  }, []);
+
+  const connect = useCallback(() => {
+    startPolling(normalPollingInterval);
+  }, [startPolling]);
   
   const generateRealtimeAlerts = (prevStatus: AdminHealthStatus | null, newStatus: AdminHealthStatus) => {
     if (!prevStatus) return;
@@ -321,11 +341,38 @@ export function AdminStatusProvider({ children }: { children: React.ReactNode })
       clearTimeout(reconnectTimeoutRef.current);
     }
     
-    connect();
-  }, [connect]);
+    // Try to fetch immediately
+    fetchAdminStatus()
+      .then(() => {
+        // Success, restart normal polling
+        startPolling(normalPollingInterval);
+      })
+      .catch(() => {
+        // Failed, implement exponential backoff
+        if (reconnectAttemptsRef.current < maxReconnectAttempts) {
+          const delay = Math.min(
+            baseReconnectDelay * Math.pow(2, reconnectAttemptsRef.current),
+            30000 // Max 30 seconds
+          );
+          
+          reconnectTimeoutRef.current = setTimeout(() => {
+            if (isMountedRef.current) {
+              reconnectAttemptsRef.current++;
+              reconnect();
+            }
+          }, delay);
+        } else {
+          console.error('❌ Max reconnection attempts reached for admin status');
+          if (isMountedRef.current) {
+            setError('Connection failed after multiple attempts');
+            setLoading(false);
+          }
+        }
+      });
+  }, [fetchAdminStatus, startPolling]);
   
   const refresh = useCallback(async () => {
-    // For SSE, refresh means reconnect
+    // For polling, refresh means reconnect
     reconnect();
   }, [reconnect]);
   
@@ -337,6 +384,25 @@ export function AdminStatusProvider({ children }: { children: React.ReactNode })
     setLocalAlerts(prev => prev.filter(alert => alert.id !== alertId));
   }, []);
   
+  // Handle visibility change for smart polling
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        // Page is not visible, slow down polling
+        startPolling(slowPollingInterval);
+      } else {
+        // Page is visible, use normal polling
+        startPolling(normalPollingInterval);
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [startPolling]);
+
   useEffect(() => {
     // Initialize gRPC server on first provider mount (server-side only)
     if (typeof window === 'undefined') {
@@ -347,18 +413,19 @@ export function AdminStatusProvider({ children }: { children: React.ReactNode })
       });
     }
     
+    isMountedRef.current = true;
     connect();
     
-    // Cleanup on unmount - but don't close global connection
+    // Cleanup on unmount
     return () => {
+      isMountedRef.current = false;
+      stopPolling();
+      
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
       }
-      
-      // Don't close the global connection, just remove local reference
-      eventSourceRef.current = null;
     };
-  }, [connect]);
+  }, [connect, stopPolling]);
   
   // Create compatibility objects for existing components
   const healthChecksData = status ? {
