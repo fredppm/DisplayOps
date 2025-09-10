@@ -64,11 +64,11 @@ jobs:
           # Install dependencies without workspace conflicts
           npm install --no-workspaces
 
-      - name: Setup virtual display (Linux)
+      - name: Setup virtual display and Linux dependencies
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
-          sudo apt-get install -y xvfb
+          sudo apt-get install -y xvfb libnss3-dev libatk-bridge2.0-dev libdrm2 libxcomposite1 libxdamage1 libxrandr2 libgbm1 libxss1 libasound2-dev
           export DISPLAY=:99
           Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
 
@@ -103,6 +103,11 @@ jobs:
           ELECTRON_DISABLE_SANDBOX: 1
           # Additional Linux-specific flags
           DISPLAY: ":99"
+          # Electron build environment
+          USE_HARD_LINKS: false
+          # Prevent native module compilation issues
+          npm_config_cache: /tmp/.npm
+          npm_config_prefer_offline: true
 
       - name: List build artifacts
         shell: bash
