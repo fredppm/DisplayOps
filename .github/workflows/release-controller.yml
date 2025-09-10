@@ -102,6 +102,11 @@ jobs:
         working-directory: web-controller-electron
         run: |
           echo "Starting Linux build with sandbox disabled..."
+          echo "Checking web-controller build files..."
+          ls -la ../web-controller/.next/ || echo "No .next directory found"
+          ls -la ../web-controller/package.json || echo "No web-controller package.json found"
+          
+          echo "Building Electron app..."
           npm run build
           npm run dist:linux
         env:
@@ -124,7 +129,6 @@ jobs:
           find release -type f -name "*.exe" -o -name "*.dmg" -o -name "*.AppImage" -o -name "*.deb" 2>/dev/null || echo "No artifacts found"
 
       - name: Create Release with GitHub CLI
-        if: matrix.os == 'ubuntu-latest'  # Only run once
         working-directory: web-controller-electron
         run: |
           # Check if release already exists
@@ -144,9 +148,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Trigger Vercel deployment
-        if: matrix.os == 'ubuntu-latest'  # Only run once
+      - name: Release completed
         run: |
-          echo "Release created successfully!"
-          echo "Vercel will automatically deploy the updated API"
-          echo "Controller apps can now auto-update to v${{ steps.version.outputs.version }}"
+          echo "Release created successfully on ${{ matrix.os }}!"
+          echo "Apps can now auto-update to v${{ steps.version.outputs.version }}"
