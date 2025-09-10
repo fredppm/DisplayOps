@@ -13,6 +13,7 @@ export class SystemTrayManager {
   private onRefreshDisplaysCallback?: () => void;
   private onShowDebugOverlayCallback?: () => void;
   private onOpenCookieEditorCallback?: () => void;
+  private onCheckForUpdatesCallback?: () => void;
   
   // Preloaded icons cache to prevent missing images when system goes offline
   private preloadedIcons: Map<string, Electron.NativeImage> = new Map();
@@ -26,10 +27,12 @@ export class SystemTrayManager {
     onRefreshDisplays?: () => void;
     onShowDebugOverlay?: () => void;
     onOpenCookieEditor?: () => void;
+    onCheckForUpdates?: () => void;
   }): void {
     this.onRefreshDisplaysCallback = callbacks.onRefreshDisplays;
     this.onShowDebugOverlayCallback = callbacks.onShowDebugOverlay;
     this.onOpenCookieEditorCallback = callbacks.onOpenCookieEditor;
+    this.onCheckForUpdatesCallback = callbacks.onCheckForUpdates;
   }
 
   /**
@@ -445,6 +448,10 @@ export class SystemTrayManager {
         click: () => this.openCookieEditor()
       },
       {
+        label: 'Check for Updates',
+        click: () => this.checkForUpdates()
+      },
+      {
         type: 'separator'
       },
       {
@@ -523,6 +530,14 @@ export class SystemTrayManager {
     
     if (this.onOpenCookieEditorCallback) {
       this.onOpenCookieEditorCallback();
+    }
+  }
+
+  private checkForUpdates(): void {
+    logger.info('Check for Updates requested from system tray');
+    
+    if (this.onCheckForUpdatesCallback) {
+      this.onCheckForUpdatesCallback();
     }
   }
 
