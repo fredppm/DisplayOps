@@ -4,7 +4,7 @@ import { join } from 'path';
 import { EventEmitter } from 'events';
 import os from 'os';
 // Using proto-loader runtime types (no static TypeScript types)
-import { logger } from './logger';
+import { logger } from '../utils/logger';
 
 // Load protobuf definition
 const PROTO_PATH = join(process.cwd(), '..', 'shared', 'proto', 'controller-admin.proto');

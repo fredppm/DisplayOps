@@ -53,7 +53,7 @@ export const useHostDiscovery = (): UseHostDiscoveryReturn => {
             hostDiscoveryLogger.info('Host removed', { hostId: update.changedHost.id });
             break;
           case 'initial_load':
-            console.log('📋 Initial hosts loaded:', update.data?.length || 0);
+            hostDiscoveryLogger.info('Initial hosts loaded', { hostCount: update.data?.length || 0 });
             break;
         }
       }
@@ -64,7 +64,7 @@ export const useHostDiscovery = (): UseHostDiscoveryReturn => {
     // Connect to SSE service
     setIsDiscovering(true);
     sseService.connect().then((connected) => {
-      console.log('🔗 SSE connection result:', connected);
+      hostDiscoveryLogger.info('SSE connection result', { connected });
       setIsConnected(connected);
       setIsDiscovering(false);
       if (!connected) {
@@ -73,7 +73,7 @@ export const useHostDiscovery = (): UseHostDiscoveryReturn => {
         setConnectionError(null);
       }
     }).catch((error) => {
-      console.error('❌ SSE connection failed with exception:', error);
+      hostDiscoveryLogger.error('SSE connection failed with exception', error);
       setIsConnected(false);
       setIsDiscovering(false);
       setConnectionError(`SSE connection error: ${error.message}`);
@@ -84,7 +84,7 @@ export const useHostDiscovery = (): UseHostDiscoveryReturn => {
     
     // Cleanup function
     return () => {
-      console.log('🧹 Cleanup function called');
+      hostDiscoveryLogger.debug('Cleanup function called');
       if (handlerRef.current) {
         sseService.removeHandler(handlerRef.current);
       }
@@ -92,9 +92,9 @@ export const useHostDiscovery = (): UseHostDiscoveryReturn => {
   }, []);
 
   const requestHostsUpdate = () => {
-    console.log('📡 SSE Singleton connection is active, hosts update automatically');
+    hostDiscoveryLogger.debug('SSE Singleton connection is active, hosts update automatically');
     const status = sseService.getStatus();
-    console.log('📊 SSE Status:', status);
+    hostDiscoveryLogger.debug('SSE Status', status);
   };
 
   return {

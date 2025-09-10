@@ -668,7 +668,7 @@ export class GrpcClientService extends EventEmitter {
         const timeSinceHeartbeat = now.getTime() - connection.lastHeartbeat.getTime();
         
         if (timeSinceHeartbeat > this.heartbeatTimeout) {
-          console.warn(`⏰ gRPC: Host ${hostId} heartbeat timeout (${Math.round(timeSinceHeartbeat/1000)}s)`);
+          grpcClientLogger.warn(`gRPC: Host ${hostId} heartbeat timeout (${Math.round(timeSinceHeartbeat/1000)}s)`);
           this.handleStreamDisconnection(connection, 'heartbeat_timeout');
         }
       });

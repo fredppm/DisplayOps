@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Dashboard } from '@/types/shared-types';
 import { dashboardService } from '@/services/dashboardService';
+import { createContextLogger } from '@/utils/logger';
+
+const dashboardsLogger = createContextLogger('use-dashboards');
 
 export const useDashboards = () => {
   const [dashboards, setDashboards] = useState<Dashboard[]>([]);
@@ -15,7 +18,7 @@ export const useDashboards = () => {
       setDashboards(fetchedDashboards);
     } catch (err) {
       setError('Failed to load dashboards');
-      console.error('Error loading dashboards:', err);
+      dashboardsLogger.error('Error loading dashboards:', err);
     } finally {
       setLoading(false);
     }

@@ -45,7 +45,6 @@ const getContextLogLevel = (context: string): string => {
     'auto-init': process.env.LOG_AUTO_INIT_LEVEL || defaultLevel,
     'dashboard-manager': process.env.LOG_DASHBOARD_MANAGER_LEVEL || defaultLevel,
     'auth-manager': process.env.LOG_AUTH_MANAGER_LEVEL || defaultLevel,
-    'extension-dropdown': process.env.LOG_EXTENSION_DROPDOWN_LEVEL || defaultLevel,
     'api-discovery-events': debugLevel, // High-frequency events
     app: defaultLevel
   };

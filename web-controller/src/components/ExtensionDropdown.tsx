@@ -314,7 +314,7 @@ export const ExtensionDropdown: React.FC = () => {
                   <div className="w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-semibold flex-shrink-0">3</div>
                   <div>
                     <div className="font-medium text-gray-900 dark:text-gray-100">Enable developer mode</div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">Turn on "Developer mode" toggle in the top right corner</div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">Turn on &quot;Developer mode&quot; toggle in the top right corner</div>
                   </div>
                 </div>
 
@@ -322,7 +322,7 @@ export const ExtensionDropdown: React.FC = () => {
                   <div className="w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-semibold flex-shrink-0">4</div>
                   <div>
                     <div className="font-medium text-gray-900 dark:text-gray-100">Load extension</div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">Click "Load unpacked" and select the extracted folder</div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">Click &quot;Load unpacked&quot; and select the extracted folder</div>
                   </div>
                 </div>
               </div>

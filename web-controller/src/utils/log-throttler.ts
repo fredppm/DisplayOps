@@ -72,13 +72,6 @@ class LogThrottler {
     return false;
   }
 
-  getStats(): { key: string; count: number; message: string }[] {
-    return Array.from(this.entries.entries()).map(([key, entry]) => ({
-      key,
-      count: entry.count,
-      message: entry.message
-    }));
-  }
 
   private startSummaryTimer() {
     this.summaryTimer = setInterval(() => {
@@ -119,11 +112,6 @@ class LogThrottler {
     });
   }
 
-  destroy() {
-    if (this.summaryTimer) {
-      clearInterval(this.summaryTimer);
-    }
-  }
 }
 
 // Global throttler instance

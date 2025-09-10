@@ -90,10 +90,6 @@ export const useSSEHostDiscovery = (): UseSSEHostDiscoveryReturn => {
       setConnectionError(null);
     };
 
-    // Handle all messages, not just specific events
-    eventSource.onmessage = (event) => {
-      // Generic message handler (not used for typed events)
-    };
 
     // Handle hosts_update events specifically
     const handleHostsUpdate = (event: MessageEvent) => {
@@ -117,9 +113,6 @@ export const useSSEHostDiscovery = (): UseSSEHostDiscoveryReturn => {
       sseDiscoveryLogger.error('SSE error event', { event });
     });
 
-    eventSource.addEventListener('heartbeat', (event) => {
-      // Heartbeat received - connection alive
-    });
 
     eventSource.onerror = (error) => {
       isConnectingRef.current = false;

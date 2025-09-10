@@ -2,7 +2,6 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { discoveryService } from '@/lib/discovery-singleton';
 import { MiniPC, ApiResponse } from '@/types/shared-types';
 import { createContextLogger } from '@/utils/logger';
-// import { getGrpcHostManager } from '../grpc-manager'; // Temporarily disabled
 
 const discoveryApiLogger = createContextLogger('api-discovery');
 

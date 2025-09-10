@@ -1,5 +1,7 @@
 import { GrpcAdminClient, GrpcAdminClientConfig } from './grpc-admin-client';
-import { logger } from './logger';
+import { createContextLogger } from '../utils/logger';
+
+const logger = createContextLogger('grpc-client-singleton');
 
 class GrpcClientSingleton {
   private static instance: GrpcClientSingleton;

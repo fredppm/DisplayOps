@@ -466,7 +466,7 @@ export class WindowsDiscoveryService {
     };
 
     this.discoveredHosts.set(hostId, updatedHost);
-    console.debug(`🔄 gRPC Discovery: Host ${hostId} metrics updated`);
+    windowsDiscoveryLogger.debug(`gRPC Discovery: Host ${hostId} metrics updated`);
   }
 
   // ❌ REMOVED: All HTTP polling methods replaced with gRPC streaming

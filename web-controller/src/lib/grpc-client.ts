@@ -168,12 +168,12 @@ export class GrpcHostClient extends EventEmitter {
       });
 
       this.commandStream.on('error', (error: any) => {
-        console.error('gRPC command stream error:', error);
+        grpcClientLogger.error('gRPC command stream error:', error);
         this.commandStream = null;
       });
 
     } catch (error) {
-      console.error('Failed to start command stream:', error);
+      grpcClientLogger.error('Failed to start command stream:', error);
     }
   }
 
@@ -227,14 +227,14 @@ export class GrpcHostClient extends EventEmitter {
       this.reconnectAttempts++;
       const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1); // Exponential backoff
       
-      console.log(`Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts}) in ${delay}ms`);
+      grpcClientLogger.info(`Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts}) in ${delay}ms`);
       
       this.reconnectTimeout = setTimeout(() => {
         this.setupClient(); // Create new client
         this.connect();
       }, delay);
     } else {
-      console.error('Max reconnection attempts reached');
+      grpcClientLogger.error('Max reconnection attempts reached');
       this.emit('max_reconnect_attempts');
     }
   }
