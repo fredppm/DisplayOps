@@ -128,35 +128,7 @@ jobs:
             echo "Creating new release..."
             gh release create ${{ steps.version.outputs.tag_name }} \
               --title "DisplayOps Host Agent v${{ steps.version.outputs.version }}" \
-              --notes "## DisplayOps Host Agent v${{ steps.version.outputs.version }}
-
-### Changes
-- Auto-generated release from GitHub Actions
-
-### Downloads
-- **Windows:** .exe installer
-- **macOS:** .dmg installer  
-- **Linux:** .AppImage or .deb package
-
-### Installation
-1. Download the appropriate file for your platform
-2. Run the installer
-3. The app will auto-update from this point forward
-
-### System Requirements
-- **Windows:** Windows 10 or later
-- **macOS:** macOS 10.15 or later
-- **Linux:** Ubuntu 18.04 or equivalent
-
-### What's New
-- Host agent for DisplayOps Management System
-- Auto-discovery via mDNS
-- gRPC communication with Controller
-- System tray integration
-- Automatic updates
-
----
-Built with ❤️ by DisplayOps Team" \
+              --notes "Auto-generated release from GitHub Actions" \
               release/*.exe release/*.dmg release/*.AppImage release/*.deb 2>/dev/null || \
               gh release create ${{ steps.version.outputs.tag_name }} \
                 --title "DisplayOps Host Agent v${{ steps.version.outputs.version }}" \
