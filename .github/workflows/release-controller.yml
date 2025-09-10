@@ -63,10 +63,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: web-controller-electron
-        run: |
-          npm ci
-          # Ensure electron is properly installed with exact version
-          npx electron --version
+        run: npm ci
 
       - name: Build web-controller
         working-directory: web-controller
@@ -97,6 +94,8 @@ jobs:
           npm run dist:linux
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Disable sandbox for Linux CI environments
+          ELECTRON_DISABLE_SANDBOX: 1
 
       - name: List build artifacts
         shell: bash
