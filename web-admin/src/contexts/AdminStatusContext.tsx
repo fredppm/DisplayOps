@@ -1,5 +1,64 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
-import { AdminHealthStatus, ControllerSyncStatus, SyncAlert, HealthCheck } from '@/hooks/useAdminStatusStream';
+
+// Types for admin status
+interface AdminHealthStatus {
+  overall: 'healthy' | 'warning' | 'critical';
+  controllers: {
+    total: number;
+    online: number;
+    syncUpToDate: number;
+    pendingDashboards: number;
+    pendingCookies: number;
+  };
+  data: {
+    dashboards: {
+      total: number;
+      lastUpdated: string | null;
+    };
+    cookies: {
+      domains: number;
+      totalCookies: number;
+      lastUpdated: string | null;
+    };
+  };
+  grpc: {
+    isRunning: boolean;
+    connections: number;
+  };
+  controllersList: ControllerSyncStatus[];
+  alerts: SyncAlert[];
+}
+
+interface ControllerSyncStatus {
+  controllerId: string;
+  name: string;
+  status: 'online' | 'offline' | 'error';
+  isConnected: boolean;
+  lastSync: string;
+  dashboardSync: {
+    pending: boolean;
+    timestamp: string | null;
+  };
+  cookieSync: {
+    pending: boolean;
+    timestamp: string | null;
+  };
+}
+
+interface SyncAlert {
+  id: string;
+  type: 'warning' | 'error' | 'info';
+  title: string;
+  message: string;
+  timestamp: string;
+  controllerId?: string;
+}
+
+interface HealthCheck {
+  timestamp: string;
+  status: 'healthy' | 'warning' | 'critical';
+  details: any;
+}
 
 // Compatibility types for useAdminEvents
 interface ControllerData {
@@ -221,8 +280,8 @@ export function AdminStatusProvider({ children }: { children: React.ReactNode })
     // }
 
     // Check for health status changes
-    if (prevStatus.sync.overall !== newStatus.sync.overall) {
-      if (newStatus.sync.overall === 'healthy' && prevStatus.sync.overall !== 'healthy') {
+    if (prevStatus.overall !== newStatus.overall) {
+      if (newStatus.overall === 'healthy' && prevStatus.overall !== 'healthy') {
         newAlerts.push({
           id: `system-healthy-${Date.now()}`,
           type: 'info',
@@ -230,7 +289,7 @@ export function AdminStatusProvider({ children }: { children: React.ReactNode })
           message: 'All systems are now operating normally',
           timestamp: new Date().toISOString()
         });
-      } else if (newStatus.sync.overall === 'critical') {
+      } else if (newStatus.overall === 'critical') {
         newAlerts.push({
           id: `system-critical-${Date.now()}`,
           type: 'error',
@@ -305,20 +364,20 @@ export function AdminStatusProvider({ children }: { children: React.ReactNode })
   const healthChecksData = status ? {
     success: true,
     data: {
-      checks: status.healthChecks.checks,
-      overallStatus: status.healthChecks.overallStatus
+      checks: [],
+      overallStatus: status.overall
     },
-    timestamp: status.timestamp
+    timestamp: new Date().toISOString()
   } : null;
   
   // Combine SSE alerts with local alerts
   const allAlerts = [
-    ...(status?.sync.alerts || []),
+    ...(status?.alerts || []),
     ...localAlerts
   ];
   
   // Convert SSE data to useAdminEvents format
-  const controllers: ControllerData[] = status?.sync.controllers.map(controller => ({
+  const controllers: ControllerData[] = status?.controllersList?.map(controller => ({
     id: controller.controllerId,
     name: controller.name,
     lastHeartbeat: controller.lastSync,
@@ -331,16 +390,16 @@ export function AdminStatusProvider({ children }: { children: React.ReactNode })
     {
       id: 'site-1',
       name: 'Default Site',
-      status: status?.sync.overall === 'healthy' ? 'healthy' : 
-             status?.sync.overall === 'warning' ? 'unknown' : 'unhealthy',
+      status: status?.overall === 'healthy' ? 'healthy' : 
+             status?.overall === 'warning' ? 'unknown' : 'unhealthy',
       controllers: controllers.map(c => c.id)
     }
   ];
   
   // Calculate system health in useAdminEvents format
   const systemHealth: SystemHealth | null = status ? {
-    status: status.sync.overall === 'healthy' ? 'healthy' :
-            status.sync.overall === 'warning' ? 'degraded' : 'critical',
+    status: status.overall === 'healthy' ? 'healthy' :
+            status.overall === 'warning' ? 'degraded' : 'critical',
     controllers: {
       online: status.controllers.online,
       total: status.controllers.total,

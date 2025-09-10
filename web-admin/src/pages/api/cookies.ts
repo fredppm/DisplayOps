@@ -1,80 +1,9 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { createContextLogger } from '@/utils/logger';
 import { grpcServerSingleton } from '@/lib/grpc-server-singleton';
-import fs from 'fs';
-import path from 'path';
-
-const COOKIES_FILE = path.join(process.cwd(), 'data', 'cookies.json');
+import { loadCookies, saveCookie, deleteCookie, Cookie, CookiesData } from '@/lib/data-adapter';
 
 const cookiesApiLogger = createContextLogger('api-cookies');
-
-export interface Cookie {
-  name: string;
-  value: string;
-  domain: string;
-  path: string;
-  secure: boolean;
-  httpOnly: boolean;
-  sameSite: string;
-  expirationDate: number; // Unix timestamp, 0 = session cookie
-  description?: string;
-}
-
-export interface CookieDomain {
-  domain: string;
-  description: string;
-  cookies: Cookie[];
-  lastUpdated: string;
-}
-
-export interface CookiesData {
-  domains: { [domain: string]: CookieDomain };
-  lastUpdated: string;
-}
-
-// Ensure data directory exists
-const ensureDataDirectory = () => {
-  const dataDir = path.dirname(COOKIES_FILE);
-  if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true });
-  }
-};
-
-// Load cookies from file
-const loadCookies = (): CookiesData => {
-  try {
-    ensureDataDirectory();
-    
-    if (!fs.existsSync(COOKIES_FILE)) {
-      // Initialize with empty structure
-      const defaultCookies: CookiesData = {
-        domains: {},
-        lastUpdated: new Date().toISOString()
-      };
-      
-      saveCookies(defaultCookies);
-      return defaultCookies;
-    }
-    
-    const data = fs.readFileSync(COOKIES_FILE, 'utf8');
-    return JSON.parse(data);
-  } catch (error) {
-    cookiesApiLogger.error('Error loading cookies', { error: error instanceof Error ? error.message : String(error) });
-    return { domains: {}, lastUpdated: new Date().toISOString() };
-  }
-};
-
-// Save cookies to file
-const saveCookies = (cookiesData: CookiesData): void => {
-  try {
-    ensureDataDirectory();
-    cookiesData.lastUpdated = new Date().toISOString();
-    fs.writeFileSync(COOKIES_FILE, JSON.stringify(cookiesData, null, 2), 'utf8');
-  } catch (error) {
-    cookiesApiLogger.error('Error saving cookies', { error: error instanceof Error ? error.message : String(error) });
-    throw new Error('Failed to save cookies');
-  }
-};
 
 // Validate cookie data
 const validateCookie = (data: any): data is Omit<Cookie, 'description'> => {
@@ -107,7 +36,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     switch (req.method) {
       case 'GET':
         // List all cookies by domain
-        const cookiesData = loadCookies();
+        const cookiesData = await loadCookies();
         return res.status(200).json({
           success: true,
           data: cookiesData
@@ -124,40 +53,14 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           });
         }
 
-        const currentCookies = loadCookies();
-        
-        // Ensure domain exists
-        if (!currentCookies.domains[domain]) {
-          currentCookies.domains[domain] = {
-            domain,
-            description: req.body.domainDescription || `Cookies for ${domain}`,
-            cookies: [],
-            lastUpdated: new Date().toISOString()
-          };
-        }
-
-        // Check for duplicate cookie names in the same domain
-        const existingCookieIndex = currentCookies.domains[domain].cookies.findIndex(
-          c => c.name === cookie.name
-        );
-
         const newCookie: Cookie = {
           ...cookie,
-          description: cookie.description || `Cookie ${cookie.name} for ${domain}`
+          description: (cookie as any).description || `Cookie ${cookie.name} for ${domain}`
         };
 
-        if (existingCookieIndex >= 0) {
-          // Update existing cookie
-          currentCookies.domains[domain].cookies[existingCookieIndex] = newCookie;
-          cookiesApiLogger.info('Cookie updated', { domain, cookieName: cookie.name });
-        } else {
-          // Add new cookie
-          currentCookies.domains[domain].cookies.push(newCookie);
-          cookiesApiLogger.info('Cookie added', { domain, cookieName: cookie.name });
-        }
-
-        currentCookies.domains[domain].lastUpdated = new Date().toISOString();
-        saveCookies(currentCookies);
+        // Save cookie to PostgreSQL
+        await saveCookie(domain, newCookie);
+        cookiesApiLogger.info('Cookie saved', { domain, cookieName: cookie.name });
 
         // Trigger sync to all controllers
         await triggerCookieSync();
@@ -181,18 +84,13 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           });
         }
 
-        const cookiesToUpdate = loadCookies();
-        
-        if (!cookiesToUpdate.domains[updateDomain]) {
+        // Check if domain exists by loading cookies
+        const currentCookies = await loadCookies();
+        if (!currentCookies.domains[updateDomain]) {
           return res.status(404).json({
             success: false,
             error: 'Domain not found'
           });
-        }
-
-        // Update description if provided
-        if (description) {
-          cookiesToUpdate.domains[updateDomain].description = description;
         }
 
         // Update cookies if provided
@@ -207,21 +105,27 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
             }
           }
           
-          cookiesToUpdate.domains[updateDomain].cookies = cookies.map(c => ({
-            ...c,
-            description: c.description || `Cookie ${c.name} for ${updateDomain}`
-          }));
+          // Delete all existing cookies for this domain first
+          await deleteCookie(updateDomain);
+          
+          // Add all new cookies
+          for (const cookie of cookies) {
+            const cookieWithDescription = {
+              ...cookie,
+              description: cookie.description || `Cookie ${cookie.name} for ${updateDomain}`
+            };
+            await saveCookie(updateDomain, cookieWithDescription);
+          }
         }
-
-        cookiesToUpdate.domains[updateDomain].lastUpdated = new Date().toISOString();
-        saveCookies(cookiesToUpdate);
 
         // Trigger sync to all controllers
         await triggerCookieSync();
 
+        // Return updated domain data
+        const updatedCookies = await loadCookies();
         return res.status(200).json({
           success: true,
-          data: cookiesToUpdate.domains[updateDomain]
+          data: updatedCookies.domains[updateDomain]
         });
 
       case 'DELETE':
@@ -235,9 +139,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           });
         }
 
-        const cookiesToDelete = loadCookies();
-        
-        if (!cookiesToDelete.domains[deleteDomain]) {
+        // Check if domain exists
+        const cookiesBeforeDelete = await loadCookies();
+        if (!cookiesBeforeDelete.domains[deleteDomain]) {
           return res.status(404).json({
             success: false,
             error: 'Domain not found'
@@ -246,40 +150,42 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
         if (cookieName && typeof cookieName === 'string') {
           // Delete specific cookie
-          const cookieIndex = cookiesToDelete.domains[deleteDomain].cookies.findIndex(
-            c => c.name === cookieName
-          );
+          const domainCookies = cookiesBeforeDelete.domains[deleteDomain].cookies;
+          const cookieToDelete = domainCookies.find(c => c.name === cookieName);
           
-          if (cookieIndex === -1) {
+          if (!cookieToDelete) {
             return res.status(404).json({
               success: false,
               error: 'Cookie not found'
             });
           }
 
-          const deletedCookie = cookiesToDelete.domains[deleteDomain].cookies[cookieIndex];
-          cookiesToDelete.domains[deleteDomain].cookies.splice(cookieIndex, 1);
-          cookiesToDelete.domains[deleteDomain].lastUpdated = new Date().toISOString();
-
-          // If no more cookies, remove domain
-          if (cookiesToDelete.domains[deleteDomain].cookies.length === 0) {
-            delete cookiesToDelete.domains[deleteDomain];
+          const deleted = await deleteCookie(deleteDomain, cookieName);
+          if (!deleted) {
+            return res.status(500).json({
+              success: false,
+              error: 'Failed to delete cookie'
+            });
           }
-
-          saveCookies(cookiesToDelete);
           
           // Trigger sync to all controllers
           await triggerCookieSync();
 
           return res.status(200).json({
             success: true,
-            data: { deletedCookie, domain: deleteDomain }
+            data: { deletedCookie: cookieToDelete, domain: deleteDomain }
           });
         } else {
           // Delete entire domain
-          const deletedDomain = cookiesToDelete.domains[deleteDomain];
-          delete cookiesToDelete.domains[deleteDomain];
-          saveCookies(cookiesToDelete);
+          const deletedDomain = cookiesBeforeDelete.domains[deleteDomain];
+          const deleted = await deleteCookie(deleteDomain);
+          
+          if (!deleted) {
+            return res.status(500).json({
+              success: false,
+              error: 'Failed to delete domain'
+            });
+          }
 
           // Trigger sync to all controllers
           await triggerCookieSync();

@@ -57,7 +57,7 @@ const logger = winston ? winston.createLogger({
       format: winston.format.combine(
         winston.format.colorize(),
         winston.format.timestamp({ format: 'HH:mm:ss' }),
-        winston.format.printf(({ timestamp, level, message, context, ...meta }) => {
+        winston.format.printf(({ timestamp, level, message, context, ...meta }: any) => {
           const contextStr = context ? `[${context}]` : '';
           const metaStr = Object.keys(meta).length > 0 ? ` ${JSON.stringify(meta)}` : '';
           return `${timestamp} ${level}${contextStr}: ${message}${metaStr}`;
@@ -65,18 +65,20 @@ const logger = winston ? winston.createLogger({
       )
     }),
     
-    // Write logs to files
-    new winston.transports.File({ 
-      filename: 'logs/error.log', 
-      level: 'error',
-      maxsize: 5242880, // 5MB
-      maxFiles: 5
-    }),
-    new winston.transports.File({ 
-      filename: 'logs/combined.log',
-      maxsize: 5242880, // 5MB
-      maxFiles: 5
-    })
+    // Only write to files in development (Vercel doesn't allow file writes)
+    ...(process.env.NODE_ENV !== 'production' ? [
+      new winston.transports.File({ 
+        filename: 'logs/error.log', 
+        level: 'error',
+        maxsize: 5242880, // 5MB
+        maxFiles: 5
+      }),
+      new winston.transports.File({ 
+        filename: 'logs/combined.log',
+        maxsize: 5242880, // 5MB
+        maxFiles: 5
+      })
+    ] : [])
   ],
   
   // Don't exit on uncaught exceptions
@@ -84,7 +86,7 @@ const logger = winston ? winston.createLogger({
 }) : createClientLogger();
 
 // Handle uncaught exceptions and unhandled rejections (server-side only)
-if (typeof window === 'undefined' && winston) {
+if (typeof window === 'undefined' && winston && process.env.NODE_ENV !== 'production') {
   logger.exceptions.handle(
     new winston.transports.File({ filename: 'logs/exceptions.log' })
   );

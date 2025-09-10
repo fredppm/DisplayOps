@@ -1,13 +1,10 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { grpcServerSingleton } from '@/lib/grpc-server-singleton';
-import fs from 'fs/promises';
-import path from 'path';
 import { createContextLogger } from '@/utils/logger';
+import { loadControllers, loadDashboards } from '@/lib/data-adapter';
+import { db } from '@/lib/database';
 
 const logger = createContextLogger('health-sse');
-const CONTROLLERS_FILE = path.join(process.cwd(), 'data', 'controllers.json');
-const DASHBOARDS_FILE = path.join(process.cwd(), 'data', 'dashboards.json');
-const COOKIES_FILE = path.join(process.cwd(), 'data', 'cookies.json');
 
 interface ControllerSyncStatus {
   controllerId: string;
@@ -94,37 +91,67 @@ process.on('SIGINT', () => {
 
 async function readControllersData(): Promise<any> {
   try {
-    const data = await fs.readFile(CONTROLLERS_FILE, 'utf-8');
-    const parsed = JSON.parse(data);
+    const controllers = await loadControllers();
     
     // Apply the same status calculation logic as ControllersRepository
     const { calculateControllersStatus } = await import('@/lib/controller-status');
-    const controllersWithStatus = calculateControllersStatus(parsed.controllers || []);
+    const controllersWithStatus = calculateControllersStatus(controllers as any || []);
     
     return { controllers: controllersWithStatus };
   } catch (error) {
-    logger.error('Error reading controllers data', { error: error.message, file: CONTROLLERS_FILE });
+    logger.error('Error reading controllers data', { error: (error as Error).message });
     return { controllers: [] };
   }
 }
 
 async function readDashboardsData(): Promise<any> {
   try {
-    const data = await fs.readFile(DASHBOARDS_FILE, 'utf-8');
-    const parsed = JSON.parse(data);
-    return Array.isArray(parsed) ? parsed : parsed.dashboards || [];
+    const dashboards = await loadDashboards();
+    return dashboards || [];
   } catch (error) {
-    logger.error('Error reading dashboards data', { error: error.message, file: DASHBOARDS_FILE });
+    logger.error('Error reading dashboards data', { error: (error as Error).message });
     return [];
   }
 }
 
 async function readCookiesData(): Promise<any> {
   try {
-    const data = await fs.readFile(COOKIES_FILE, 'utf-8');
-    return JSON.parse(data);
+    // Query cookies from PostgreSQL
+    const result = await db.query(`
+      SELECT domain, name, value, path, secure, http_only, same_site, 
+             expiration_date, description, created_at, updated_at
+      FROM cookies 
+      ORDER BY domain, name
+    `);
+    
+    // Group cookies by domain
+    const domains: any = {};
+    result.rows.forEach((cookie: any) => {
+      if (!domains[cookie.domain]) {
+        domains[cookie.domain] = {
+          domain: cookie.domain,
+          description: `Cookies for ${cookie.domain}`,
+          cookies: [],
+          lastUpdated: cookie.updated_at?.toISOString() || cookie.created_at?.toISOString()
+        };
+      }
+      
+      domains[cookie.domain].cookies.push({
+        name: cookie.name,
+        value: cookie.value,
+        domain: cookie.domain,
+        path: cookie.path,
+        secure: cookie.secure,
+        httpOnly: cookie.http_only,
+        sameSite: cookie.same_site,
+        expirationDate: cookie.expiration_date,
+        description: cookie.description
+      });
+    });
+    
+    return { domains, lastUpdated: new Date().toISOString() };
   } catch (error) {
-    logger.error('Error reading cookies data', { error: error.message, file: COOKIES_FILE });
+    logger.error('Error reading cookies data', { error: (error as Error).message });
     return { domains: {}, lastUpdated: null };
   }
 }
@@ -320,7 +347,7 @@ function broadcastToAllClients(data: HealthStatus) {
     connections.forEach(res => {
       try {
         res.write(message);
-        res.flush && res.flush(); // Force flush buffer
+        (res as any).flush && (res as any).flush(); // Force flush buffer
       } catch (error) {
         logger.error('Error writing to SSE client:', error);
         connections.delete(res);
@@ -358,13 +385,13 @@ function setupEventDrivenBroadcasting() {
   const grpcServer = grpcServerSingleton;
   
   // Broadcast when controllers connect/disconnect
-  if (grpcServer.on && typeof grpcServer.on === 'function') {
-    grpcServer.on('controller-connected', () => {
+  if ((grpcServer as any).on && typeof (grpcServer as any).on === 'function') {
+    (grpcServer as any).on('controller-connected', () => {
       logger.info('Controller connected - broadcasting status update');
       broadcastImmediate();
     });
     
-    grpcServer.on('controller-disconnected', () => {
+    (grpcServer as any).on('controller-disconnected', () => {
       logger.info('Controller disconnected - broadcasting status update');
       broadcastImmediate();
     });
@@ -390,9 +417,9 @@ function setupEventDrivenBroadcasting() {
 function stopEventDrivenBroadcasting() {
   // Remove gRPC event listeners
   const grpcServer = grpcServerSingleton;
-  if (grpcServer.removeAllListeners && typeof grpcServer.removeAllListeners === 'function') {
-    grpcServer.removeAllListeners('controller-connected');
-    grpcServer.removeAllListeners('controller-disconnected');
+  if ((grpcServer as any).removeAllListeners && typeof (grpcServer as any).removeAllListeners === 'function') {
+    (grpcServer as any).removeAllListeners('controller-connected');
+    (grpcServer as any).removeAllListeners('controller-disconnected');
   }
   
   // Stop fallback timer
@@ -431,7 +458,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const initialStatus = await getHealthStatus();
     const initialMessage = `data: ${JSON.stringify(initialStatus)}\n\n`;
     res.write(initialMessage);
-    res.flush && res.flush(); // Force flush buffer
+    (res as any).flush && (res as any).flush(); // Force flush buffer
     logger.info('Initial health status sent to new client');
   } catch (error) {
     logger.error('Error sending initial health status:', error);
@@ -441,7 +468,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const heartbeatInterval = setInterval(() => {
     try {
       res.write(`: heartbeat ${Date.now()}\n\n`);
-      res.flush && res.flush(); // Force flush buffer
+      (res as any).flush && (res as any).flush(); // Force flush buffer
     } catch (error) {
       logger.error('Error sending heartbeat:', error);
       clearInterval(heartbeatInterval);

@@ -50,7 +50,7 @@ interface SyncStatusData {
     isRunning: boolean;
     connections: number;
   };
-  controllers: ControllerSyncStatus[];
+  controllersList: ControllerSyncStatus[];
   alerts: SyncAlert[];
 }
 
@@ -98,7 +98,7 @@ const formatTimestamp = (timestamp: string): string => {
 };
 
 export default function SyncStatusCard() {
-  const { syncStatus, alerts, loading, error, refresh } = useAdminStatus();
+  const { syncStatus, alerts: adminAlerts, loading, error, refresh } = useAdminStatus();
   const [showAlerts, setShowAlerts] = useState(false);
   const [showControllers, setShowControllers] = useState(false);
 
@@ -137,8 +137,7 @@ export default function SyncStatusCard() {
     return null;
   }
 
-  const { sync, controllers, data, grpc } = syncStatus;
-  const { overall, alerts } = sync;
+  const { overall, controllers, data, grpc, controllersList, alerts } = syncStatus;
 
   return (
     <div className="bg-white dark:bg-gray-800 shadow rounded-lg border border-gray-200 dark:border-gray-600">
@@ -180,7 +179,7 @@ export default function SyncStatusCard() {
           <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
             <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Alerts</div>
             <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-              {alerts.length}
+              {adminAlerts.length}
             </div>
             <div className="text-xs text-gray-500 dark:text-gray-400">Active</div>
           </div>
@@ -236,12 +235,12 @@ export default function SyncStatusCard() {
 
         {/* Action Buttons */}
         <div className="flex flex-wrap gap-3">
-          {alerts.length > 0 && (
+          {adminAlerts.length > 0 && (
             <button
               onClick={() => setShowAlerts(!showAlerts)}
               className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded text-sm flex items-center gap-2"
             >
-              ⚠️ View Alerts ({alerts.length})
+              ⚠️ View Alerts ({adminAlerts.length})
             </button>
           )}
           
@@ -261,11 +260,11 @@ export default function SyncStatusCard() {
         </div>
 
         {/* Alerts Details */}
-        {showAlerts && alerts.length > 0 && (
+        {showAlerts && adminAlerts.length > 0 && (
           <div className="mt-6 border-t border-gray-200 dark:border-gray-600 pt-6">
             <h3 className="font-medium text-gray-900 dark:text-gray-100 mb-4">Active Alerts</h3>
             <div className="space-y-3">
-              {alerts.map((alert) => (
+              {adminAlerts.map((alert) => (
                 <div key={alert.id} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
                   <div className="flex items-start gap-3">
                     <span className="text-lg">{getAlertIcon(alert.type)}</span>
@@ -295,7 +294,7 @@ export default function SyncStatusCard() {
           <div className="mt-6 border-t border-gray-200 dark:border-gray-600 pt-6">
             <h3 className="font-medium text-gray-900 dark:text-gray-100 mb-4">Controllers Status</h3>
             <div className="space-y-3">
-              {sync.controllers.map((controller) => (
+              {controllersList.map((controller: ControllerSyncStatus) => (
                 <div key={controller.controllerId} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">

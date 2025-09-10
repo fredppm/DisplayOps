@@ -1,0 +1,39 @@
+# Development files
+.env.local
+.env.development
+.env.example
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Testing
+tests
+jest.config.js
+jest.setup.js
+coverage
+
+# Development dependencies
+.cursor
+node_modules/.cache
+
+# Data directory (runtime generated)
+data/controllers.json
+data/sites.json
+
+# Build artifacts
+.next/cache
+tsconfig.tsbuildinfo
+
+# Scripts (development only)
+scripts/create-admin.js
+scripts/create-all-users.js
+scripts/run-tests.js
+
+# Documentation
+README.md
+docs/

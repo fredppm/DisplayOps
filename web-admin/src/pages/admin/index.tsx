@@ -464,8 +464,8 @@ export const getServerSideProps: GetServerSideProps = async () => {
     // Preparar dados do dashboard
     const dashboardData: AdminDashboardData = {
       users,
-      sites,
-      controllers
+      sites: sites as any,
+      controllers: controllers as any
     };
     
     return {

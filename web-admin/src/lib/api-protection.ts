@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { verifyToken, AuthUser } from './auth';
+import { verifyToken, AuthUser } from './auth-postgres';
 import { hasPermission, Permission } from './permissions';
 
 export interface ProtectedApiRequest extends NextApiRequest {

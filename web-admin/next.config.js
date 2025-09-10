@@ -8,6 +8,8 @@ const nextConfig = {
   env: {
     CUSTOM_KEY: 'office-tv-controller'
   },
+  output: 'standalone',
+  trailingSlash: false,
   async headers() {
     return [
       {

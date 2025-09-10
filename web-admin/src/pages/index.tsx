@@ -1,6 +1,6 @@
 import React from 'react';
 import { GetServerSideProps, NextPage } from 'next';
-import { verifyToken } from '@/lib/auth';
+import { verifyToken } from '@/lib/auth-postgres';
 
 // Esta página nunca é renderizada - apenas redireciona no servidor
 const HomePage: NextPage = () => {

@@ -349,7 +349,7 @@ export class ControllerAdminGrpcServer extends EventEmitter {
 
     let controllerConnection: ControllerConnection | null = null;
 
-    stream.on('data', async (heartbeat: ControllerHeartbeat) => {
+    stream.on('data', async (heartbeat: any) => {
       try {
         await this.processHeartbeat(heartbeat, stream, connectionId);
         
@@ -748,7 +748,7 @@ export class ControllerAdminGrpcServer extends EventEmitter {
     const syncTimestamp = new Date().toISOString();
 
     // Marcar todos os controllers como pending
-    controllersData.controllers.forEach(controller => {
+    controllersData.controllers.forEach((controller: any) => {
       controller.pendingDashboardSync = true;
       controller.dashboardSyncTimestamp = syncTimestamp;
     });
@@ -835,7 +835,7 @@ export class ControllerAdminGrpcServer extends EventEmitter {
     const CONTROLLERS_FILE = path.join(process.cwd(), 'data', 'controllers.json');
     const controllersData = await this.readControllersData(CONTROLLERS_FILE);
     
-    const controller = controllersData.controllers.find(c => c.id === controllerId);
+    const controller: any = controllersData.controllers.find(c => c.id === controllerId);
     if (!controller || !controller.pendingDashboardSync) {
       return; // Nenhum sync pendente
     }
@@ -897,7 +897,7 @@ export class ControllerAdminGrpcServer extends EventEmitter {
     const CONTROLLERS_FILE = path.join(process.cwd(), 'data', 'controllers.json');
     const controllersData = await this.readControllersData(CONTROLLERS_FILE);
     
-    const controller = controllersData.controllers.find(c => c.id === controllerId);
+    const controller: any = controllersData.controllers.find(c => c.id === controllerId);
     if (controller) {
       controller.pendingDashboardSync = false;
       controller.dashboardSyncTimestamp = null;
@@ -935,7 +935,7 @@ export class ControllerAdminGrpcServer extends EventEmitter {
     const syncTimestamp = new Date().toISOString();
 
     // Marcar todos os controllers como pending cookie sync
-    controllersData.controllers.forEach(controller => {
+    controllersData.controllers.forEach((controller: any) => {
       controller.pendingCookieSync = true;
       controller.cookieSyncTimestamp = syncTimestamp;
     });
@@ -956,10 +956,10 @@ export class ControllerAdminGrpcServer extends EventEmitter {
     const syncTimestamp = new Date().toISOString();
 
     // Convert cookies data to gRPC format
-    const cookieDomains = Object.values(cookiesData.domains).map(domain => ({
+    const cookieDomains = Object.values(cookiesData.domains).map((domain: any) => ({
       domain: domain.domain,
       description: domain.description,
-      cookies: domain.cookies.map(cookie => ({
+      cookies: domain.cookies.map((cookie: any) => ({
         name: cookie.name,
         value: cookie.value,
         domain: cookie.domain,
@@ -1032,7 +1032,7 @@ export class ControllerAdminGrpcServer extends EventEmitter {
     const CONTROLLERS_FILE = path.join(process.cwd(), 'data', 'controllers.json');
     const controllersData = await this.readControllersData(CONTROLLERS_FILE);
     
-    const controller = controllersData.controllers.find(c => c.id === controllerId);
+    const controller: any = controllersData.controllers.find(c => c.id === controllerId);
     if (!controller || !controller.pendingCookieSync) {
       return; // Nenhum sync pendente
     }
@@ -1051,10 +1051,10 @@ export class ControllerAdminGrpcServer extends EventEmitter {
       const syncTimestamp = new Date().toISOString();
 
       // Convert cookies data to gRPC format
-      const cookieDomains = Object.values(cookiesData.domains).map(domain => ({
+      const cookieDomains = Object.values(cookiesData.domains).map((domain: any) => ({
         domain: domain.domain,
         description: domain.description,
-        cookies: domain.cookies.map(cookie => ({
+        cookies: domain.cookies.map((cookie: any) => ({
           name: cookie.name,
           value: cookie.value,
           domain: cookie.domain,
@@ -1104,7 +1104,7 @@ export class ControllerAdminGrpcServer extends EventEmitter {
     const CONTROLLERS_FILE = path.join(process.cwd(), 'data', 'controllers.json');
     const controllersData = await this.readControllersData(CONTROLLERS_FILE);
     
-    const controller = controllersData.controllers.find(c => c.id === controllerId);
+    const controller: any = controllersData.controllers.find(c => c.id === controllerId);
     if (controller) {
       controller.pendingCookieSync = false;
       controller.cookieSyncTimestamp = null;

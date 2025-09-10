@@ -73,7 +73,7 @@ const HealthPage: NextPage = () => {
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-900 dark:text-gray-100">Port:</span>
-                <span className="text-gray-900 dark:text-gray-100">{healthStatus?.grpc.port || 'N/A'}</span>
+                <span className="text-gray-900 dark:text-gray-100">50052</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-900 dark:text-gray-100">Connections:</span>
@@ -99,13 +99,13 @@ const HealthPage: NextPage = () => {
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-900 dark:text-gray-100">Connected:</span>
-                <span className={`font-semibold ${getConnectionStatusColor(healthStatus?.controllers.connected || 0)}`}>
-                  {healthStatus?.controllers.connected || 0}
+                <span className={`font-semibold ${getConnectionStatusColor(healthStatus?.controllers.online || 0)}`}>
+                  {healthStatus?.controllers.online || 0}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-900 dark:text-gray-100">Offline:</span>
-                <span className="text-gray-600">{healthStatus?.controllers.offline || 0}</span>
+                <span className="text-gray-600">{(healthStatus?.controllers.total || 0) - (healthStatus?.controllers.online || 0)}</span>
               </div>
             </div>
           </div>
@@ -151,7 +151,7 @@ const HealthPage: NextPage = () => {
                     Last update received
                   </span>
                   <div className="text-xs text-gray-500">
-                    {new Date(healthStatus.timestamp).toLocaleString()}
+                    {new Date().toLocaleString()}
                   </div>
                 </div>
               </div>

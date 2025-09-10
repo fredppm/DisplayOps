@@ -1,4 +1,4 @@
-import { AuthUser } from './auth';
+import { AuthUser } from './auth-postgres';
 
 export type Permission = 
   // Sites permissions

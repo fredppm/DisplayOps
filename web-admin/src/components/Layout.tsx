@@ -31,29 +31,31 @@ const LayoutContent: React.FC<LayoutProps> = ({ children }) => {
 
   // Generate alerts from SSE data
   useEffect(() => {
-    if (!sseStatus) return;
+    if (!sseStatus || !sseAlerts) return;
     
     const newAlerts: any[] = [...sseAlerts];
 
     // Check for controllers with pending syncs from SSE data
-    sseStatus.sync.controllers.forEach((controller: any) => {
-      const pendingSyncs: string[] = [];
-      if (controller.dashboardSync.pending) pendingSyncs.push('Dashboards');
-      if (controller.cookieSync.pending) pendingSyncs.push('Cookies');
-      
-      if (pendingSyncs.length > 0) {
-        newAlerts.push({
-          id: `controller-sync-${controller.controllerId}-${Date.now()}`,
-          type: 'warning',
-          title: `${controller.name} Sync Pending`,
-          message: `Pending sync: ${pendingSyncs.join(', ')}`,
-          timestamp: new Date().toISOString(),
-          controllerId: controller.controllerId,
-          autoHide: false,
-          persist: true
-        });
-      }
-    });
+    if (sseStatus.controllersList) {
+      sseStatus.controllersList.forEach((controller: any) => {
+        const pendingSyncs: string[] = [];
+        if (controller.dashboardSync?.pending) pendingSyncs.push('Dashboards');
+        if (controller.cookieSync?.pending) pendingSyncs.push('Cookies');
+        
+        if (pendingSyncs.length > 0) {
+          newAlerts.push({
+            id: `controller-sync-${controller.controllerId}-${Date.now()}`,
+            type: 'warning',
+            title: `${controller.name} Sync Pending`,
+            message: `Pending sync: ${pendingSyncs.join(', ')}`,
+            timestamp: new Date().toISOString(),
+            controllerId: controller.controllerId,
+            autoHide: false,
+            persist: true
+          });
+        }
+      });
+    }
 
     setSyncAlerts(newAlerts);
   }, [sseStatus, sseAlerts]);

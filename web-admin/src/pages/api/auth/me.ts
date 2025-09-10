@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { verifyToken } from '../../../lib/auth';
+import { verifyToken } from '../../../lib/auth-postgres';
 import { createContextLogger } from '../../../utils/logger';
 
 const authLogger = createContextLogger('auth');
@@ -27,6 +27,6 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     return res.status(401).json({ error: 'Invalid token' });
   }
 
-  authLogger.info('Auth check successful', { username: user.username });
+  authLogger.info('Auth check successful', { email: user.email });
   res.status(200).json({ user });
 }

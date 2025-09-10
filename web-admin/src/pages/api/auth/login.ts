@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { authenticateUser, generateToken } from '../../../lib/auth';
+import { authenticateUser, generateToken } from '../../../lib/auth-postgres';
 
 // Rate limiting for login attempts
 const loginAttempts = new Map<string, { count: number; timestamp: number; lockUntil?: number }>();
