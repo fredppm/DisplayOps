@@ -65,6 +65,14 @@ jobs:
         working-directory: host-agent
         run: npm ci
 
+      - name: Setup virtual display (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb
+          export DISPLAY=:99
+          Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
+
       - name: Build Electron app (Windows)
         if: matrix.os == 'windows-latest'
         working-directory: host-agent
@@ -87,11 +95,15 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         working-directory: host-agent
         run: |
+          echo "Starting Linux build with sandbox disabled..."
+          npm run build
           npm run dist:linux
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Disable sandbox for Linux CI environments
           ELECTRON_DISABLE_SANDBOX: 1
+          # Additional Linux-specific flags
+          DISPLAY: ":99"
 
       - name: List build artifacts
         shell: bash
