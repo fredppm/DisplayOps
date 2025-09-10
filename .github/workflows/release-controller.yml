@@ -37,8 +37,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: web-controller-electron/package-lock.json
 
       - name: Get version from tag or input
         id: version
@@ -67,7 +65,7 @@ jobs:
       - name: Build web-controller
         working-directory: web-controller
         run: |
-          npm ci
+          npm install
           npm run build
 
       - name: Build Electron app (Windows)
