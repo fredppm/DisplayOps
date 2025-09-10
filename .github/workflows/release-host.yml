@@ -118,17 +118,35 @@ jobs:
 
       - name: Create Release with GitHub CLI
         working-directory: host-agent
+        shell: bash
         run: |
+          # List available artifacts for this platform
+          echo "Available artifacts:"
+          ls -la release/ || echo "No release directory found"
+          
           # Check if release already exists
-          if gh release view ${{ steps.version.outputs.tag_name }} > /dev/null 2>&1; then
+          if gh release view ${{ steps.version.outputs.tag_name }} >/dev/null 2>&1; then
             echo "Release already exists, uploading artifacts..."
-            gh release upload ${{ steps.version.outputs.tag_name }} release/*.exe release/*.dmg release/*.AppImage release/*.deb --clobber || true
+            # Upload only files that exist for this platform
+            find release/ -name "*.exe" -o -name "*.dmg" -o -name "*.AppImage" -o -name "*.deb" 2>/dev/null | while read file; do
+              if [ -f "$file" ]; then
+                echo "Uploading $file"
+                gh release upload ${{ steps.version.outputs.tag_name }} "$file" --clobber || echo "Failed to upload $file"
+              fi
+            done
           else
             echo "Creating new release..."
-            gh release create ${{ steps.version.outputs.tag_name }} \
-              --title "DisplayOps Host Agent v${{ steps.version.outputs.version }}" \
-              --notes "Auto-generated release from GitHub Actions" \
-              release/*.exe release/*.dmg release/*.AppImage release/*.deb 2>/dev/null || \
+            # Create release with available artifacts
+            ARTIFACTS=$(find release/ -name "*.exe" -o -name "*.dmg" -o -name "*.AppImage" -o -name "*.deb" 2>/dev/null | tr '\n' ' ')
+            if [ -n "$ARTIFACTS" ]; then
+              gh release create ${{ steps.version.outputs.tag_name }} \
+                --title "DisplayOps Host Agent v${{ steps.version.outputs.version }}" \
+                --notes "Auto-generated release from GitHub Actions built on ${{ matrix.os }}" \
+                $ARTIFACTS || echo "Failed to create release with artifacts, creating release without files"
+            fi
+            
+            # Fallback: create release without files if artifacts failed
+            gh release view ${{ steps.version.outputs.tag_name }} >/dev/null 2>&1 || \
               gh release create ${{ steps.version.outputs.tag_name }} \
                 --title "DisplayOps Host Agent v${{ steps.version.outputs.version }}" \
                 --notes "Auto-generated release from GitHub Actions"
