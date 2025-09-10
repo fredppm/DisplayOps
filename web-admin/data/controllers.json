@@ -6,8 +6,19 @@
       "localNetwork": "172.28.64.0/24",
       "mdnsService": "_displayops._tcp.local",
       "controllerUrl": "http://localhost:3001",
+      "status": "online",
+      "lastSync": "2025-09-10T21:24:27.846Z",
+      "version": "1.0.0"
+    },
+    {
+      "id": "test",
+      "siteId": "",
+      "name": "test",
+      "localNetwork": "192.168.1.0/24",
+      "mdnsService": "_displayops._tcp.local",
+      "controllerUrl": "http://localhost:3001",
       "status": "offline",
-      "lastSync": "2025-09-09T16:36:50.016Z",
+      "lastSync": "2025-09-10T20:25:27.086Z",
       "version": "1.0.0"
     }
   ]

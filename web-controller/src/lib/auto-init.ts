@@ -1,7 +1,7 @@
 /**
  * Auto-inicialização dos serviços core via API call
  * Este arquivo só será executado no server-side via API routes
- * Usa apenas gRPC (não mais HTTP REST)
+ * Usa WebSocket híbrido com fallback HTTP
  */
 
 import { createContextLogger } from '../utils/logger';
@@ -25,28 +25,30 @@ export async function autoInitializeServices() {
       autoInitLogger.warn('Discovery Service não disponível', { error: error instanceof Error ? error.message : String(error) });
     }
     
-    // 2. Inicializar gRPC Client (se habilitado)
-    const grpcEnabled = process.env.GRPC_ADMIN_ENABLED !== 'false' && 
-                       process.env.CONTROLLER_AUTO_REGISTER !== 'false';
+    // 2. Inicializar Hybrid Admin Client (WebSocket + HTTP fallback)
+    const adminClientEnabled = process.env.ADMIN_CLIENT_ENABLED !== 'false' && 
+                              process.env.CONTROLLER_AUTO_REGISTER !== 'false';
     
-    autoInitLogger.debug('gRPC auto-init check', {
-      GRPC_ADMIN_ENABLED: process.env.GRPC_ADMIN_ENABLED,
+    autoInitLogger.debug('Admin client auto-init check', {
+      ADMIN_CLIENT_ENABLED: process.env.ADMIN_CLIENT_ENABLED,
       CONTROLLER_AUTO_REGISTER: process.env.CONTROLLER_AUTO_REGISTER,
-      grpcEnabled
+      GRPC_ADMIN_ENABLED: process.env.GRPC_ADMIN_ENABLED, // Legacy support
+      adminClientEnabled
     });
     
-    if (grpcEnabled) {
+    if (adminClientEnabled) {
       try {
         // Usar import dinâmico para evitar problemas de dependência
-        const { grpcClientSingleton } = await import('./grpc-client-singleton');
-        await grpcClientSingleton.start();
-        autoInitLogger.info('gRPC Client auto-inicializado com sucesso');
-        services.push('gRPC Client');
+        const { hybridAdminClientSingleton } = await import('./hybrid-admin-client-singleton');
+        await hybridAdminClientSingleton.start();
+        autoInitLogger.info('Hybrid Admin Client auto-inicializado com sucesso');
+        services.push('Hybrid Admin Client');
       } catch (error) {
-        autoInitLogger.warn('gRPC Client não disponível', { error: error instanceof Error ? error.message : String(error) });
+        autoInitLogger.error('Hybrid Admin Client falhou', { error: error instanceof Error ? error.message : String(error) });
+        // Removido fallback para gRPC - usar apenas WebSocket/HTTP
       }
     } else {
-      autoInitLogger.info('gRPC Client desabilitado via configuração');
+      autoInitLogger.info('Admin Client desabilitado via configuração');
     }
     
     const message = services.length > 0 

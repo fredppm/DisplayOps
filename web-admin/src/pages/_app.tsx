@@ -10,14 +10,7 @@ import { AdminStatusProvider } from '@/contexts/AdminStatusContext';
 
 const inter = Inter({ subsets: ['latin'] });
 
-// Initialize gRPC server on app startup (server-side only)
-if (typeof window === 'undefined') {
-  import('@/lib/grpc-server-init').then(({ initializeGrpcServer }) => {
-    initializeGrpcServer().catch((error) => {
-      console.error('Failed to initialize gRPC server on app startup:', error);
-    });
-  });
-}
+// WebSocket server will be initialized on-demand via middleware in API routes
 
 export default function App({ Component, pageProps }: AppProps) {
 

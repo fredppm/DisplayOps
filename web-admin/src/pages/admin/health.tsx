@@ -61,24 +61,24 @@ const HealthPage: NextPage = () => {
 
           <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6 border border-gray-200 dark:border-gray-600">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 text-blue-600">gRPC Service</h2>
-              <div className={`w-3 h-3 rounded-full ${healthStatus?.grpc.isRunning ? 'bg-green-500' : 'bg-red-500'}`}></div>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 text-blue-600">WebSocket Service</h2>
+              <div className={`w-3 h-3 rounded-full ${healthStatus?.websocket.isRunning ? 'bg-green-500' : 'bg-red-500'}`}></div>
             </div>
             <div className="space-y-2">
               <div className="flex justify-between">
                 <span className="text-gray-900 dark:text-gray-100">Status:</span>
-                <span className={`font-semibold ${getStatusColor(healthStatus?.grpc.isRunning || false)}`}>
-                  {healthStatus?.grpc.isRunning ? 'Running' : 'Stopped'}
+                <span className={`font-semibold ${getStatusColor(healthStatus?.websocket.isRunning || false)}`}>
+                  {healthStatus?.websocket.isRunning ? 'Running' : 'Stopped'}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-900 dark:text-gray-100">Port:</span>
-                <span className="text-gray-900 dark:text-gray-100">50052</span>
+                <span className="text-gray-900 dark:text-gray-100">{healthStatus?.websocket.port || 3000}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-900 dark:text-gray-100">Connections:</span>
-                <span className={`font-semibold ${getConnectionStatusColor(healthStatus?.grpc.connections || 0)}`}>
-                  {healthStatus?.grpc.connections || 0}
+                <span className={`font-semibold ${getConnectionStatusColor(healthStatus?.websocket.connections || 0)}`}>
+                  {healthStatus?.websocket.connections || 0}
                 </span>
               </div>
             </div>

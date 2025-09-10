@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { grpcServerSingleton } from '@/lib/grpc-server-singleton';
+import { webSocketServerSingleton } from '@/lib/websocket-server-singleton';
 import { createContextLogger } from '@/utils/logger';
 import { loadControllers, loadDashboards } from '@/lib/data-adapter';
 import { db } from '@/lib/database';
@@ -40,7 +40,7 @@ interface HealthCheck {
 }
 
 interface HealthStatus {
-  grpc: {
+  websocket: {
     isRunning: boolean;
     connections: number;
     port: number;
@@ -49,7 +49,7 @@ interface HealthStatus {
     total: number;
     online: number;
     offline: number;
-    connected: number; // conectados via gRPC
+    connected: number; // conectados via WebSocket
     syncUpToDate: number;
     pendingDashboards: number;
     pendingCookies: number;
@@ -104,6 +104,20 @@ async function readDashboardsData(): Promise<any> {
 
 async function readCookiesData(): Promise<any> {
   try {
+    // Check if cookies table exists first
+    const tableExistsResult = await db.query(`
+      SELECT EXISTS (
+        SELECT 1 FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'cookies'
+      );
+    `);
+    
+    if (!tableExistsResult.rows[0]?.exists) {
+      // Table doesn't exist, return empty data
+      return { domains: {}, lastUpdated: null };
+    }
+    
     // Query cookies from PostgreSQL
     const result = await db.query(`
       SELECT domain, name, value, path, secure, http_only, same_site, 
@@ -176,7 +190,7 @@ function generateAlerts(controllers: ControllerSyncStatus[]): SyncAlert[] {
   return alerts;
 }
 
-function calculateOverallHealth(controllers: ControllerSyncStatus[], grpcRunning: boolean): 'healthy' | 'warning' | 'critical' {
+function calculateOverallHealth(controllers: ControllerSyncStatus[], websocketRunning: boolean): 'healthy' | 'warning' | 'critical' {
   const totalControllers = controllers.length;
   if (totalControllers === 0) return 'healthy';
   
@@ -198,9 +212,9 @@ function calculateOverallHealth(controllers: ControllerSyncStatus[], grpcRunning
 }
 
 async function getHealthStatus(): Promise<HealthStatus> {
-  // Get gRPC status
-  const grpcRunning = grpcServerSingleton.isRunning();
-  const grpcStats = grpcServerSingleton.getConnectionStats();
+  // Get WebSocket status
+  const websocketRunning = webSocketServerSingleton.isRunning();
+  const websocketStats = webSocketServerSingleton.getConnectionStats();
   
   // Read all data files
   const controllersData = await readControllersData();
@@ -212,9 +226,9 @@ async function getHealthStatus(): Promise<HealthStatus> {
   const onlineControllers = controllers.filter((c: any) => c.status === 'online').length;
   const offlineControllers = totalControllers - onlineControllers;
   
-  // Count controllers connected via gRPC
-  const connectedViaGrpc = controllers.filter((c: any) => 
-    grpcServerSingleton.isControllerConnected(c.id)
+  // Count controllers connected via WebSocket
+  const connectedViaWebSocket = controllers.filter((c: any) => 
+    webSocketServerSingleton.isControllerConnected(c.id)
   ).length;
   
   // Build controller sync status
@@ -222,7 +236,7 @@ async function getHealthStatus(): Promise<HealthStatus> {
     controllerId: controller.id,
     name: controller.name,
     status: controller.status,
-    isConnected: grpcServerSingleton.isControllerConnected(controller.id),
+    isConnected: webSocketServerSingleton.isControllerConnected(controller.id),
     lastSync: controller.lastSync,
     dashboardSync: {
       pending: controller.pendingDashboardSync || false,
@@ -251,27 +265,27 @@ async function getHealthStatus(): Promise<HealthStatus> {
   const syncAlerts = generateAlerts(controllerStatuses);
   
   // Calculate overall health
-  const overallHealth = calculateOverallHealth(controllerStatuses, grpcRunning);
+  const overallHealth = calculateOverallHealth(controllerStatuses, websocketRunning);
   
   // Generate health checks
   const healthChecks: HealthCheck[] = [
     {
-      name: 'gRPC Service',
-      status: grpcRunning ? 'healthy' : 'critical',
-      message: grpcRunning 
-        ? `Running on port ${grpcServerSingleton.getPort()} with ${grpcStats.connected} active connections`
-        : 'gRPC server is not running',
+      name: 'WebSocket Service',
+      status: websocketRunning ? 'healthy' : 'critical',
+      message: websocketRunning 
+        ? `Running on port ${webSocketServerSingleton.getPort()} with ${websocketStats.connected} active connections`
+        : 'WebSocket server is not running',
       lastCheck: new Date().toISOString()
     },
     {
       name: 'Controllers Sync',
-      status: grpcStats.connected > 0 ? 'healthy' : 
+      status: websocketStats.connected > 0 ? 'healthy' : 
               controllers.length === 0 ? 'healthy' : 'warning',
-      message: grpcStats.connected > 0 
-        ? `${grpcStats.connected} controller(s) connected`
+      message: websocketStats.connected > 0 
+        ? `${websocketStats.connected} controller(s) connected`
         : controllers.length === 0 
           ? 'No controllers registered'
-          : `${onlineControllers}/${controllers.length} controllers online, none connected via gRPC`,
+          : `${onlineControllers}/${controllers.length} controllers online, none connected via WebSocket`,
       lastCheck: new Date().toISOString()
     }
   ];
@@ -287,16 +301,16 @@ async function getHealthStatus(): Promise<HealthStatus> {
     hasAnyWarning ? 'warning' : 'healthy';
   
   const result = {
-    grpc: {
-      isRunning: grpcRunning,
-      connections: grpcStats.connected,
-      port: grpcServerSingleton.getPort()
+    websocket: {
+      isRunning: websocketRunning,
+      connections: websocketStats.connected,
+      port: webSocketServerSingleton.getPort()
     },
     controllers: {
       total: totalControllers,
       online: onlineControllers,
       offline: offlineControllers,
-      connected: connectedViaGrpc,
+      connected: connectedViaWebSocket,
       syncUpToDate,
       pendingDashboards,
       pendingCookies
@@ -327,12 +341,30 @@ async function getHealthStatus(): Promise<HealthStatus> {
   return result;
 }
 
+async function ensureWebSocketInitialized() {
+  // Trigger WebSocket initialization if not already done
+  if (!webSocketServerSingleton.isRunning()) {
+    try {
+      logger.info('Initializing WebSocket server on health check');
+      // Make a request to websocket endpoint to initialize it
+      await fetch('http://localhost:3000/api/websocket').catch(() => {
+        // Ignore fetch errors, just trying to trigger initialization
+      });
+    } catch (error) {
+      logger.warn('Could not trigger WebSocket initialization:', error);
+    }
+  }
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
+    // Ensure WebSocket is initialized
+    await ensureWebSocketInitialized();
+    
     const status = await getHealthStatus();
     
     // Set cache headers for efficient polling

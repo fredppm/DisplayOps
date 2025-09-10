@@ -117,7 +117,7 @@
     "@typescript-eslint/parser": "^6.15.0",
     "concurrently": "^8.2.2",
     "copyfiles": "^2.4.1",
-    "electron": "^28.1.0",
+    "electron": "28.1.0",
     "electron-builder": "^24.9.1",
     "electron-reloader": "^1.2.3",
     "eslint": "^8.56.0",

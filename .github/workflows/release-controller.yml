@@ -63,7 +63,10 @@ jobs:
 
       - name: Install dependencies
         working-directory: web-controller-electron
-        run: npm ci
+        run: |
+          npm ci
+          # Ensure electron is properly installed with exact version
+          npx electron --version
 
       - name: Build web-controller
         working-directory: web-controller

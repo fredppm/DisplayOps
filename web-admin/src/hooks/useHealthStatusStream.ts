@@ -34,7 +34,7 @@ interface HealthCheck {
 }
 
 export interface HealthStatus {
-  grpc: {
+  websocket: {
     isRunning: boolean;
     connections: number;
     port: number;
@@ -43,7 +43,7 @@ export interface HealthStatus {
     total: number;
     online: number;
     offline: number;
-    connected: number; // conectados via gRPC
+    connected: number; // conectados via WebSocket
     syncUpToDate: number;
     pendingDashboards: number;
     pendingCookies: number;

@@ -3,8 +3,8 @@ import { createContextLogger } from '@/utils/logger';
 const releasesLogger = createContextLogger('releases-utils');
 
 // GitHub API configuration
-const GITHUB_OWNER = process.env.GITHUB_OWNER || 'displayops-team';
-const GITHUB_REPO = process.env.GITHUB_REPO || 'office-tv';
+const GITHUB_OWNER = process.env.GITHUB_OWNER || 'fredppm';
+const GITHUB_REPO = process.env.GITHUB_REPO || 'DisplayOps';
 const GITHUB_API_BASE = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}`;
 
 export interface GitHubAsset {

@@ -21,7 +21,7 @@ interface AdminHealthStatus {
       lastUpdated: string | null;
     };
   };
-  grpc: {
+  websocket: {
     isRunning: boolean;
     connections: number;
   };
@@ -168,9 +168,9 @@ export function AdminStatusProvider({ children }: { children: React.ReactNode })
           pendingCookies: healthStatus.controllers.pendingCookies
         },
         data: healthStatus.data,
-        grpc: {
-          isRunning: healthStatus.grpc.isRunning,
-          connections: healthStatus.grpc.connections
+        websocket: {
+          isRunning: healthStatus.websocket.isRunning,
+          connections: healthStatus.websocket.connections
         },
         controllersList: healthStatus.sync.controllers,
         alerts: healthStatus.sync.alerts
@@ -288,13 +288,13 @@ export function AdminStatusProvider({ children }: { children: React.ReactNode })
     //   });
     // }
 
-    // Check for gRPC server status changes - DISABLED notification
-    // if (!prevStatus.grpc.isRunning && newStatus.grpc.isRunning) {
+    // Check for WebSocket server status changes - DISABLED notification
+    // if (!prevStatus.websocket.isRunning && newStatus.websocket.isRunning) {
     //   newAlerts.push({
-    //     id: `grpc-server-online-${Date.now()}`,
+    //     id: `websocket-server-online-${Date.now()}`,
     //     type: 'info',
-    //     title: 'gRPC Server Online',
-    //     message: 'gRPC server is back online. Automatic sync is restored.',
+    //     title: 'WebSocket Server Online',
+    //     message: 'WebSocket server is back online. Automatic sync is restored.',
     //     timestamp: new Date().toISOString()
     //   });
     // }
@@ -404,11 +404,11 @@ export function AdminStatusProvider({ children }: { children: React.ReactNode })
   }, [startPolling]);
 
   useEffect(() => {
-    // Initialize gRPC server on first provider mount (server-side only)
+    // Initialize WebSocket server on first provider mount (server-side only)
     if (typeof window === 'undefined') {
-      import('@/lib/grpc-server-init').then(({ initializeGrpcServer }) => {
-        initializeGrpcServer().catch((error) => {
-          console.error('Failed to initialize gRPC server from AdminStatusProvider:', error);
+      import('@/lib/websocket-server-singleton').then(({ webSocketServerSingleton }) => {
+        webSocketServerSingleton.start().catch((error) => {
+          console.error('Failed to initialize WebSocket server from AdminStatusProvider:', error);
         });
       });
     }
