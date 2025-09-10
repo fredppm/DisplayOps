@@ -58,15 +58,16 @@ jobs:
         run: |
           npm version ${{ steps.version.outputs.version }} --no-git-tag-version
 
+      - name: Install root dependencies
+        run: npm install
+
       - name: Install dependencies
         working-directory: web-controller-electron
         run: npm ci
 
       - name: Build web-controller
         working-directory: web-controller
-        run: |
-          npm install
-          npm run build
+        run: npm run build
 
       - name: Build Electron app (Windows)
         if: matrix.os == 'windows-latest'

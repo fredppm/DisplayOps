@@ -58,6 +58,9 @@ jobs:
         run: |
           npm version ${{ steps.version.outputs.version }} --no-git-tag-version
 
+      - name: Install root dependencies
+        run: npm install
+
       - name: Install dependencies
         working-directory: host-agent
         run: npm ci
