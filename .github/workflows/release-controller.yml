@@ -23,6 +23,7 @@ jobs:
   build-and-release:
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: windows-latest
