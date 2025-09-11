@@ -45,6 +45,8 @@ export interface ElectronUpdaterResponse {
   releaseDate: string;
   url: string;
   releaseNotes?: string;
+  size?: number;
+  sha512?: string;
 }
 
 /**
@@ -181,7 +183,9 @@ export async function getLatestVersionForElectronUpdater(
       version: versionInfo.version,
       releaseDate: versionInfo.releaseDate,
       url: platformInfo.downloadUrl, // Direct GitHub download URL
-      releaseNotes: versionInfo.changelog
+      releaseNotes: versionInfo.changelog,
+      size: platformInfo.size,
+      sha512: '' // GitHub doesn't provide SHA512, electron-updater can work without it
     };
     
     releasesLogger.info(`Generated electron-updater response for ${app}`, {
