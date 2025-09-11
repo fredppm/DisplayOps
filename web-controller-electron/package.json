@@ -53,6 +53,7 @@
       }
     ],
     "win": {
+      "icon": "assets/icon.png",
       "target": [
         {
           "target": "nsis",
