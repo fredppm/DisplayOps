@@ -7,7 +7,9 @@ import os from 'os';
 import { logger } from '../utils/logger';
 
 // Load protobuf definition
-const PROTO_PATH = join(process.cwd(), '..', 'shared', 'proto', 'controller-admin.proto');
+const PROTO_PATH = process.resourcesPath 
+  ? join(process.resourcesPath, 'shared', 'proto', 'controller-admin.proto') // Production (Electron packaged)
+  : join(process.cwd(), '..', 'shared', 'proto', 'controller-admin.proto');  // Development
 
 export interface GrpcAdminClientConfig {
   adminHost: string;

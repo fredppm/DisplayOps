@@ -12,33 +12,10 @@ import { MDNSService } from './mdns-service';
 import { ConfigManager } from '../managers/config-manager';
 import { StateManager } from './state-manager';
 
-// Load protobuf definition - check multiple possible paths
-let PROTO_PATH: string | undefined;
-
-// Try different paths depending on if it's built or in development
-const possiblePaths = [
-  join(__dirname, '..', '..', '..', 'shared', 'proto', 'host-agent.proto'), // Dist/built version (host-agent/dist/host-agent/src/services -> ../../../shared/proto)
-  join(__dirname, '..', '..', 'shared', 'proto', 'host-agent.proto'), // Alternative built version
-  join(__dirname, '..', '..', '..', '..', 'shared', 'proto', 'host-agent.proto'), // Development version
-  join(process.cwd(), 'shared', 'proto', 'host-agent.proto'), // CWD relative path
-  join(process.cwd(), 'host-agent', 'dist', 'shared', 'proto', 'host-agent.proto'), // Explicit dist path
-  join(process.cwd(), '..', 'shared', 'proto', 'host-agent.proto') // Parent directory
-];
-
-for (const path of possiblePaths) {
-  try {
-    require('fs').accessSync(path);
-    PROTO_PATH = path;
-    console.log(`✅ Found proto file at: ${path}`);
-    break;
-  } catch (error) {
-    // Continue to next path
-  }
-}
-
-if (!PROTO_PATH) {
-  throw new Error(`Proto file not found. Tried paths: ${possiblePaths.join(', ')}`);
-}
+// Load protobuf definition
+const PROTO_PATH = process.resourcesPath 
+  ? join(process.resourcesPath, 'shared', 'proto', 'host-agent.proto') // Production (Electron packaged)
+  : join(__dirname, '..', '..', '..', 'shared', 'proto', 'host-agent.proto'); // Development
 
 const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
   keepCase: true,

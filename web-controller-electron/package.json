@@ -25,6 +25,7 @@
       "output": "release",
       "buildResources": "build"
     },
+    "icon": "assets/icon.ico",
     "files": [
       "dist/**/*",
       "../web-controller/.next/**/*",
@@ -41,6 +42,13 @@
           "!node_modules",
           "!.next/cache",
           "!.git"
+        ]
+      },
+      {
+        "from": "../shared",
+        "to": "shared",
+        "filter": [
+          "**/*"
         ]
       }
     ],

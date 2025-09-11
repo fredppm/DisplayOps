@@ -26,10 +26,20 @@
       "output": "release",
       "buildResources": "build"
     },
+    "icon": "assets/icon.ico",
     "files": [
       "dist/**/*",
       "node_modules/**/*",
       "!node_modules/.bin/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "../shared",
+        "to": "shared",
+        "filter": [
+          "**/*"
+        ]
+      }
     ],
     "win": {
       "target": [
