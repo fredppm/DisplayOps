@@ -25,7 +25,7 @@
       "output": "release",
       "buildResources": "build"
     },
-    "icon": "assets/icon.ico",
+    "icon": "assets/icon.png",
     "files": [
       "dist/**/*",
       "../web-controller/.next/**/*",
