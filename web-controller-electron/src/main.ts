@@ -241,20 +241,30 @@ class DisplayOpsController {
 
         // Always use the standalone server.js to avoid npm/next dependency issues
         const serverPath = path.join(webControllerPath, 'server.js');
-        const command = process.execPath; // Always use bundled Node.js
-        const args = [serverPath];
+        const command = process.execPath; // Keep without quotes for spawn
+        const args = [serverPath]; // Keep without quotes for spawn
 
         log.info(`Starting server on port ${port} at ${webControllerPath}`);
-        log.info(`Command: ${command} ${args.join(' ')}`);
+        log.info(`Command: "${command}" "${serverPath}"`);
         
         this.addToServerLog(`🚀 Starting Next.js server on port ${port}`, 'info');
         this.addToServerLog(`📁 Working directory: ${webControllerPath}`, 'info');
-        this.addToServerLog(`⚡ Command: ${command} ${args.join(' ')}`, 'info');
+        this.addToServerLog(`⚡ Command: "${command}" "${serverPath}"`, 'info');
+
+        // Check if server.js exists before trying to start
+        if (!fs.existsSync(serverPath)) {
+          const error = `Server script not found: ${serverPath}`;
+          log.error(error);
+          this.addToServerLog(`❌ ${error}`, 'error');
+          reject(new Error(error));
+          return;
+        }
 
         this.nextServer = spawn(command, args, {
           cwd: webControllerPath,
           stdio: ['ignore', 'pipe', 'pipe'],
-          shell: false, // Don't use shell to avoid path escaping issues
+          shell: false, // Keep false - spawn handles paths with spaces correctly
+          windowsVerbatimArguments: false, // This helps with path handling on Windows
           env: {
             ...process.env,
             NODE_ENV: isProduction ? 'production' : 'development',
