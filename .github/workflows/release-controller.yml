@@ -132,37 +132,28 @@ jobs:
         working-directory: web-controller-electron
         shell: bash
         run: |
+          # Debug GitHub CLI setup
+          echo "Testing GitHub CLI..."
+          echo "GitHub token length: ${#GH_TOKEN}"
+          echo "Repository: ${{ github.repository }}"
+          echo "Tag: ${{ steps.version.outputs.tag_name }}"
+          
+          # Test basic GitHub CLI functionality
+          echo "Testing gh auth status..."
+          gh auth status || echo "GitHub CLI auth failed"
+          
+          echo "Testing repository access..."
+          gh repo view ${{ github.repository }} --json name || echo "Cannot access repository"
+          
           # List available artifacts for this platform
           echo "Available artifacts:"
           ls -la release/ || echo "No release directory found"
           
-          # Check if release already exists
-          if gh release view ${{ steps.version.outputs.tag_name }} >/dev/null 2>&1; then
-            echo "Release already exists, uploading artifacts..."
-            # Upload only files that exist for this platform
-            find release/ -name "*.exe" -o -name "*.dmg" -o -name "*.AppImage" -o -name "*.deb" 2>/dev/null | while read file; do
-              if [ -f "$file" ]; then
-                echo "Uploading $file"
-                gh release upload ${{ steps.version.outputs.tag_name }} "$file" --clobber || echo "Failed to upload $file"
-              fi
-            done
-          else
-            echo "Creating new release..."
-            # Create release with available artifacts
-            ARTIFACTS=$(find release/ -name "*.exe" -o -name "*.dmg" -o -name "*.AppImage" -o -name "*.deb" 2>/dev/null | tr '\n' ' ')
-            if [ -n "$ARTIFACTS" ]; then
-              gh release create ${{ steps.version.outputs.tag_name }} \
-                --title "DisplayOps Controller v${{ steps.version.outputs.version }}" \
-                --notes "Auto-generated release from GitHub Actions built on ${{ matrix.os }}" \
-                $ARTIFACTS || echo "Failed to create release with artifacts, creating release without files"
-            fi
-            
-            # Fallback: create release without files if artifacts failed
-            gh release view ${{ steps.version.outputs.tag_name }} >/dev/null 2>&1 || \
-              gh release create ${{ steps.version.outputs.tag_name }} \
-                --title "DisplayOps Controller v${{ steps.version.outputs.version }}" \
-                --notes "Auto-generated release from GitHub Actions"
-          fi
+          # Simple release creation - just create without files first
+          echo "Creating simple release..."
+          gh release create ${{ steps.version.outputs.tag_name }} \
+            --title "DisplayOps Controller v${{ steps.version.outputs.version }} (${{ matrix.os }})" \
+            --notes "Release built on ${{ matrix.os }} platform" || echo "Failed to create release"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
