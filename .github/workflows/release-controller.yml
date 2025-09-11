@@ -105,14 +105,30 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         working-directory: web-controller-electron
         run: |
-          echo "Starting Linux build with sandbox disabled..."
-          echo "Checking web-controller build files..."
+          echo "Starting Linux build with comprehensive debugging..."
+          
+          echo "=== System Info ==="
+          uname -a
+          node --version
+          npm --version
+          
+          echo "=== Checking dependencies ==="
           ls -la ../web-controller/.next/ || echo "No .next directory found"
           ls -la ../web-controller/package.json || echo "No web-controller package.json found"
           
-          echo "Building Electron app..."
-          npm run build
-          npm run dist:linux
+          echo "=== Electron Builder Debug ==="
+          echo "Contents of release directory before build:"
+          ls -la release/ || echo "No release directory yet"
+          
+          echo "=== Starting TypeScript build ==="
+          npm run build 2>&1 || echo "TypeScript build failed"
+          
+          echo "=== Starting Electron Linux build with verbose output ==="
+          DEBUG=electron-builder npm run dist:linux 2>&1 || echo "Electron build failed"
+          
+          echo "=== Post-build analysis ==="
+          echo "Contents of release directory after build:"
+          ls -la release/ || echo "No release directory created"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Disable sandbox for Linux CI environments

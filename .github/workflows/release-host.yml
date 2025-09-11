@@ -98,9 +98,28 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         working-directory: host-agent
         run: |
-          echo "Starting Linux build with sandbox disabled..."
-          npm run build
-          npm run dist:linux
+          echo "Starting Linux build with comprehensive debugging..."
+          
+          echo "=== System Info ==="
+          uname -a
+          node --version
+          npm --version
+          free -h
+          df -h
+          
+          echo "=== Electron Builder Debug ==="
+          echo "Contents of release directory before build:"
+          ls -la release/ || echo "No release directory yet"
+          
+          echo "=== Starting TypeScript build ==="
+          npm run build 2>&1 || echo "TypeScript build failed"
+          
+          echo "=== Starting Electron Linux build with verbose output ==="
+          DEBUG=electron-builder npm run dist:linux 2>&1 || echo "Electron build failed"
+          
+          echo "=== Post-build analysis ==="
+          echo "Contents of release directory after build:"
+          ls -la release/ || echo "No release directory created"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Disable sandbox for Linux CI environments
