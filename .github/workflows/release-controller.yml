@@ -172,8 +172,8 @@ jobs:
           # Create release with available artifacts
           echo "Creating release..."
           
-          # Check if we have artifacts and create release accordingly
-          if find release/ -name "*.exe" -o -name "*.dmg" -o -name "*.AppImage" -o -name "*.deb" 2>/dev/null | grep -q .; then
+          # Check if we have installer artifacts and create release accordingly
+          if ls release/*.exe release/*.dmg release/*.AppImage release/*.deb 2>/dev/null | grep -q .; then
             echo "Found artifacts, creating release with files..."
             
             # Create release first without files
@@ -181,12 +181,14 @@ jobs:
               --title "DisplayOps Controller v${{ steps.version.outputs.version }}" \
               --notes "Auto-generated release from GitHub Actions" || echo "Release might already exist"
             
-            # Upload each file individually to handle spaces in filenames
-            find release/ -name "*.exe" -o -name "*.dmg" -o -name "*.AppImage" -o -name "*.deb" 2>/dev/null | while IFS= read -r file; do
-              if [ -f "$file" ]; then
-                echo "Uploading: $file"
-                gh release upload ${{ steps.version.outputs.tag_name }} "$file" --clobber || echo "Failed to upload $file"
-              fi
+            # Upload only installer files from root directory (exclude subdirectories)
+            for pattern in "*.exe" "*.dmg" "*.AppImage" "*.deb"; do
+              for file in release/$pattern; do
+                if [ -f "$file" ] && [[ "$file" != *"/"* ]] || [[ "$(dirname "$file")" == "release" ]]; then
+                  echo "Uploading: $file"
+                  gh release upload ${{ steps.version.outputs.tag_name }} "$file" --clobber || echo "Failed to upload $file"
+                fi
+              done
             done
           else
             echo "No artifacts found, creating release without files"
