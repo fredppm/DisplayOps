@@ -64,6 +64,28 @@ const DownloadButton: React.FC<DownloadButtonProps> = ({ title, description, app
   const [loading, setLoading] = useState(false);
   const [version, setVersion] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loadingVersion, setLoadingVersion] = useState(true);
+
+  // Fetch version on component mount
+  React.useEffect(() => {
+    const fetchVersion = async () => {
+      try {
+        setLoadingVersion(true);
+        const response = await fetch(`/api/updates/${app}?platform=win32`);
+        
+        if (response.ok) {
+          const data = await response.json();
+          setVersion(data.version);
+        }
+      } catch (err) {
+        // Silently fail for version fetch - user can still try to download
+      } finally {
+        setLoadingVersion(false);
+      }
+    };
+
+    fetchVersion();
+  }, [app]);
 
   const handleDownload = async () => {
     try {
@@ -112,9 +134,23 @@ const DownloadButton: React.FC<DownloadButtonProps> = ({ title, description, app
           <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
         )}
       </div>
-      {version && (
-        <p className="text-xs text-gray-500 dark:text-gray-400">Version: {version}</p>
-      )}
+      
+      {/* Version Info */}
+      <div className="mb-2">
+        {loadingVersion ? (
+          <div className="flex items-center space-x-2">
+            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-gray-400"></div>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Loading version...</p>
+          </div>
+        ) : version ? (
+          <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            Current Version: <span className="text-blue-600 dark:text-blue-400">{version}</span>
+          </p>
+        ) : (
+          <p className="text-xs text-gray-500 dark:text-gray-400">Version info unavailable</p>
+        )}
+      </div>
+      
       {error && (
         <p className="text-xs text-red-600 dark:text-red-400">{error}</p>
       )}
@@ -547,9 +583,15 @@ export const getServerSideProps: GetServerSideProps = async () => {
       controllersRepo.getAll()
     ]);
     
-    // Preparar dados do dashboard
+    // Preparar dados do dashboard - remover dados sensíveis
     const dashboardData: AdminDashboardData = {
-      users,
+      users: users.map(user => ({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        lastLogin: user.lastLogin
+      })),
       sites: sites as any,
       controllers: controllers as any
     };

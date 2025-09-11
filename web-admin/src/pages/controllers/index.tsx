@@ -108,16 +108,16 @@ const ControllersPage: NextPage = () => {
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 px-6 py-4">
               <div className="animate-pulse flex items-center space-x-8">
                 <div className="flex items-center space-x-2">
-                  <div className="h-4 w-4 bg-gray-200 rounded"></div>
-                  <div className="h-4 bg-gray-200 rounded w-16"></div>
+                  <div className="h-4 w-4 bg-gray-200 dark:bg-gray-600 rounded"></div>
+                  <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-16"></div>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <div className="h-4 w-4 bg-gray-200 rounded"></div>
-                  <div className="h-4 bg-gray-200 rounded w-20"></div>
+                  <div className="h-4 w-4 bg-gray-200 dark:bg-gray-600 rounded"></div>
+                  <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-20"></div>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <div className="h-4 w-4 bg-gray-200 rounded"></div>
-                  <div className="h-4 bg-gray-200 rounded w-18"></div>
+                  <div className="h-4 w-4 bg-gray-200 dark:bg-gray-600 rounded"></div>
+                  <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-18"></div>
                 </div>
               </div>
             </div>
@@ -154,7 +154,7 @@ const ControllersPage: NextPage = () => {
                     </div>
                   </div>
 
-                  <div className="mt-4 pt-3 border-t border-gray-100 dark:border-gray-800">
+                  <div className="mt-4 pt-3 border-t border-gray-100 dark:border-gray-700">
                     <div className="flex justify-between">
                       <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-16"></div>
                       <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-16"></div>
@@ -303,7 +303,7 @@ const ControllersPage: NextPage = () => {
                     </div>
                   </div>
 
-                  <div className="mt-4 pt-3 border-t border-gray-100 dark:border-gray-800">
+                  <div className="mt-4 pt-3 border-t border-gray-100 dark:border-gray-700">
                     <div className="flex justify-between text-xs text-gray-400 dark:text-gray-500">
                       <span>Version {controller.version}</span>
                       <span>ID: {controller.id.substring(0, 8)}...</span>

@@ -2,10 +2,15 @@ import React from 'react';
 import { NextPage, GetServerSideProps } from 'next';
 import Layout from '@/components/Layout';
 import AlertsManager from '@/components/AlertsManager';
-import { getActiveAlerts } from '@/lib/api-server';
+// Removed api-server import - now uses /api/alerts/active endpoint
 
 interface AlertsPageProps {
-  initialAlertsData: Awaited<ReturnType<typeof getActiveAlerts>>;
+  initialAlertsData: {
+    activeAlerts: any[];
+    alertHistory: any;
+    alertRules: any[];
+    stats: any;
+  };
 }
 
 const AlertsPage: NextPage<AlertsPageProps> = ({ initialAlertsData }) => {
@@ -36,7 +41,28 @@ const AlertsPage: NextPage<AlertsPageProps> = ({ initialAlertsData }) => {
 
 export const getServerSideProps: GetServerSideProps = async () => {
   try {
-    const initialAlertsData = await getActiveAlerts();
+    // Component will fetch data via API, providing fallback data
+    const initialAlertsData = {
+      activeAlerts: [],
+      stats: {
+        totalRules: 0,
+        activeRules: 0,
+        activeAlerts: 0,
+        criticalAlerts: 0,
+        recentAlerts24h: 0
+      },
+      alertHistory: {
+        alerts: [],
+        totalCount: 0,
+        unacknowledgedCount: 0,
+        criticalCount: 0,
+        highCount: 0,
+        mediumCount: 0,
+        lowCount: 0
+      },
+      alertRules: [],
+      timestamp: new Date().toISOString()
+    };
     
     return {
       props: {

@@ -15,12 +15,28 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       });
     }
 
-    // Get platform from query parameters (default to win32)
-    const platform = (req.query.platform as string) || 'win32';
+    // Get platform from query parameters or detect from User-Agent
+    let platform = req.query.platform as string;
+    
+    // If no platform specified, detect from User-Agent
+    if (!platform) {
+      const userAgent = req.headers['user-agent'] || '';
+      
+      if (userAgent.includes('Windows')) {
+        platform = 'win32';
+      } else if (userAgent.includes('Mac')) {
+        platform = 'darwin';
+      } else if (userAgent.includes('Linux')) {
+        platform = 'linux';
+      } else {
+        platform = 'win32'; // default fallback
+      }
+    }
     
     updatesLogger.info('Checking for controller updates', { 
       platform,
-      userAgent: req.headers['user-agent']
+      userAgent: req.headers['user-agent'],
+      detectedFromUserAgent: !req.query.platform
     });
 
     // Get latest version info in electron-updater format from GitHub

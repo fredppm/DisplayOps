@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 
 function useLocalStorage<T>(key: string, initialValue: T) {
-  // Estado para armazenar nosso valor
+  // State to store our value
   const [storedValue, setStoredValue] = useState<T>(() => {
     if (typeof window === 'undefined') {
       return initialValue;
@@ -16,16 +16,16 @@ function useLocalStorage<T>(key: string, initialValue: T) {
     }
   });
 
-  // Função para definir valor
+  // Function to set value
   const setValue = (value: T | ((val: T) => T)) => {
     try {
-      // Permitir que value seja uma função, assim como o useState
+      // Allow value to be a function, just like useState
       const valueToStore = value instanceof Function ? value(storedValue) : value;
       
-      // Salvar no estado
+      // Save to state
       setStoredValue(valueToStore);
       
-      // Salvar no localStorage
+      // Save to localStorage
       if (typeof window !== 'undefined') {
         window.localStorage.setItem(key, JSON.stringify(valueToStore));
       }

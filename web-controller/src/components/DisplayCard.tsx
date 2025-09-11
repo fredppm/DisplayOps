@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { MiniPC, Dashboard, DisplayState } from '@/types/shared-types';
 import { 
   Monitor, 
@@ -94,7 +94,7 @@ export const DisplayCard: React.FC<DisplayCardProps> = ({
     }
   };
 
-  const checkActiveDisplays = async () => {
+  const checkActiveDisplays = useCallback(async () => {
     try {
       const response = await fetch(`/api/host/${host.id}/windows`);
       if (response.ok) {
@@ -122,7 +122,7 @@ export const DisplayCard: React.FC<DisplayCardProps> = ({
         hasWindow: false
       })));
     }
-  };
+  }, [host.id, host.displays]);
 
   const handleRefreshDisplay = async (displayId: string) => {
     const statusKey = `${host.id}-${displayId}`;
@@ -268,7 +268,7 @@ export const DisplayCard: React.FC<DisplayCardProps> = ({
     if (host.metrics.online) {
       checkActiveDisplays();
     }
-  }, [host.metrics.online]);
+  }, [host.metrics.online, checkActiveDisplays]);
 
 
   return (

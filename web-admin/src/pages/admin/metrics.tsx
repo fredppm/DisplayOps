@@ -2,10 +2,10 @@ import React from 'react';
 import { NextPage, GetServerSideProps } from 'next';
 import Layout from '@/components/Layout';
 import PerformanceMetrics from '@/components/PerformanceMetrics';
-import { getPerformanceMetrics, PerformanceMetricsProps } from '@/lib/api-server';
+// Removed api-server import - now uses /api/metrics endpoint
 
 interface MetricsPageProps {
-  initialMetrics: PerformanceMetricsProps;
+  initialMetrics: any; // Component will fetch data via API
 }
 
 const MetricsPage: NextPage<MetricsPageProps> = ({ initialMetrics }) => {
@@ -30,7 +30,11 @@ const MetricsPage: NextPage<MetricsPageProps> = ({ initialMetrics }) => {
 
 export const getServerSideProps: GetServerSideProps = async () => {
   try {
-    const initialMetrics = await getPerformanceMetrics();
+    // Component will fetch data via API, providing fallback data
+    const initialMetrics = {
+      timestamp: new Date().toISOString(),
+      metrics: {}
+    };
     
     return {
       props: {

@@ -2,41 +2,10 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { Dashboard } from '@/types/shared-types';
 import { createContextLogger } from '@/utils/logger';
 import { webSocketServerSingleton } from '@/lib/websocket-server-singleton';
-import fs from 'fs';
-import path from 'path';
-
-const DASHBOARDS_FILE = path.join(process.cwd(), 'data', 'dashboards.json');
+import { dashboardsRepository } from '@/lib/repositories/DashboardsRepository';
 
 const dashboardsByIdLogger = createContextLogger('api-dashboards-by-id');
 
-// Load dashboards from file
-const loadDashboards = (): Dashboard[] => {
-  try {
-    if (!fs.existsSync(DASHBOARDS_FILE)) {
-      return [];
-    }
-    
-    const data = fs.readFileSync(DASHBOARDS_FILE, 'utf8');
-    return JSON.parse(data);
-  } catch (error) {
-    console.error('Error loading dashboards:', error);
-    return [];
-  }
-};
-
-// Save dashboards to file
-const saveDashboards = (dashboards: Dashboard[]): void => {
-  try {
-    const dataDir = path.dirname(DASHBOARDS_FILE);
-    if (!fs.existsSync(dataDir)) {
-      fs.mkdirSync(dataDir, { recursive: true });
-    }
-    fs.writeFileSync(DASHBOARDS_FILE, JSON.stringify(dashboards, null, 2), 'utf8');
-  } catch (error) {
-    console.error('Error saving dashboards:', error);
-    throw new Error('Failed to save dashboards');
-  }
-};
 
 // Validate dashboard data
 const validateDashboard = (data: any): data is Omit<Dashboard, 'id'> => {
@@ -76,8 +45,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     switch (req.method) {
       case 'GET':
         // Get specific dashboard
-        const dashboards = loadDashboards();
-        const dashboard = dashboards.find(d => d.id === id);
+        const dashboard = await dashboardsRepository.getById(id);
         
         if (!dashboard) {
           return res.status(404).json({
@@ -102,10 +70,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           });
         }
 
-        const dashboardsToUpdate = loadDashboards();
-        const dashboardIndex = dashboardsToUpdate.findIndex(d => d.id === id);
+        const existingDashboard = await dashboardsRepository.getById(id);
         
-        if (dashboardIndex === -1) {
+        if (!existingDashboard) {
           return res.status(404).json({
             success: false,
             error: 'Dashboard not found'
@@ -113,26 +80,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
 
         // Check for duplicate names (excluding current dashboard)
-        if (dashboardsToUpdate.some((d, index) => 
-            index !== dashboardIndex && d.name === updateData.name)) {
+        const duplicateNameCheck = await dashboardsRepository.getByName(updateData.name);
+        if (duplicateNameCheck && duplicateNameCheck.id !== id) {
           return res.status(400).json({
             success: false,
             error: 'Dashboard with this name already exists'
           });
         }
 
-        const updatedDashboard: Dashboard = {
-          ...dashboardsToUpdate[dashboardIndex],
+        const updatedDashboard = await dashboardsRepository.update(id, {
           name: updateData.name,
           url: updateData.url,
           description: updateData.description,
           refreshInterval: updateData.refreshInterval,
           requiresAuth: updateData.requiresAuth,
           category: updateData.category
-        };
-
-        dashboardsToUpdate[dashboardIndex] = updatedDashboard;
-        saveDashboards(dashboardsToUpdate);
+        });
 
         // Trigger sync to all controllers
         await triggerDashboardSync();
@@ -144,26 +107,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       case 'DELETE':
         // Delete specific dashboard
-        const dashboardsToDelete = loadDashboards();
-        const deleteIndex = dashboardsToDelete.findIndex(d => d.id === id);
+        const dashboardToDelete = await dashboardsRepository.getById(id);
         
-        if (deleteIndex === -1) {
+        if (!dashboardToDelete) {
           return res.status(404).json({
             success: false,
             error: 'Dashboard not found'
           });
         }
 
-        const deletedDashboard = dashboardsToDelete[deleteIndex];
-        dashboardsToDelete.splice(deleteIndex, 1);
-        saveDashboards(dashboardsToDelete);
+        const deleted = await dashboardsRepository.delete(id);
+        
+        if (!deleted) {
+          return res.status(500).json({
+            success: false,
+            error: 'Failed to delete dashboard'
+          });
+        }
 
         // Trigger sync to all controllers
         await triggerDashboardSync();
 
         return res.status(200).json({
           success: true,
-          data: deletedDashboard
+          data: dashboardToDelete
         });
 
       default:

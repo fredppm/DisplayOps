@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { Dashboard } from '@/types/shared-types';
 import { 
   Plus, 
@@ -15,9 +16,10 @@ import { DashboardListSkeleton, DashboardOperationSkeleton, ErrorFallback } from
 
 interface DashboardManagerProps {
   initialDashboards?: Dashboard[];
+  hideHeader?: boolean;
 }
 
-export const DashboardManager: React.FC<DashboardManagerProps> = ({ initialDashboards = [] }) => {
+export const DashboardManager: React.FC<DashboardManagerProps> = ({ initialDashboards = [], hideHeader = false }) => {
   const [dashboards, setDashboards] = useState<Dashboard[]>(initialDashboards);
   const [loading, setLoading] = useState(!initialDashboards.length);
   const [selectedDashboard, setSelectedDashboard] = useState<string | null>(null);
@@ -29,17 +31,11 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ initialDashb
     timestamp: Date;
   }>>([]);
 
-  // Dashboard editing states
-  const [editingDashboard, setEditingDashboard] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState<Dashboard | null>(null);
-  
   // Modal states
-  const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string>('');
   
   // Operation loading states
   const [creating, setCreating] = useState(false);
-  const [updating, setUpdating] = useState(false);
   const [deleting, setDeleting] = useState('');
 
   // Helper function to add notifications
@@ -118,34 +114,6 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ initialDashb
     }
   };
 
-  const updateDashboard = async (id: string, dashboardData: Omit<Dashboard, 'id'>) => {
-    setUpdating(true);
-    try {
-      const response = await fetch(`/api/dashboards/${id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(dashboardData),
-      });
-      
-      const result = await response.json();
-      
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to update dashboard');
-      }
-      
-      setDashboards(prev => prev.map(d => d.id === id ? result.data : d));
-      addNotification('success', 'Dashboard Updated', `${result.data.name} has been updated`);
-      return result.data;
-    } catch (error: any) {
-      console.error('Error updating dashboard:', error);
-      addNotification('error', 'Update Error', error.message || 'Failed to update dashboard');
-      throw error;
-    } finally {
-      setUpdating(false);
-    }
-  };
 
   const deleteDashboard = async (id: string) => {
     setDeleting(id);
@@ -180,66 +148,7 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ initialDashb
   }, []);
 
 
-  // Dashboard management functions
-  const startEditingDashboard = (dashboard: Dashboard) => {
-    setEditingDashboard(dashboard.id);
-    setEditForm({ ...dashboard });
-    setShowEditModal(true);
-  };
 
-  const cancelEditingDashboard = () => {
-    setEditingDashboard(null);
-    setEditForm(null);
-    setShowEditModal(false);
-  };
-
-  const saveDashboardChanges = async () => {
-    if (!editForm) return;
-
-    // Validate required fields
-    if (!editForm.name.trim()) {
-      addNotification('error', 'Validation Error', 'Dashboard name is required');
-      return;
-    }
-
-    if (!editForm.url.trim()) {
-      addNotification('error', 'Validation Error', 'Dashboard URL is required');
-      return;
-    }
-
-    // Validate URL format
-    try {
-      new URL(editForm.url);
-    } catch {
-      addNotification('error', 'Validation Error', 'Invalid URL format');
-      return;
-    }
-
-    const dashboardData = {
-      name: editForm.name,
-      url: editForm.url,
-      description: editForm.description || '',
-      refreshInterval: editForm.refreshInterval,
-      requiresAuth: editForm.requiresAuth,
-      category: editForm.category
-    };
-
-    try {
-      if (editingDashboard) {
-        // Editando dashboard existente
-        await updateDashboard(editingDashboard, dashboardData);
-      } else {
-        // Criando novo dashboard
-        await createDashboard(dashboardData);
-      }
-      
-      setEditingDashboard(null);
-      setEditForm(null);
-      setShowEditModal(false);
-    } catch (error) {
-      // Error handling is done in create/updateDashboard functions
-    }
-  };
 
   const confirmDeleteDashboard = (dashboardId: string) => {
     setShowDeleteConfirm(dashboardId);
@@ -254,29 +163,7 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ initialDashb
     }
   };
 
-  // Simple URL validation function
-  const isValidUrl = (url: string): boolean => {
-    try {
-      new URL(url);
-      return url.startsWith('http://') || url.startsWith('https://');
-    } catch {
-      return false;
-    }
-  };
 
-  const addNewDashboard = () => {
-    setEditingDashboard(null); // Indica que é criação, não edição
-    setEditForm({
-      id: '', // Será definido pelo servidor
-      name: 'New Dashboard',
-      url: 'https://example.com',
-      description: 'New dashboard description',
-      refreshInterval: 300,
-      requiresAuth: false,
-      category: 'Custom'
-    });
-    setShowEditModal(true);
-  };
 
 
   return (
@@ -331,29 +218,30 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ initialDashb
       {/* Dashboard Management Card */}
       <div className="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 shadow-sm">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between">
-            <div className="min-w-0 flex-1">
-              <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100">
-                Dashboard Management
-              </h2>
-              <div className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                Configure and deploy dashboards to display devices
+        {!hideHeader && (
+          <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between">
+              <div className="min-w-0 flex-1">
+                <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100">
+                  Dashboard Management
+                </h2>
+                <div className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                  Configure and deploy dashboards to display devices
+                </div>
+              </div>
+              
+              <div className="ml-6 flex items-center space-x-3">
+                <Link
+                  href="/dashboards/new"
+                  className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+                >
+                  <Plus className="w-4 h-4 mr-1.5" />
+                  Add Dashboard
+                </Link>
               </div>
             </div>
-            
-            <div className="ml-6 flex items-center space-x-3">
-              <button
-                onClick={addNewDashboard}
-                className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                disabled={loading}
-              >
-                <Plus className="w-4 h-4 mr-1.5" />
-                Add Dashboard
-              </button>
-            </div>
           </div>
-        </div>
+        )}
 
         {/* Dashboards List */}
         <div className="divide-y divide-gray-200 dark:divide-gray-700">
@@ -435,16 +323,14 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ initialDashb
                   
                   {/* Dashboard Actions - Smaller buttons */}
                   <div className="ml-6 flex items-center space-x-2">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        startEditingDashboard(dashboard);
-                      }}
-                      className="inline-flex items-center px-2 py-1 text-xs font-medium text-gray-700 dark:text-gray-300 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800"
+                    <Link
+                      href={`/dashboards/${dashboard.id}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="inline-flex items-center px-2 py-1 text-xs font-medium text-gray-700 dark:text-gray-300 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800 transition-colors"
                     >
                       <Edit3 className="w-3 h-3 mr-1" />
                       Edit
-                    </button>
+                    </Link>
                     
                     <button
                       onClick={(e) => {
@@ -477,122 +363,6 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({ initialDashb
         </div>
       </div>
 
-      {/* Add/Edit Dashboard Modal */}
-      {showEditModal && editForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" style={{margin: 0, top: 0}}>
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">{editingDashboard ? 'Edit Dashboard' : 'Add New Dashboard'}</h3>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name *</label>
-                <input
-                  type="text"
-                  value={editForm.name}
-                  onChange={(e) => setEditForm(prev => ({ ...prev!, name: e.target.value }))}
-                  className="w-full p-2 border dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400"
-                  placeholder="Dashboard name"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">URL *</label>
-                <input
-                  type="url"
-                  value={editForm.url}
-                  onChange={(e) => setEditForm(prev => ({ ...prev!, url: e.target.value }))}
-                  className="w-full p-2 border rounded font-mono"
-                  placeholder="https://example.com/dashboard"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
-                <textarea
-                  value={editForm.description || ''}
-                  onChange={(e) => setEditForm(prev => ({ ...prev!, description: e.target.value }))}
-                  className="w-full p-2 border dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400"
-                  placeholder="Dashboard description"
-                  rows={2}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Refresh Interval (seconds)</label>
-                  <input
-                    type="number"
-                    min="30"
-                    max="3600"
-                    value={editForm.refreshInterval}
-                    onChange={(e) => setEditForm(prev => ({ ...prev!, refreshInterval: parseInt(e.target.value) || 300 }))}
-                    className="w-full p-2 border dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Category</label>
-                  <select
-                    value={editForm.category}
-                    onChange={(e) => setEditForm(prev => ({ ...prev!, category: e.target.value }))}
-                    className="w-full p-2 border dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400"
-                  >
-                    <option value="Custom">Custom</option>
-                    <option value="Analytics">Analytics</option>
-                    <option value="Monitoring">Monitoring</option>
-                    <option value="Business">Business</option>
-                    <option value="Development">Development</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="flex items-center p-2 border rounded hover:bg-gray-50">
-                  <input
-                    type="checkbox"
-                    checked={editForm.requiresAuth}
-                    onChange={(e) => setEditForm(prev => ({ ...prev!, requiresAuth: e.target.checked }))}
-                    className="mr-3"
-                  />
-                  <div>
-                    <div className="font-medium text-gray-900 flex items-center">
-                      <AlertCircle className="w-4 h-4 mr-2 text-yellow-600" />
-                      Requires Authentication
-                    </div>
-                    <div className="text-xs text-gray-600">Dashboard needs login credentials to display properly</div>
-                  </div>
-                </label>
-              </div>
-
-              <div className="flex justify-end space-x-3 pt-4 border-t">
-                <button 
-                  onClick={cancelEditingDashboard}
-                  className="px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 dark:text-gray-300 rounded flex items-center transition-colors"
-                >
-                  <XCircle className="w-3 h-3 mr-1" />
-                  Cancel
-                </button>
-                <button 
-                  onClick={saveDashboardChanges}
-                  disabled={!editForm.name || !editForm.url || !isValidUrl(editForm.url) || creating || updating}
-                  className="px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded flex items-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {(creating || updating) ? (
-                    <>
-                      <div className="w-3 h-3 mr-1 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      {editingDashboard ? 'Saving...' : 'Creating...'}
-                    </>
-                  ) : (
-                    <>
-                      <Save className="w-3 h-3 mr-1" />
-                      {editingDashboard ? 'Save Dashboard' : 'Create Dashboard'}
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (

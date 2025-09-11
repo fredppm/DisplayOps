@@ -1,27 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import fs from 'fs/promises';
-import path from 'path';
 import { ApiResponse } from '@/types/multi-site-types';
-
-const AUDIT_LOG_FILE = path.join(process.cwd(), 'data', 'audit-log.json');
-
-interface AuditLogEntry {
-  id: string;
-  timestamp: string;
-  action: string;
-  resource: string;
-  resourceId?: string;
-  user?: string;
-  userAgent?: string;
-  ip?: string;
-  data?: any;
-  success: boolean;
-  error?: string;
-}
-
-interface AuditLogData {
-  logs: AuditLogEntry[];
-}
+import { auditRepository, AuditLogEntry } from '@/lib/repositories/AuditRepository';
 
 interface AuditStats {
   totalEvents: number;
@@ -43,15 +22,6 @@ interface AuditStats {
   generatedAt: string;
 }
 
-async function readAuditLog(): Promise<AuditLogData> {
-  try {
-    const data = await fs.readFile(AUDIT_LOG_FILE, 'utf-8');
-    return JSON.parse(data);
-  } catch (error) {
-    console.error('Error reading audit log:', error);
-    return { logs: [] };
-  }
-}
 
 function calculateStats(logs: AuditLogEntry[]): AuditStats {
   const now = new Date();
@@ -159,8 +129,8 @@ export default async function handler(
   }
 
   try {
-    const data = await readAuditLog();
-    const stats = calculateStats(data.logs);
+    const logs = await auditRepository.getAll();
+    const stats = calculateStats(logs);
     
     console.log('Audit statistics generated:', {
       totalEvents: stats.totalEvents,

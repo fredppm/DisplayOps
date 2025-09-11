@@ -1,7 +1,9 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { webSocketServerSingleton } from '@/lib/websocket-server-singleton';
 import { createContextLogger } from '@/utils/logger';
-import { loadControllers, loadDashboards } from '@/lib/data-adapter';
+import { controllersRepository } from '@/lib/repositories/ControllersRepository';
+import { dashboardsRepository } from '@/lib/repositories/DashboardsRepository';
+import { cookiesRepository } from '@/lib/repositories/CookiesRepository';
 import { db } from '@/lib/database';
 
 const logger = createContextLogger('health-api');
@@ -79,13 +81,8 @@ interface HealthStatus {
 
 async function readControllersData(): Promise<any> {
   try {
-    const controllers = await loadControllers();
-    
-    // Apply the same status calculation logic as ControllersRepository
-    const { calculateControllersStatus } = await import('@/lib/controller-status');
-    const controllersWithStatus = calculateControllersStatus(controllers as any || []);
-    
-    return { controllers: controllersWithStatus };
+    const controllers = await controllersRepository.getAll();
+    return { controllers };
   } catch (error) {
     logger.error('Error reading controllers data', { error: (error as Error).message });
     return { controllers: [] };
@@ -94,7 +91,7 @@ async function readControllersData(): Promise<any> {
 
 async function readDashboardsData(): Promise<any> {
   try {
-    const dashboards = await loadDashboards();
+    const dashboards = await dashboardsRepository.getAll();
     return dashboards || [];
   } catch (error) {
     logger.error('Error reading dashboards data', { error: (error as Error).message });
@@ -104,54 +101,8 @@ async function readDashboardsData(): Promise<any> {
 
 async function readCookiesData(): Promise<any> {
   try {
-    // Check if cookies table exists first
-    const tableExistsResult = await db.query(`
-      SELECT EXISTS (
-        SELECT 1 FROM information_schema.tables 
-        WHERE table_schema = 'public' 
-        AND table_name = 'cookies'
-      );
-    `);
-    
-    if (!tableExistsResult.rows[0]?.exists) {
-      // Table doesn't exist, return empty data
-      return { domains: {}, lastUpdated: null };
-    }
-    
-    // Query cookies from PostgreSQL
-    const result = await db.query(`
-      SELECT domain, name, value, path, secure, http_only, same_site, 
-             expiration_date, description, created_at, updated_at
-      FROM cookies 
-      ORDER BY domain, name
-    `);
-    
-    // Group cookies by domain
-    const domains: any = {};
-    result.rows.forEach((cookie: any) => {
-      if (!domains[cookie.domain]) {
-        domains[cookie.domain] = {
-          domain: cookie.domain,
-          description: `Cookies for ${cookie.domain}`,
-          cookies: [],
-          lastUpdated: cookie.updated_at?.toISOString() || cookie.created_at?.toISOString()
-        };
-      }
-      
-      domains[cookie.domain].cookies.push({
-        name: cookie.name,
-        value: cookie.value,
-        domain: cookie.domain,
-        path: cookie.path,
-        secure: cookie.secure,
-        httpOnly: cookie.http_only,
-        sameSite: cookie.same_site,
-        expirationDate: cookie.expiration_date,
-        description: cookie.description
-      });
-    });
-    
-    return { domains, lastUpdated: new Date().toISOString() };
+    const cookiesData = await cookiesRepository.getAllAsApiFormat();
+    return cookiesData;
   } catch (error) {
     logger.error('Error reading cookies data', { error: (error as Error).message });
     return { domains: {}, lastUpdated: null };

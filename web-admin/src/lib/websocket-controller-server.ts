@@ -1,10 +1,11 @@
 import { Server as SocketIOServer } from 'socket.io';
 import { Server as HTTPServer } from 'http';
 import { EventEmitter } from 'events';
-import fs from 'fs/promises';
-import path from 'path';
 import { Controller } from '@/types/multi-site-types';
 import { createContextLogger } from '@/utils/logger';
+import { dashboardsRepository } from '@/lib/repositories/DashboardsRepository';
+import { controllersRepository } from '@/lib/repositories/ControllersRepository';
+import { cookiesRepository } from '@/lib/repositories/CookiesRepository';
 
 const wsServerLogger = createContextLogger('websocket-server');
 
@@ -497,121 +498,77 @@ export class WebSocketControllerServer extends EventEmitter {
     }, 30000); // Check every 30 seconds
   }
 
-  // File I/O helpers (similar to gRPC server)
-  private async readControllersData(filePath: string): Promise<{ controllers: Controller[] }> {
-    try {
-      const data = await fs.readFile(filePath, 'utf-8');
-      return JSON.parse(data);
-    } catch (error) {
-      return { controllers: [] };
-    }
-  }
-
-  private async writeControllersData(filePath: string, data: { controllers: Controller[] }): Promise<void> {
-    await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf-8');
-  }
-
-  private async readSitesData(filePath: string): Promise<{ sites: any[] }> {
-    try {
-      const data = await fs.readFile(filePath, 'utf-8');
-      return JSON.parse(data);
-    } catch (error) {
-      return { sites: [] };
-    }
-  }
-
-  private async writeSitesData(filePath: string, data: { sites: any[] }): Promise<void> {
-    await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf-8');
-  }
+  // Repository helpers - removed old JSON I/O methods
 
   private async registerController(controllerId: string, registrationData: any): Promise<Controller> {
-    const CONTROLLERS_FILE = path.join(process.cwd(), 'data', 'controllers.json');
-    const SITES_FILE = path.join(process.cwd(), 'data', 'sites.json');
+    try {
+      // Check if controller already exists
+      const existingController = await controllersRepository.getById(controllerId);
 
-    const controllersData = await this.readControllersData(CONTROLLERS_FILE);
-    const sitesData = await this.readSitesData(SITES_FILE);
-    
-    let targetSiteId = registrationData.site_id || undefined;
-    if (targetSiteId) {
-      const site = sitesData.sites.find((s: any) => s.id === targetSiteId);
-      if (!site) {
-        targetSiteId = undefined;
+      if (existingController) {
+        // Update existing controller
+        const updatedController = await controllersRepository.update(controllerId, {
+          name: registrationData.location || registrationData.hostname,
+          localNetwork: registrationData.local_network,
+          mdnsService: registrationData.mdns_service,
+          controllerUrl: registrationData.web_admin_url || existingController.controllerUrl,
+          version: registrationData.version,
+          status: 'online',
+          lastSync: new Date().toISOString()
+        } as Partial<Controller>);
+        
+        return updatedController || existingController;
       }
+
+      // Create new controller
+      const newController: Controller = {
+        id: controllerId,
+        siteId: registrationData.site_id || '',
+        name: registrationData.location || registrationData.hostname,
+        localNetwork: registrationData.local_network || '',
+        mdnsService: registrationData.mdns_service || '',
+        controllerUrl: registrationData.web_admin_url || 'http://localhost:3000',
+        status: 'online',
+        lastSync: new Date().toISOString(),
+        version: registrationData.version || ''
+      };
+
+      return await controllersRepository.create(newController);
+    } catch (error) {
+      wsServerLogger.error('Failed to register controller', { controllerId, error });
+      throw error;
     }
-
-    const existingController = controllersData.controllers.find(
-      (c: Controller) => c.id === controllerId
-    );
-
-    if (existingController) {
-      existingController.name = registrationData.location || registrationData.hostname;
-      existingController.localNetwork = registrationData.local_network;
-      existingController.mdnsService = registrationData.mdns_service;
-      existingController.controllerUrl = registrationData.web_admin_url || existingController.controllerUrl;
-      existingController.version = registrationData.version;
-      existingController.status = 'online';
-      existingController.lastSync = new Date().toISOString();
-
-      await this.writeControllersData(CONTROLLERS_FILE, controllersData);
-      return existingController;
-    }
-
-    const newController: Controller = {
-      id: controllerId,
-      siteId: targetSiteId,
-      name: registrationData.location || registrationData.hostname,
-      localNetwork: registrationData.local_network,
-      mdnsService: registrationData.mdns_service,
-      controllerUrl: registrationData.web_admin_url || 'http://localhost:3000',
-      status: 'online',
-      lastSync: new Date().toISOString(),
-      version: registrationData.version
-    };
-
-    controllersData.controllers.push(newController);
-    await this.writeControllersData(CONTROLLERS_FILE, controllersData);
-
-    if (targetSiteId) {
-      const targetSite = sitesData.sites.find((s: any) => s.id === targetSiteId);
-      if (targetSite && !targetSite.controllers.includes(controllerId)) {
-        targetSite.controllers.push(controllerId);
-        targetSite.updatedAt = new Date().toISOString();
-        await this.writeSitesData(SITES_FILE, sitesData);
-      }
-    }
-
-    return newController;
   }
 
   private async updateControllerStatus(controllerId: string, statusData: any): Promise<void> {
-    const CONTROLLERS_FILE = path.join(process.cwd(), 'data', 'controllers.json');
-    const controllersData = await this.readControllersData(CONTROLLERS_FILE);
-    
-    const controller = controllersData.controllers.find((c: Controller) => c.id === controllerId);
-    if (controller) {
-      controller.status = statusData.status.toLowerCase();
-      controller.lastSync = new Date().toISOString();
-      await this.writeControllersData(CONTROLLERS_FILE, controllersData);
+    try {
+      await controllersRepository.update(controllerId, {
+        status: statusData.status.toLowerCase(),
+        lastSync: new Date().toISOString()
+      } as Partial<Controller>);
+    } catch (error) {
+      wsServerLogger.error('Failed to update controller status', { controllerId, error });
     }
   }
 
   // Dashboard sync functions (similar to gRPC server)
   public async markAllControllersForSync(): Promise<void> {
-    const CONTROLLERS_FILE = path.join(process.cwd(), 'data', 'controllers.json');
-    const controllersData = await this.readControllersData(CONTROLLERS_FILE);
-    const syncTimestamp = new Date().toISOString();
+    try {
+      const controllers = await controllersRepository.getAll();
+      const syncTimestamp = new Date().toISOString();
 
-    controllersData.controllers.forEach((controller: any) => {
-      controller.pendingDashboardSync = true;
-      controller.dashboardSyncTimestamp = syncTimestamp;
-    });
-
-    await this.writeControllersData(CONTROLLERS_FILE, controllersData);
-    
-    wsServerLogger.info('All controllers marked for dashboard sync', {
-      controllersCount: controllersData.controllers.length,
-      syncTimestamp
-    });
+      // Update lastSync for all controllers (since we don't have pendingDashboardSync field)
+      for (const controller of controllers) {
+        await controllersRepository.updateLastSync(controller.id);
+      }
+      
+      wsServerLogger.info('All controllers marked for dashboard sync', {
+        controllersCount: controllers.length,
+        syncTimestamp
+      });
+    } catch (error) {
+      wsServerLogger.error('Failed to mark controllers for sync', { error });
+    }
   }
 
   public async broadcastDashboardSync(): Promise<void> {
@@ -671,43 +628,39 @@ export class WebSocketControllerServer extends EventEmitter {
   }
 
   private async processPendingSyncs(socket: any, controllerId: string): Promise<void> {
-    const CONTROLLERS_FILE = path.join(process.cwd(), 'data', 'controllers.json');
-    const controllersData = await this.readControllersData(CONTROLLERS_FILE);
-    
-    const controller: any = controllersData.controllers.find(c => c.id === controllerId);
-    if (!controller || !controller.pendingDashboardSync) {
-      return;
-    }
-
-    wsServerLogger.info('Processing pending dashboard sync', {
-      controllerId,
-      pendingSince: controller.dashboardSyncTimestamp
-    });
-
-    const dashboards = await this.loadDashboards();
-    const syncTimestamp = this.createTimestamp();
-
-    const dashboardSyncMessage: AdminMessage = {
-      type: 'dashboard_sync',
-      controller_id: controllerId,
-      timestamp: syncTimestamp,
-      payload: {
-        command_id: this.generateConnectionId(),
-        dashboards: dashboards.map(d => ({
-          id: d.id,
-          name: d.name,
-          url: d.url,
-          description: d.description,
-          refresh_interval: d.refreshInterval,
-          requires_auth: d.requiresAuth,
-          category: d.category || ''
-        })),
-        sync_timestamp: syncTimestamp,
-        sync_type: 'full'
-      }
-    };
-
     try {
+      const controller = await controllersRepository.getById(controllerId);
+      if (!controller) {
+        return;
+      }
+
+      wsServerLogger.info('Processing controller dashboard sync (WebSocket handles real-time sync)', {
+        controllerId
+      });
+
+      const dashboards = await this.loadDashboards();
+      const syncTimestamp = this.createTimestamp();
+
+      const dashboardSyncMessage: AdminMessage = {
+        type: 'dashboard_sync',
+        controller_id: controllerId,
+        timestamp: syncTimestamp,
+        payload: {
+          command_id: this.generateConnectionId(),
+          dashboards: dashboards.map(d => ({
+            id: d.id,
+            name: d.name,
+            url: d.url,
+            description: d.description,
+            refresh_interval: d.refreshInterval,
+            requires_auth: d.requiresAuth,
+            category: d.category || ''
+          })),
+          sync_timestamp: syncTimestamp,
+          sync_type: 'full'
+        }
+      };
+
       socket.emit('admin-message', dashboardSyncMessage);
       await this.clearSyncFlag(controllerId);
       
@@ -724,23 +677,17 @@ export class WebSocketControllerServer extends EventEmitter {
   }
 
   private async clearSyncFlag(controllerId: string): Promise<void> {
-    const CONTROLLERS_FILE = path.join(process.cwd(), 'data', 'controllers.json');
-    const controllersData = await this.readControllersData(CONTROLLERS_FILE);
-    
-    const controller: any = controllersData.controllers.find(c => c.id === controllerId);
-    if (controller) {
-      controller.pendingDashboardSync = false;
-      controller.dashboardSyncTimestamp = null;
-      await this.writeControllersData(CONTROLLERS_FILE, controllersData);
+    try {
+      // With WebSocket, sync is immediate - just update lastSync
+      await controllersRepository.updateLastSync(controllerId);
+    } catch (error) {
+      wsServerLogger.error('Failed to clear sync flag', { controllerId, error });
     }
   }
 
   private async loadDashboards(): Promise<any[]> {
-    const DASHBOARDS_FILE = path.join(process.cwd(), 'data', 'dashboards.json');
     try {
-      const data = await fs.readFile(DASHBOARDS_FILE, 'utf-8');
-      const parsed = JSON.parse(data);
-      return Array.isArray(parsed) ? parsed : parsed.dashboards || [];
+      return await dashboardsRepository.getAll();
     } catch (error) {
       wsServerLogger.error('Error loading dashboards for sync', { error });
       return [];
@@ -749,21 +696,22 @@ export class WebSocketControllerServer extends EventEmitter {
 
   // Cookie sync functions
   public async markAllControllersForCookieSync(): Promise<void> {
-    const CONTROLLERS_FILE = path.join(process.cwd(), 'data', 'controllers.json');
-    const controllersData = await this.readControllersData(CONTROLLERS_FILE);
-    const syncTimestamp = new Date().toISOString();
+    try {
+      const controllers = await controllersRepository.getAll();
+      const syncTimestamp = new Date().toISOString();
 
-    controllersData.controllers.forEach((controller: any) => {
-      controller.pendingCookieSync = true;
-      controller.cookieSyncTimestamp = syncTimestamp;
-    });
-
-    await this.writeControllersData(CONTROLLERS_FILE, controllersData);
-    
-    wsServerLogger.info('All controllers marked for cookie sync', {
-      controllersCount: controllersData.controllers.length,
-      syncTimestamp
-    });
+      // Update lastSync for all controllers (since we don't have pendingCookieSync field)
+      for (const controller of controllers) {
+        await controllersRepository.updateLastSync(controller.id);
+      }
+      
+      wsServerLogger.info('All controllers marked for cookie sync', {
+        controllersCount: controllers.length,
+        syncTimestamp
+      });
+    } catch (error) {
+      wsServerLogger.error('Failed to mark controllers for cookie sync', { error });
+    }
   }
 
   public async broadcastCookieSync(): Promise<void> {
@@ -832,52 +780,48 @@ export class WebSocketControllerServer extends EventEmitter {
   }
 
   private async processPendingCookieSyncs(socket: any, controllerId: string): Promise<void> {
-    const CONTROLLERS_FILE = path.join(process.cwd(), 'data', 'controllers.json');
-    const controllersData = await this.readControllersData(CONTROLLERS_FILE);
-    
-    const controller: any = controllersData.controllers.find(c => c.id === controllerId);
-    if (!controller || !controller.pendingCookieSync) {
-      return;
-    }
-
-    wsServerLogger.info('Processing pending cookie sync', {
-      controllerId,
-      pendingSince: controller.cookieSyncTimestamp
-    });
-
-    const cookiesData = await this.loadCookies();
-    const syncTimestamp = this.createTimestamp();
-
-    const cookieDomains = Object.values(cookiesData.domains).map((domain: any) => ({
-      domain: domain.domain,
-      description: domain.description,  
-      cookies: domain.cookies.map((cookie: any) => ({
-        name: cookie.name,
-        value: cookie.value,
-        domain: cookie.domain,
-        path: cookie.path,
-        secure: cookie.secure,
-        http_only: cookie.httpOnly,
-        same_site: cookie.sameSite,
-        expiration_date: cookie.expirationDate,
-        description: cookie.description || ''
-      })),
-      last_updated: syncTimestamp
-    }));
-
-    const cookieSyncMessage: AdminMessage = {
-      type: 'cookie_sync',
-      controller_id: controllerId,
-      timestamp: syncTimestamp,
-      payload: {
-        command_id: this.generateConnectionId(),
-        cookie_domains: cookieDomains,
-        sync_timestamp: syncTimestamp,
-        sync_type: 'full'
-      }
-    };
-
     try {
+      const controller = await controllersRepository.getById(controllerId);
+      if (!controller) {
+        return;
+      }
+
+      wsServerLogger.info('Processing controller cookie sync (WebSocket handles real-time sync)', {
+        controllerId
+      });
+
+      const cookiesData = await this.loadCookies();
+      const syncTimestamp = this.createTimestamp();
+
+      const cookieDomains = Object.values(cookiesData.domains).map((domain: any) => ({
+        domain: domain.domain,
+        description: domain.description,  
+        cookies: domain.cookies.map((cookie: any) => ({
+          name: cookie.name,
+          value: cookie.value,
+          domain: cookie.domain,
+          path: cookie.path,
+          secure: cookie.secure,
+          http_only: cookie.httpOnly,
+          same_site: cookie.sameSite,
+          expiration_date: cookie.expirationDate,
+          description: cookie.description || ''
+        })),
+        last_updated: syncTimestamp
+      }));
+
+      const cookieSyncMessage: AdminMessage = {
+        type: 'cookie_sync',
+        controller_id: controllerId,
+        timestamp: syncTimestamp,
+        payload: {
+          command_id: this.generateConnectionId(),
+          cookie_domains: cookieDomains,
+          sync_timestamp: syncTimestamp,
+          sync_type: 'full'
+        }
+      };
+
       socket.emit('admin-message', cookieSyncMessage);
       await this.clearCookieSyncFlag(controllerId);
       
@@ -894,22 +838,17 @@ export class WebSocketControllerServer extends EventEmitter {
   }
 
   private async clearCookieSyncFlag(controllerId: string): Promise<void> {
-    const CONTROLLERS_FILE = path.join(process.cwd(), 'data', 'controllers.json');
-    const controllersData = await this.readControllersData(CONTROLLERS_FILE);
-    
-    const controller: any = controllersData.controllers.find(c => c.id === controllerId);
-    if (controller) {
-      controller.pendingCookieSync = false;
-      controller.cookieSyncTimestamp = null;
-      await this.writeControllersData(CONTROLLERS_FILE, controllersData);
+    try {
+      // With WebSocket, sync is immediate - just update lastSync  
+      await controllersRepository.updateLastSync(controllerId);
+    } catch (error) {
+      wsServerLogger.error('Failed to clear cookie sync flag', { controllerId, error });
     }
   }
 
   private async loadCookies(): Promise<any> {
-    const COOKIES_FILE = path.join(process.cwd(), 'data', 'cookies.json');
     try {
-      const data = await fs.readFile(COOKIES_FILE, 'utf-8');
-      return JSON.parse(data);
+      return await cookiesRepository.getAllAsApiFormat();
     } catch (error) {
       wsServerLogger.error('Error loading cookies for sync', { error });
       return { domains: {}, lastUpdated: new Date().toISOString() };

@@ -1,4 +1,4 @@
-import { BaseRepository } from './BaseRepository';
+import { BasePostgresRepository } from './BasePostgresRepository';
 
 export interface Cookie {
   id: string;
@@ -21,17 +21,33 @@ export interface CookieDomain {
   lastUpdated: string;
 }
 
-export class CookiesRepository extends BaseRepository<CookieDomain> {
+export class CookiesRepository extends BasePostgresRepository<CookieDomain> {
   constructor() {
-    super('cookies.json');
+    super();
   }
 
-  protected getDefaultData() {
-    return { domains: [] };
+  protected getTableName(): string {
+    return 'cookie_domains';
   }
 
-  protected getCollectionKey(): string {
-    return 'domains';
+  protected mapDbRowToEntity(row: any): CookieDomain {
+    return {
+      id: row.id,
+      domain: row.domain,
+      description: row.description,
+      cookies: row.cookies ? JSON.parse(row.cookies) : [],
+      lastUpdated: row.last_updated
+    };
+  }
+
+  protected mapEntityToDbRow(entity: CookieDomain): any {
+    return {
+      id: entity.id,
+      domain: entity.domain,
+      description: entity.description,
+      cookies: JSON.stringify(entity.cookies),
+      last_updated: entity.lastUpdated
+    };
   }
 
   // Cookie domain-specific methods

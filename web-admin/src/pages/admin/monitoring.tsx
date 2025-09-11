@@ -2,10 +2,15 @@ import React from 'react';
 import { NextPage, GetServerSideProps } from 'next';
 import Layout from '@/components/Layout';
 import MonitoringDashboard from '@/components/MonitoringDashboard';
-import { getMonitoringData } from '@/lib/api-server';
+// Removed api-server import - now uses /api/monitoring endpoint
 
 interface MonitoringPageProps {
-  initialMonitoringData: Awaited<ReturnType<typeof getMonitoringData>>;
+  initialMonitoringData: {
+    timestamp: string;
+    metrics?: any;
+    alerts?: any[];
+    alertStats?: any;
+  };
 }
 
 const MonitoringPage: NextPage<MonitoringPageProps> = ({ initialMonitoringData }) => {
@@ -15,9 +20,9 @@ const MonitoringPage: NextPage<MonitoringPageProps> = ({ initialMonitoringData }
         <div className="container mx-auto p-4">
         <MonitoringDashboard 
           initialData={{
-            metrics: initialMonitoringData.metrics,
-            alerts: initialMonitoringData.alerts,
-            alertStats: initialMonitoringData.alertStats
+            metrics: initialMonitoringData.metrics || {},
+            alerts: initialMonitoringData.alerts || [],
+            alertStats: initialMonitoringData.alertStats || {}
           }}
         />
         </div>
@@ -28,7 +33,13 @@ const MonitoringPage: NextPage<MonitoringPageProps> = ({ initialMonitoringData }
 
 export const getServerSideProps: GetServerSideProps = async () => {
   try {
-    const initialMonitoringData = await getMonitoringData();
+    // Component will fetch data via API, providing fallback data
+    const initialMonitoringData = {
+      timestamp: new Date().toISOString(),
+      metrics: {},
+      alerts: [],
+      alertStats: {}
+    };
     
     return {
       props: {

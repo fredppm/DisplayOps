@@ -133,11 +133,11 @@ export const DisplayCard: React.FC<DisplayCardProps> = ({
       if (onRefreshDisplay) {
         await onRefreshDisplay(host, displayId);
         setRefreshStatus(prev => ({ ...prev, [statusKey]: 'success' }));
-        // HostsList já trata as notificações, não duplicar aqui
+        // HostsList already handles notifications, don't duplicate here
       }
     } catch (error) {
       setRefreshStatus(prev => ({ ...prev, [statusKey]: 'error' }));
-      // HostsList já trata os erros, não duplicar aqui
+      // HostsList already handles errors, don't duplicate here
     }
 
     setTimeout(() => {
@@ -150,10 +150,10 @@ export const DisplayCard: React.FC<DisplayCardProps> = ({
       setIdentifyingDisplays(true);
       try {
         await onIdentifyDisplays(host.id);
-        // HostsList já trata as notificações, não duplicar aqui
+        // HostsList already handles notifications, don't duplicate here
         setTimeout(() => setIdentifyingDisplays(false), 5000);
       } catch (error) {
-        // HostsList já trata os erros, apenas resetar estado local
+        // HostsList already handles errors, just reset local state
         setIdentifyingDisplays(false);
       }
     }
@@ -164,9 +164,9 @@ export const DisplayCard: React.FC<DisplayCardProps> = ({
       setDebugToggling(true);
       try {
         await onToggleDebug(host.id);
-        // HostsList já trata as notificações, não duplicar aqui
+        // HostsList already handles notifications, don't duplicate here
       } catch (error) {
-        // HostsList já trata os erros, apenas resetar estado local
+        // HostsList already handles errors, just reset local state
       } finally {
         setDebugToggling(false);
       }

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { MiniPC } from '@/types/shared-types';
 import { 
   Cookie, 
@@ -24,6 +25,7 @@ import {
 
 interface AuthorizationManagerProps {
   hosts: MiniPC[];
+  hideHeader?: boolean;
 }
 
 // Import Form Component
@@ -276,7 +278,7 @@ interface AuthDomain {
   description: string;
 }
 
-export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ hosts }) => {
+export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ hosts, hideHeader = false }) => {
   const [authDomains, setAuthDomains] = useState<AuthDomain[]>([]);
 
   const [isLoadingData, setIsLoadingData] = useState(false);
@@ -502,18 +504,6 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
     ));
   };
 
-  const addNewDomain = () => {
-    const newDomain: AuthDomain = {
-      id: `domain-${Date.now()}`,
-      domain: 'https://example.com',
-      cookies: [],
-      lastSync: null,
-      isValid: false,
-      description: 'New domain'
-    };
-    setAuthDomains(prev => [...prev, newDomain]);
-    addNotification('info', 'Domain Added', 'New domain added. Configure it now.');
-  };
 
   const confirmRemoveDomain = (domainId: string) => {
     setShowRemoveConfirm(domainId);
@@ -1024,28 +1014,30 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
       {/* Cookie Management Card */}
       <div className="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 shadow-sm">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between">
-            <div className="min-w-0 flex-1">
-              <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100 dark:text-gray-100 flex items-center">
-                Cookie Management
-              </h2>
-              <div className="mt-1 text-sm text-gray-500 dark:text-gray-400 dark:text-gray-400">
-                Import cookies to enable automatic login on display devices
+        {!hideHeader && (
+          <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between">
+              <div className="min-w-0 flex-1">
+                <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100 dark:text-gray-100 flex items-center">
+                  Cookie Management
+                </h2>
+                <div className="mt-1 text-sm text-gray-500 dark:text-gray-400 dark:text-gray-400">
+                  Import cookies to enable automatic login on display devices
+                </div>
+              </div>
+              
+              <div className="ml-6 flex items-center space-x-3">
+                <Link
+                  href="/cookies/new"
+                  className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+                >
+                  <Plus className="w-4 h-4 mr-1.5" />
+                  Import Cookies
+                </Link>
               </div>
             </div>
-            
-            <div className="ml-6 flex items-center space-x-3">
-              <button
-                onClick={addNewDomain}
-                className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-              >
-                <Plus className="w-4 h-4 mr-1.5" />
-                Add Domain
-              </button>
-            </div>
           </div>
-        </div>
+        )}
 
         {/* Domains List */}
         <div className="divide-y divide-gray-200 dark:divide-gray-700">
@@ -1079,7 +1071,7 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
               <Cookie className="w-12 h-12 text-gray-400 dark:text-gray-500 dark:text-gray-400 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 dark:text-gray-100 mb-2">No domains configured yet</h3>
               <p className="text-gray-600 dark:text-gray-400">
-                Use the "Add Domain" button above to start managing cookies
+                Use the "Import Cookies" button above to start managing cookies
               </p>
             </div>
           ) : (

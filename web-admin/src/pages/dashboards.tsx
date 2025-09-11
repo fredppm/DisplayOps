@@ -2,7 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { DashboardManager } from '@/components/DashboardManager';
 import Layout from '@/components/Layout';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import Link from 'next/link';
 import { Dashboard } from '@/types/shared-types';
+import { Plus } from 'lucide-react';
 
 export default function DashboardsPage() {
   const [dashboards, setDashboards] = useState<Dashboard[]>([]);
@@ -38,7 +40,7 @@ export default function DashboardsPage() {
     <ProtectedRoute>
       <Layout>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* Page Header */}
+          {/* Page Header with Actions */}
           <div className="pb-6">
             <div className="flex items-center justify-between">
               <div className="min-w-0 flex-1">
@@ -54,10 +56,19 @@ export default function DashboardsPage() {
                   Configure and deploy dashboards to display devices across your organization
                 </p>
               </div>
+              <div className="ml-6 flex flex-shrink-0">
+                <Link
+                  href="/dashboards/new"
+                  className="inline-flex items-center rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 transition-colors"
+                >
+                  <Plus className="-ml-0.5 mr-1.5 h-4 w-4" />
+                  Add Dashboard
+                </Link>
+              </div>
             </div>
           </div>
           
-          <DashboardManager initialDashboards={dashboards} />
+          <DashboardManager initialDashboards={dashboards} hideHeader={true} />
         </div>
       </Layout>
     </ProtectedRoute>

@@ -164,7 +164,7 @@ export const useSSEHostDiscovery = (): UseSSEHostDiscoveryReturn => {
       });
     };
 
-  }, []);
+  }, [isCircuitBreakerOpen, consecutiveFailures, setDiscoveredHostsWithLog]);
 
   const disconnect = useCallback(() => {
     if (reconnectTimeoutRef.current) {
@@ -202,7 +202,7 @@ export const useSSEHostDiscovery = (): UseSSEHostDiscoveryReturn => {
     } finally {
       setIsDiscovering(false);
     }
-  }, [isConnected]);
+  }, [isConnected, setDiscoveredHostsWithLog]);
 
   // Auto-connect on mount (with debounce to prevent multiple calls)
   useEffect(() => {
@@ -223,7 +223,7 @@ export const useSSEHostDiscovery = (): UseSSEHostDiscoveryReturn => {
       disconnect();
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, []); // Empty deps array to only run once on mount
+  }, [connect, disconnect]); // Include connect and disconnect dependencies
 
   // HTTP fallback when disconnected (with delay to avoid race conditions)
   useEffect(() => {

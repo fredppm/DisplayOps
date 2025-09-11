@@ -72,28 +72,28 @@ const NewSitePage: NextPage = () => {
     <Layout>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="border-b border-gray-200 pb-6 mb-8">
+        <div className="border-b border-gray-200 dark:border-gray-700 pb-6 mb-8">
           <div className="flex items-center justify-between">
             <div className="min-w-0 flex-1">
               <div className="flex items-center mb-2">
                 <Link
                   href="/sites"
-                  className="mr-4 text-gray-400 hover:text-gray-600 transition-colors"
+                  className="mr-4 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
                 >
                   <ArrowLeft className="h-6 w-6" />
                 </Link>
-                <h1 className="text-2xl font-bold leading-7 text-gray-900 sm:truncate sm:text-3xl sm:tracking-tight">
+                <h1 className="text-2xl font-bold leading-7 text-gray-900 dark:text-gray-100 sm:truncate sm:text-3xl sm:tracking-tight">
                   Create New Site
                 </h1>
               </div>
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-gray-500 dark:text-gray-400">
                 Add a new site to manage DisplayOps controllers and displays
               </p>
             </div>
             <div className="ml-6 flex flex-shrink-0">
               <Link
                 href="/sites"
-                className="inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 transition-colors"
+                className="inline-flex items-center rounded-md bg-white dark:bg-gray-700 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
               >
                 Cancel
               </Link>
@@ -106,16 +106,16 @@ const NewSitePage: NextPage = () => {
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">
             {/* Site Information */}
-            <div className="bg-white shadow rounded-lg">
+            <div className="bg-white dark:bg-gray-800 shadow rounded-lg border border-gray-200 dark:border-gray-700">
               <div className="px-4 py-5 sm:p-6">
-                <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
+                <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-gray-100 mb-4">
                   Site Information
                 </h3>
                 
                 <form onSubmit={handleSubmit} className="space-y-6">
                   <div className="grid grid-cols-1 gap-6">
                     <div>
-                      <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
+                      <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
                         Site Name <span className="text-red-500">*</span>
                       </label>
                       <div className="relative">
@@ -124,7 +124,7 @@ const NewSitePage: NextPage = () => {
                           id="name"
                           value={formData.name}
                           onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                          className="block w-full px-4 py-3 text-sm border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                          className="block w-full px-4 py-3 text-sm border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                           placeholder="Enter site name"
                           required
                           disabled={isSubmitting}
@@ -133,7 +133,7 @@ const NewSitePage: NextPage = () => {
                     </div>
                     
                     <div>
-                      <label htmlFor="location" className="block text-sm font-medium text-gray-700 mb-2">
+                      <label htmlFor="location" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
                         <MapPin className="h-4 w-4 inline mr-2" />
                         Location <span className="text-red-500">*</span>
                       </label>
@@ -143,7 +143,7 @@ const NewSitePage: NextPage = () => {
                           id="location"
                           value={formData.location}
                           onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                          className="block w-full px-4 py-3 text-sm border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                          className="block w-full px-4 py-3 text-sm border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                           placeholder="City, State/Country"
                           required
                           disabled={isSubmitting}
@@ -152,7 +152,7 @@ const NewSitePage: NextPage = () => {
                     </div>
                     
                     <div>
-                      <label htmlFor="timezone" className="block text-sm font-medium text-gray-700 mb-2">
+                      <label htmlFor="timezone" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
                         Timezone
                       </label>
                       <TimezoneCombobox
@@ -165,11 +165,11 @@ const NewSitePage: NextPage = () => {
                   </div>
 
                   {/* Form Actions */}
-                  <div className="pt-6 border-t border-gray-200">
+                  <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
                     <div className="flex justify-end space-x-3">
                       <Link
                         href="/sites"
-                        className="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                        className="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
                       >
                         Cancel
                       </Link>
@@ -199,8 +199,8 @@ const NewSitePage: NextPage = () => {
 
           {/* Sidebar */}
           <div className="lg:col-span-1">
-            <div className="bg-white shadow rounded-lg p-6">
-              <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
+            <div className="bg-white dark:bg-gray-800 shadow rounded-lg border border-gray-200 dark:border-gray-700 p-6">
+              <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-gray-100 mb-4">
                 Getting Started
               </h3>
               
@@ -210,8 +210,8 @@ const NewSitePage: NextPage = () => {
                     <CheckCircle className="h-5 w-5 text-green-400 mt-0.5" />
                   </div>
                   <div className="ml-3">
-                    <h4 className="text-sm font-medium text-gray-900">Site Creation</h4>
-                    <p className="mt-1 text-sm text-gray-500">
+                    <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100">Site Creation</h4>
+                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                       Fill out the basic site information to get started
                     </p>
                   </div>
@@ -219,13 +219,13 @@ const NewSitePage: NextPage = () => {
                 
                 <div className="flex">
                   <div className="flex-shrink-0">
-                    <div className="h-5 w-5 rounded-full bg-gray-200 mt-0.5 flex items-center justify-center">
-                      <span className="text-xs font-medium text-gray-600">2</span>
+                    <div className="h-5 w-5 rounded-full bg-gray-200 dark:bg-gray-600 mt-0.5 flex items-center justify-center">
+                      <span className="text-xs font-medium text-gray-600 dark:text-gray-300">2</span>
                     </div>
                   </div>
                   <div className="ml-3">
-                    <h4 className="text-sm font-medium text-gray-900">Add Controllers</h4>
-                    <p className="mt-1 text-sm text-gray-500">
+                    <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100">Add Controllers</h4>
+                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                       Connect local controllers to manage displays
                     </p>
                   </div>
@@ -233,22 +233,22 @@ const NewSitePage: NextPage = () => {
                 
                 <div className="flex">
                   <div className="flex-shrink-0">
-                    <div className="h-5 w-5 rounded-full bg-gray-200 mt-0.5 flex items-center justify-center">
-                      <span className="text-xs font-medium text-gray-600">3</span>
+                    <div className="h-5 w-5 rounded-full bg-gray-200 dark:bg-gray-600 mt-0.5 flex items-center justify-center">
+                      <span className="text-xs font-medium text-gray-600 dark:text-gray-300">3</span>
                     </div>
                   </div>
                   <div className="ml-3">
-                    <h4 className="text-sm font-medium text-gray-900">Configure Displays</h4>
-                    <p className="mt-1 text-sm text-gray-500">
+                    <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100">Configure Displays</h4>
+                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                       Set up and manage display content and schedules
                     </p>
                   </div>
                 </div>
               </div>
 
-              <div className="mt-6 pt-6 border-t border-gray-200">
-                <h4 className="text-sm font-medium text-gray-900 mb-3">Requirements</h4>
-                <ul className="text-sm text-gray-500 space-y-2">
+              <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+                <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-3">Requirements</h4>
+                <ul className="text-sm text-gray-500 dark:text-gray-400 space-y-2">
                   <li className="flex items-start">
                     <span className="text-red-500 mr-2">•</span>
                     Site name and location are required

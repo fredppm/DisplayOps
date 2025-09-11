@@ -43,7 +43,7 @@ export interface HealthStatus {
     total: number;
     online: number;
     offline: number;
-    connected: number; // conectados via WebSocket
+    connected: number; // connected via WebSocket
     syncUpToDate: number;
     pendingDashboards: number;
     pendingCookies: number;

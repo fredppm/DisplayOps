@@ -12,12 +12,7 @@
     "type-check": "tsc --noEmit",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage",
-    "create-admin": "node scripts/create-admin.js",
-    "create-users": "node scripts/create-all-users.js",
-    "migrate:db": "node database/migrate.js",
-    "test:ci": "jest --ci --coverage --watchAll=false",
-    "test:phase0": "node scripts/run-tests.js"
+    "test:coverage": "jest --coverage"
   },
   "dependencies": {
     "@grpc/grpc-js": "^1.10.1",

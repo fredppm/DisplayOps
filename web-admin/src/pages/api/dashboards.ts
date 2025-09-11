@@ -2,73 +2,9 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { Dashboard } from '@/types/shared-types';
 import { createContextLogger } from '@/utils/logger';
 import { webSocketServerSingleton } from '@/lib/websocket-server-singleton';
-import fs from 'fs';
-import path from 'path';
-
-const DASHBOARDS_FILE = path.join(process.cwd(), 'data', 'dashboards.json');
+import { dashboardsRepository } from '@/lib/repositories/DashboardsRepository';
 
 const dashboardsApiLogger = createContextLogger('api-dashboards');
-
-// Ensure data directory exists
-const ensureDataDirectory = () => {
-  const dataDir = path.dirname(DASHBOARDS_FILE);
-  if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true });
-  }
-};
-
-// Load dashboards from file
-const loadDashboards = (): Dashboard[] => {
-  try {
-    ensureDataDirectory();
-    
-    if (!fs.existsSync(DASHBOARDS_FILE)) {
-      // Initialize with default dashboards
-      const defaultDashboards: Dashboard[] = [
-        {
-          id: 'common-dashboard',
-          name: 'Grafana VTEX', 
-          url: 'https://grafana.vtex.com/d/d7e7051f-42a2-4798-af93-cf2023dd2e28/home?orgId=1&from=now-3h&to=now&timezone=browser&var-Origin=argocd&refresh=10s',
-          description: 'Common dashboard for all systems',
-          refreshInterval: 300,
-          requiresAuth: true,
-          category: 'Monitoring'
-        },
-        {
-          id: 'health-monitor',
-          name: 'Health Monitor',
-          url: 'https://healthmonitor.vtex.com/',
-          description: 'Health monitor for all systems',
-          refreshInterval: 600,
-          requiresAuth: true,
-          category: 'Business Intelligence'
-        }
-      ];
-      
-      saveDashboards(defaultDashboards);
-      return defaultDashboards;
-    }
-    
-    const data = fs.readFileSync(DASHBOARDS_FILE, 'utf8');
-    const parsed = JSON.parse(data);
-    // Handle both formats: direct array or wrapped object
-    return Array.isArray(parsed) ? parsed : parsed.dashboards || [];
-  } catch (error) {
-    dashboardsApiLogger.error('Error loading dashboards', { error: error instanceof Error ? error.message : String(error) });
-    return [];
-  }
-};
-
-// Save dashboards to file
-const saveDashboards = (dashboards: Dashboard[]): void => {
-  try {
-    ensureDataDirectory();
-    fs.writeFileSync(DASHBOARDS_FILE, JSON.stringify(dashboards, null, 2), 'utf8');
-  } catch (error) {
-    dashboardsApiLogger.error('Error saving dashboards', { error: error instanceof Error ? error.message : String(error) });
-    throw new Error('Failed to save dashboards');
-  }
-};
 
 // Validate dashboard data
 const validateDashboard = (data: any): data is Omit<Dashboard, 'id'> => {
@@ -82,10 +18,6 @@ const validateDashboard = (data: any): data is Omit<Dashboard, 'id'> => {
   );
 };
 
-// Generate unique ID
-const generateId = (): string => {
-  return `dashboard-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-};
 
 // Trigger dashboard sync to all controllers
 const triggerDashboardSync = async (): Promise<void> => {
@@ -104,7 +36,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     switch (req.method) {
       case 'GET':
         // List all dashboards
-        const dashboards = loadDashboards();
+        const dashboards = await dashboardsRepository.getAll();
         return res.status(200).json({
           success: true,
           data: dashboards
@@ -121,28 +53,23 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           });
         }
 
-        const newDashboard: Dashboard = {
-          id: generateId(),
-          name: body.name,
-          url: body.url,
-          description: body.description,
-          refreshInterval: body.refreshInterval,
-          requiresAuth: body.requiresAuth,
-          category: body.category
-        };
-
-        const currentDashboards = loadDashboards();
-        
         // Check for duplicate names
-        if (currentDashboards.some(d => d.name === newDashboard.name)) {
+        const existingDashboard = await dashboardsRepository.getByName(body.name);
+        if (existingDashboard) {
           return res.status(400).json({
             success: false,
             error: 'Dashboard with this name already exists'
           });
         }
 
-        currentDashboards.push(newDashboard);
-        saveDashboards(currentDashboards);
+        const newDashboard = await dashboardsRepository.createWithId({
+          name: body.name,
+          url: body.url,
+          description: body.description,
+          refreshInterval: body.refreshInterval,
+          requiresAuth: body.requiresAuth,
+          category: body.category
+        });
 
         // Trigger sync to all controllers
         await triggerDashboardSync();
@@ -171,10 +98,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           });
         }
 
-        const dashboardsToUpdate = loadDashboards();
-        const dashboardIndex = dashboardsToUpdate.findIndex(d => d.id === id);
-        
-        if (dashboardIndex === -1) {
+        const currentDashboard = await dashboardsRepository.getById(id);
+        if (!currentDashboard) {
           return res.status(404).json({
             success: false,
             error: 'Dashboard not found'
@@ -182,26 +107,29 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         }
 
         // Check for duplicate names (excluding current dashboard)
-        if (dashboardsToUpdate.some((d, index) => 
-            index !== dashboardIndex && d.name === updateData.name)) {
+        const duplicateNameCheck = await dashboardsRepository.getByName(updateData.name);
+        if (duplicateNameCheck && duplicateNameCheck.id !== id) {
           return res.status(400).json({
             success: false,
             error: 'Dashboard with this name already exists'
           });
         }
 
-        const updatedDashboard: Dashboard = {
-          ...dashboardsToUpdate[dashboardIndex],
+        const updatedDashboard = await dashboardsRepository.update(id, {
           name: updateData.name,
           url: updateData.url,
           description: updateData.description,
           refreshInterval: updateData.refreshInterval,
           requiresAuth: updateData.requiresAuth,
           category: updateData.category
-        };
+        });
 
-        dashboardsToUpdate[dashboardIndex] = updatedDashboard;
-        saveDashboards(dashboardsToUpdate);
+        if (!updatedDashboard) {
+          return res.status(500).json({
+            success: false,
+            error: 'Failed to update dashboard'
+          });
+        }
 
         // Trigger sync to all controllers
         await triggerDashboardSync();
@@ -222,26 +150,28 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           });
         }
 
-        const dashboardsToDelete = loadDashboards();
-        const deleteIndex = dashboardsToDelete.findIndex(d => d.id === deleteId);
-        
-        if (deleteIndex === -1) {
+        const dashboardToDelete = await dashboardsRepository.getById(deleteId);
+        if (!dashboardToDelete) {
           return res.status(404).json({
             success: false,
             error: 'Dashboard not found'
           });
         }
 
-        const deletedDashboard = dashboardsToDelete[deleteIndex];
-        dashboardsToDelete.splice(deleteIndex, 1);
-        saveDashboards(dashboardsToDelete);
+        const deleteSuccess = await dashboardsRepository.delete(deleteId);
+        if (!deleteSuccess) {
+          return res.status(500).json({
+            success: false,
+            error: 'Failed to delete dashboard'
+          });
+        }
 
         // Trigger sync to all controllers
         await triggerDashboardSync();
 
         return res.status(200).json({
           success: true,
-          data: deletedDashboard
+          data: dashboardToDelete
         });
 
       default:

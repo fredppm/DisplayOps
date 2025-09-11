@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
+import Image from 'next/image';
 import { useRouter } from 'next/router';
 import { GetServerSideProps } from 'next';
 import { HostsList } from '@/components/HostsList';
@@ -127,9 +128,11 @@ export default function TabPage({ tab }: TabPageProps) {
             <div className="flex justify-between items-center h-16">
               {/* Logo */}
               <div className="flex items-center">
-                <img 
+                <Image 
                   src={getStatusLogo()} 
                   alt="DisplayOps" 
+                  width={32}
+                  height={32}
                   className="w-8 h-8 mr-3"
                   onError={(e) => {
                     const target = e.target as HTMLImageElement;

@@ -23,9 +23,9 @@ export class UsersRepository extends BasePostgresRepository<User> {
       name: row.name,
       role: row.role,
       sites: Array.isArray(row.sites) ? row.sites : JSON.parse(row.sites || '[]'),
-      createdAt: row.created_at,
-      lastLogin: row.last_login,
-      passwordHash: row.password_hash,
+      createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at,
+      lastLogin: row.last_login instanceof Date ? row.last_login.toISOString() : row.last_login,
+      passwordHash: row.password_hash || null,
     };
   }
 

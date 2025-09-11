@@ -1,5 +1,5 @@
 import { WebSocketControllerServer } from './websocket-controller-server';
-import { controllerStatusMonitor } from './controller-status-monitor';
+// Removed controller-status-monitor - WebSocket handles real-time status
 import { createContextLogger } from '@/utils/logger';
 
 const wsLogger = createContextLogger('websocket');
@@ -66,7 +66,7 @@ class WebSocketServerSingleton {
       this.isStarted = true;
 
       // Start controller status monitor
-      controllerStatusMonitor.start();
+      // Real-time status via WebSocket
 
       wsLogger.info(`WebSocket Controller-Admin server started with existing Socket.IO instance`);
       return this.server;
@@ -139,7 +139,7 @@ class WebSocketServerSingleton {
       this.isStarted = true;
 
       // Start controller status monitor
-      controllerStatusMonitor.start();
+      // Real-time status via WebSocket
 
       wsLogger.info(`WebSocket Controller-Admin server started on port ${this.port}`);
       return this.server;
@@ -174,7 +174,7 @@ class WebSocketServerSingleton {
           this.server = new WebSocketControllerServer(this.port);
           await this.server.start(httpServer);
           this.isStarted = true;
-          controllerStatusMonitor.start();
+          // Real-time status via WebSocket
           wsLogger.info(`WebSocket Controller-Admin server started on port ${this.port} (after retry)`);
           return this.server;
         } catch (retryError) {
@@ -192,7 +192,7 @@ class WebSocketServerSingleton {
   public async stop(): Promise<void> {
     if (this.server && this.isStarted) {
       // Stop controller status monitor
-      controllerStatusMonitor.stop();
+      // No timer to stop - WebSocket handles status
       
       await this.server.stop();
       this.server = null;
@@ -204,7 +204,7 @@ class WebSocketServerSingleton {
   public forceStop(): void {
     if (this.server) {
       // Stop controller status monitor
-      controllerStatusMonitor.stop();
+      // No timer to stop - WebSocket handles status
       
       this.server.forceStop();
       this.server = null;
@@ -269,10 +269,10 @@ class WebSocketServerSingleton {
 
     wsLogger.info('Triggering dashboard sync for all controllers');
     
-    // Marcar todos os controllers como pendentes de sync
+    // Mark all controllers as pending sync
     await this.server.markAllControllersForSync();
     
-    // Fazer broadcast para controllers online
+    // Broadcast to online controllers
     await this.server.broadcastDashboardSync();
   }
 
@@ -283,10 +283,10 @@ class WebSocketServerSingleton {
 
     wsLogger.info('Triggering cookie sync for all controllers');
     
-    // Marcar todos os controllers como pendentes de cookie sync
+    // Mark all controllers as pending cookie sync
     await this.server.markAllControllersForCookieSync();
     
-    // Fazer broadcast para controllers online
+    // Broadcast to online controllers
     await this.server.broadcastCookieSync();
   }
 }
@@ -294,6 +294,4 @@ class WebSocketServerSingleton {
 export const webSocketServerSingleton = WebSocketServerSingleton.getInstance();
 export default webSocketServerSingleton;
 
-// Export compatibility aliases for existing gRPC code
-export const grpcServerSingleton = webSocketServerSingleton;
-export { WebSocketServerSingleton as GrpcServerSingleton };
+// WebSocket server is now the only communication method

@@ -1,38 +1,73 @@
 import { Dashboard } from '@/types/shared-types';
-import { BaseRepository } from './BaseRepository';
+import { BasePostgresRepository } from './BasePostgresRepository';
+import { db } from '@/lib/database';
 
-export class DashboardsRepository extends BaseRepository<Dashboard> {
+export class DashboardsRepository extends BasePostgresRepository<Dashboard> {
   constructor() {
-    super('dashboards.json');
+    super();
+    this.initializeDefaultData();
   }
 
-  protected getDefaultData() {
-    return { 
-      dashboards: [
-        {
-          id: 'common-dashboard',
-          name: 'Grafana VTEX', 
-          url: 'https://grafana.vtex.com/d/d7e7051f-42a2-4798-af93-cf2023dd2e28/home?orgId=1&from=now-3h&to=now&timezone=browser&var-Origin=argocd&refresh=10s',
-          description: 'Common dashboard for all systems',
-          refreshInterval: 300,
-          requiresAuth: true,
-          category: 'Monitoring'
-        },
-        {
-          id: 'health-monitor',
-          name: 'Health Monitor',
-          url: 'https://healthmonitor.vtex.com/',
-          description: 'Health monitor for all systems',
-          refreshInterval: 600,
-          requiresAuth: true,
-          category: 'Business Intelligence'
-        }
-      ]
+  protected getTableName(): string {
+    return 'dashboards';
+  }
+
+  protected mapDbRowToEntity(row: any): Dashboard {
+    return {
+      id: row.id,
+      name: row.name,
+      url: row.url,
+      description: row.description,
+      refreshInterval: row.refresh_interval,
+      requiresAuth: row.requires_auth,
+      category: row.category
     };
   }
 
-  protected getCollectionKey(): string {
-    return 'dashboards';
+  protected mapEntityToDbRow(entity: Dashboard): any {
+    return {
+      id: entity.id,
+      name: entity.name,
+      url: entity.url,
+      description: entity.description,
+      refresh_interval: entity.refreshInterval,
+      requires_auth: entity.requiresAuth,
+      category: entity.category
+    };
+  }
+
+  private async initializeDefaultData(): Promise<void> {
+    try {
+      const existing = await this.getAll();
+      if (existing.length === 0) {
+        const defaultDashboards: Dashboard[] = [
+          {
+            id: 'common-dashboard',
+            name: 'Grafana VTEX',
+            url: 'https://grafana.vtex.com/d/d7e7051f-42a2-4798-af93-cf2023dd2e28/home?orgId=1&from=now-3h&to=now&timezone=browser&var-Origin=argocd&refresh=10s',
+            description: 'Common dashboard for all systems',
+            refreshInterval: 300,
+            requiresAuth: true,
+            category: 'Monitoring'
+          },
+          {
+            id: 'health-monitor',
+            name: 'Health Monitor',
+            url: 'https://healthmonitor.vtex.com/',
+            description: 'Health monitor for all systems',
+            refreshInterval: 600,
+            requiresAuth: true,
+            category: 'Business Intelligence'
+          }
+        ];
+        
+        for (const dashboard of defaultDashboards) {
+          await this.create(dashboard);
+        }
+      }
+    } catch (error) {
+      console.error('Error initializing default dashboards:', error);
+    }
   }
 
   // Dashboard-specific methods

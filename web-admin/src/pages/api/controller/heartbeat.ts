@@ -1,8 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import fs from 'fs/promises';
-import path from 'path';
-import { Controller } from '@/types/multi-site-types';
 import { createContextLogger } from '@/utils/logger';
+import { controllersRepository } from '@/lib/repositories/ControllersRepository';
 
 const heartbeatLogger = createContextLogger('controller-heartbeat');
 
@@ -38,32 +36,24 @@ interface HeartbeatResponse {
   timestamp: string;
 }
 
-async function readControllersData(filePath: string): Promise<{ controllers: Controller[] }> {
-  try {
-    const data = await fs.readFile(filePath, 'utf-8');
-    return JSON.parse(data);
-  } catch (error) {
-    return { controllers: [] };
-  }
-}
-
-async function writeControllersData(filePath: string, data: { controllers: Controller[] }): Promise<void> {
-  await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf-8');
-}
-
 async function updateControllerStatus(controllerId: string, statusData: HeartbeatRequest): Promise<void> {
-  const CONTROLLERS_FILE = path.join(process.cwd(), 'data', 'controllers.json');
-  const controllersData = await readControllersData(CONTROLLERS_FILE);
-  
-  const controller = controllersData.controllers.find((c: Controller) => c.id === controllerId);
-  if (controller) {
-    const validStatuses = ['online', 'offline', 'error'];
-    const status = statusData.status.toLowerCase();
-    controller.status = validStatuses.includes(status) ? status as 'online' | 'offline' | 'error' : 'online';
-    controller.lastSync = new Date().toISOString();
-    await writeControllersData(CONTROLLERS_FILE, controllersData);
-  } else {
-    heartbeatLogger.warn('Heartbeat received for unknown controller', { controllerId });
+  try {
+    const controller = await controllersRepository.getById(controllerId);
+    if (controller) {
+      const validStatuses = ['online', 'offline', 'error'];
+      const status = statusData.status.toLowerCase();
+      const validatedStatus = validStatuses.includes(status) ? status as 'online' | 'offline' | 'error' : 'online';
+      
+      await controllersRepository.update(controllerId, {
+        status: validatedStatus,
+        lastSync: new Date().toISOString()
+      });
+    } else {
+      heartbeatLogger.warn('Heartbeat received for unknown controller', { controllerId });
+    }
+  } catch (error) {
+    heartbeatLogger.error('Failed to update controller status via heartbeat', { controllerId, error });
+    throw error;
   }
 }
 

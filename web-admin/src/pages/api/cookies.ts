@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { createContextLogger } from '@/utils/logger';
 import { webSocketServerSingleton } from '@/lib/websocket-server-singleton';
-import { loadCookies, saveCookie, deleteCookie, Cookie, CookiesData } from '@/lib/data-adapter';
+import { cookiesRepository, Cookie, CookieDomain } from '@/lib/repositories/CookiesRepository';
 
 const cookiesApiLogger = createContextLogger('api-cookies');
 
@@ -36,7 +36,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     switch (req.method) {
       case 'GET':
         // List all cookies by domain
-        const cookiesData = await loadCookies();
+        const cookiesData = await cookiesRepository.getAllAsApiFormat();
         return res.status(200).json({
           success: true,
           data: cookiesData
@@ -59,7 +59,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         };
 
         // Save cookie to PostgreSQL
-        await saveCookie(domain, newCookie);
+        await cookiesRepository.addCookieToDomain(domain, newCookie);
         cookiesApiLogger.info('Cookie saved', { domain, cookieName: cookie.name });
 
         // Trigger sync to all controllers
@@ -84,9 +84,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           });
         }
 
-        // Check if domain exists by loading cookies
-        const currentCookies = await loadCookies();
-        if (!currentCookies.domains[updateDomain]) {
+        // Check if domain exists
+        const existingDomain = await cookiesRepository.getByDomain(updateDomain);
+        if (!existingDomain) {
           return res.status(404).json({
             success: false,
             error: 'Domain not found'
@@ -105,27 +105,23 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
             }
           }
           
-          // Delete all existing cookies for this domain first
-          await deleteCookie(updateDomain);
+          // Update all cookies for this domain
+          const cookiesWithDescription = cookies.map(cookie => ({
+            ...cookie,
+            description: cookie.description || `Cookie ${cookie.name} for ${updateDomain}`
+          }));
           
-          // Add all new cookies
-          for (const cookie of cookies) {
-            const cookieWithDescription = {
-              ...cookie,
-              description: cookie.description || `Cookie ${cookie.name} for ${updateDomain}`
-            };
-            await saveCookie(updateDomain, cookieWithDescription);
-          }
+          await cookiesRepository.updateDomainCookies(updateDomain, cookiesWithDescription);
         }
 
         // Trigger sync to all controllers
         await triggerCookieSync();
 
         // Return updated domain data
-        const updatedCookies = await loadCookies();
+        const updatedDomain = await cookiesRepository.getByDomain(updateDomain);
         return res.status(200).json({
           success: true,
-          data: updatedCookies.domains[updateDomain]
+          data: updatedDomain
         });
 
       case 'DELETE':
@@ -140,8 +136,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         }
 
         // Check if domain exists
-        const cookiesBeforeDelete = await loadCookies();
-        if (!cookiesBeforeDelete.domains[deleteDomain]) {
+        const domainToDelete = await cookiesRepository.getByDomain(deleteDomain);
+        if (!domainToDelete) {
           return res.status(404).json({
             success: false,
             error: 'Domain not found'
@@ -150,8 +146,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
         if (cookieName && typeof cookieName === 'string') {
           // Delete specific cookie
-          const domainCookies = cookiesBeforeDelete.domains[deleteDomain].cookies;
-          const cookieToDelete = domainCookies.find(c => c.name === cookieName);
+          const cookieToDelete = domainToDelete.cookies.find(c => c.name === cookieName);
           
           if (!cookieToDelete) {
             return res.status(404).json({
@@ -160,7 +155,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
             });
           }
 
-          const deleted = await deleteCookie(deleteDomain, cookieName);
+          const deleted = await cookiesRepository.removeCookieFromDomain(deleteDomain, cookieName);
           if (!deleted) {
             return res.status(500).json({
               success: false,
@@ -177,8 +172,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           });
         } else {
           // Delete entire domain
-          const deletedDomain = cookiesBeforeDelete.domains[deleteDomain];
-          const deleted = await deleteCookie(deleteDomain);
+          const deleted = await cookiesRepository.delete(domainToDelete.id);
           
           if (!deleted) {
             return res.status(500).json({
@@ -192,7 +186,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
           return res.status(200).json({
             success: true,
-            data: { deletedDomain }
+            data: { deletedDomain: domainToDelete }
           });
         }
 

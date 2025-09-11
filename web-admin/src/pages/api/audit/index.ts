@@ -1,77 +1,11 @@
 import { NextApiResponse } from 'next';
-import fs from 'fs/promises';
-import path from 'path';
 import { ApiResponse } from '@/types/multi-site-types';
 import { withPermission, ProtectedApiRequest } from '@/lib/api-protection';
-
-const AUDIT_LOG_FILE = path.join(process.cwd(), 'data', 'audit-log.json');
-
-interface AuditLogEntry {
-  id: string;
-  timestamp: string;
-  action: string;
-  resource: string;
-  resourceId?: string;
-  user?: string;
-  userAgent?: string;
-  ip?: string;
-  data?: any;
-  success: boolean;
-  error?: string;
-}
-
-interface AuditLogData {
-  logs: AuditLogEntry[];
-}
-
-interface AuditQuery {
-  action?: string;
-  resource?: string;
-  resourceId?: string;
-  user?: string;
-  success?: boolean;
-  startDate?: string;
-  endDate?: string;
-  limit?: number;
-  offset?: number;
-}
-
-async function readAuditLog(): Promise<AuditLogData> {
-  try {
-    const data = await fs.readFile(AUDIT_LOG_FILE, 'utf-8');
-    return JSON.parse(data);
-  } catch (error) {
-    console.error('Error reading audit log:', error);
-    return { logs: [] };
-  }
-}
-
-async function writeAuditLog(data: AuditLogData): Promise<void> {
-  try {
-    await fs.writeFile(AUDIT_LOG_FILE, JSON.stringify(data, null, 2), 'utf-8');
-  } catch (error) {
-    console.error('Error writing audit log:', error);
-    throw new Error('Failed to write audit log');
-  }
-}
+import { auditRepository, AuditLogEntry, AuditQuery } from '@/lib/repositories/AuditRepository';
 
 export async function logAuditEvent(entry: Omit<AuditLogEntry, 'id' | 'timestamp'>): Promise<void> {
   try {
-    const data = await readAuditLog();
-    const auditEntry: AuditLogEntry = {
-      id: `audit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      timestamp: new Date().toISOString(),
-      ...entry
-    };
-    
-    data.logs.unshift(auditEntry); // Add to beginning for latest first
-    
-    // Keep only last 10000 entries to prevent file from growing too large
-    if (data.logs.length > 10000) {
-      data.logs = data.logs.slice(0, 10000);
-    }
-    
-    await writeAuditLog(data);
+    await auditRepository.logEvent(entry);
   } catch (error) {
     console.error('Failed to log audit event:', error);
   }
@@ -93,55 +27,6 @@ function parseQuery(query: any): AuditQuery {
   return parsed;
 }
 
-function filterLogs(logs: AuditLogEntry[], query: AuditQuery): AuditLogEntry[] {
-  let filteredLogs = logs;
-  
-  if (query.action) {
-    filteredLogs = filteredLogs.filter(log => 
-      log.action.toLowerCase().includes(query.action!.toLowerCase())
-    );
-  }
-  
-  if (query.resource) {
-    filteredLogs = filteredLogs.filter(log => 
-      log.resource.toLowerCase().includes(query.resource!.toLowerCase())
-    );
-  }
-  
-  if (query.resourceId) {
-    filteredLogs = filteredLogs.filter(log => 
-      log.resourceId === query.resourceId
-    );
-  }
-  
-  if (query.user) {
-    filteredLogs = filteredLogs.filter(log => 
-      log.user?.toLowerCase().includes(query.user!.toLowerCase())
-    );
-  }
-  
-  if (query.success !== undefined) {
-    filteredLogs = filteredLogs.filter(log => 
-      log.success === query.success
-    );
-  }
-  
-  if (query.startDate) {
-    const startDate = new Date(query.startDate);
-    filteredLogs = filteredLogs.filter(log => 
-      new Date(log.timestamp) >= startDate
-    );
-  }
-  
-  if (query.endDate) {
-    const endDate = new Date(query.endDate);
-    filteredLogs = filteredLogs.filter(log => 
-      new Date(log.timestamp) <= endDate
-    );
-  }
-  
-  return filteredLogs;
-}
 
 async function handler(
   req: ProtectedApiRequest,
@@ -150,24 +35,21 @@ async function handler(
   if (req.method === 'GET') {
     try {
       const query = parseQuery(req.query);
-      const data = await readAuditLog();
       
-      // Filter logs based on query parameters
-      let filteredLogs = filterLogs(data.logs, query);
-      
-      // Apply pagination
-      const limit = query.limit || 100;
-      const offset = query.offset || 0;
-      const paginatedLogs = filteredLogs.slice(offset, offset + limit);
+      // Get filtered logs and total count
+      const filteredLogs = await auditRepository.findWithFilters(query);
+      const totalCount = await auditRepository.countWithFilters(query);
       
       // Add pagination info to response headers
-      res.setHeader('X-Total-Count', filteredLogs.length.toString());
+      const limit = query.limit || 100;
+      const offset = query.offset || 0;
+      res.setHeader('X-Total-Count', totalCount.toString());
       res.setHeader('X-Limit', limit.toString());
       res.setHeader('X-Offset', offset.toString());
       
       res.status(200).json({
         success: true,
-        data: paginatedLogs,
+        data: filteredLogs,
         timestamp: new Date().toISOString()
       });
       
@@ -195,7 +77,7 @@ async function handler(
                  req.connection.remoteAddress || 
                  'unknown';
       
-      await logAuditEvent({
+      await auditRepository.logEvent({
         action,
         resource,
         resourceId,

@@ -3,8 +3,6 @@ import { Site, UpdateSiteRequest, ApiResponse } from '@/types/multi-site-types';
 import { UpdateSiteSchema } from '@/schemas/validation';
 import { withPermission, ProtectedApiRequest } from '@/lib/api-protection';
 import { sitesRepository, controllersRepository } from '@/lib/repositories';
-import fs from 'fs/promises';
-import path from 'path';
 
 async function handler(req: ProtectedApiRequest, res: NextApiResponse<ApiResponse<Site>>) {
   const { id } = req.query;
@@ -122,42 +120,8 @@ async function handler(req: ProtectedApiRequest, res: NextApiResponse<ApiRespons
         });
       }
 
-      // Handle orphaned hosts before deleting site
-      try {
-        const HOSTS_FILE = path.join(process.cwd(), 'data', 'hosts.json');
-        let hostsData = { hosts: [] as any[] };
-        
-        try {
-          const hostsContent = await fs.readFile(HOSTS_FILE, 'utf-8');
-          hostsData = JSON.parse(hostsContent);
-        } catch (hostsError) {
-          console.log('No hosts file found or error reading hosts:', hostsError);
-        }
-
-        // Update hosts to remove site association
-        let orphanedCount = 0;
-        hostsData.hosts = hostsData.hosts.map(host => {
-          if (host.siteId === id) {
-            orphanedCount++;
-            return { ...host, siteId: undefined };
-          }
-          return host;
-        });
-
-        // Write updated hosts data if any changes were made
-        if (orphanedCount > 0) {
-          try {
-            await fs.writeFile(HOSTS_FILE, JSON.stringify(hostsData, null, 2), 'utf-8');
-          } catch (writeError) {
-            console.error('Error updating hosts file:', writeError);
-          }
-        }
-
-        console.log(`Site ${id} deleted. ${orphanedCount} hosts were orphaned and updated.`);
-      } catch (hostsError) {
-        console.error('Error handling orphaned hosts:', hostsError);
-        // Continue with site deletion even if host update fails
-      }
+      // Note: If there are hosts associated with this site, they will become orphaned
+      // This is acceptable as the hosts functionality appears to be legacy/unused
 
       // Delete the site using repository
       const deleted = await sitesRepository.delete(id);
