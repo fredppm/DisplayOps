@@ -187,12 +187,6 @@ jobs:
             fi
           done
           cd ..
-          else
-            echo "No artifacts found, creating release without files"
-            gh release create ${{ steps.version.outputs.tag_name }} \
-              --title "DisplayOps Controller v${{ steps.version.outputs.version }}" \
-              --notes "Auto-generated release from GitHub Actions" || echo "Failed to create release"
-          fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
