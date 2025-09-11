@@ -172,24 +172,25 @@ jobs:
           # Create release with available artifacts
           echo "Creating release..."
           
-          # Check if we have installer artifacts and create release accordingly
-          if ls release/*.exe release/*.dmg release/*.AppImage release/*.deb 2>/dev/null | grep -q .; then
-            echo "Found artifacts, creating release with files..."
-            
-            # Create release first without files
-            gh release create ${{ steps.version.outputs.tag_name }} \
-              --title "DisplayOps Controller v${{ steps.version.outputs.version }}" \
-              --notes "Auto-generated release from GitHub Actions" || echo "Release might already exist"
-            
-            # Upload only installer files from root directory (exclude subdirectories)
-            for pattern in "*.exe" "*.dmg" "*.AppImage" "*.deb"; do
-              for file in release/$pattern; do
-                if [ -f "$file" ] && [[ "$file" != *"/"* ]] || [[ "$(dirname "$file")" == "release" ]]; then
+          # Create release first
+          gh release create ${{ steps.version.outputs.tag_name }} \
+            --title "DisplayOps Controller v${{ steps.version.outputs.version }}" \
+            --notes "Auto-generated release from GitHub Actions" || echo "Release might already exist"
+          
+          # Upload installer files from root directory only (exclude subdirectories like win-unpacked/)
+          for pattern in "*.exe" "*.dmg" "*.AppImage" "*.deb"; do
+            for file in release/$pattern; do
+              # Only upload if file exists and is directly in release/ directory
+              if [ -f "$file" ]; then
+                filename=$(basename "$file")
+                # Skip files that contain spaces followed by numbers (like Setup files with spaces)
+                if [[ "$filename" == *"Setup"* ]] || [[ "$filename" == *".AppImage"* ]] || [[ "$filename" == *".dmg"* ]] || [[ "$filename" == *".deb"* ]]; then
                   echo "Uploading: $file"
                   gh release upload ${{ steps.version.outputs.tag_name }} "$file" --clobber || echo "Failed to upload $file"
                 fi
-              done
+              fi
             done
+          done
           else
             echo "No artifacts found, creating release without files"
             gh release create ${{ steps.version.outputs.tag_name }} \
