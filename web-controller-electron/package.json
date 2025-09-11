@@ -1,6 +1,6 @@
 {
   "name": "displayops-controller-electron",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "DisplayOps Web Controller - Electron wrapper with embedded Next.js server",
   "main": "dist/main.js",
   "scripts": {

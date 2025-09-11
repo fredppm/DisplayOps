@@ -7,6 +7,16 @@ const GITHUB_OWNER = process.env.GITHUB_OWNER || 'fredppm';
 const GITHUB_REPO = process.env.GITHUB_REPO || 'DisplayOps';
 const GITHUB_API_BASE = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}`;
 
+// Simple in-memory cache to avoid GitHub API rate limits
+interface CacheEntry {
+  data: GitHubRelease[];
+  timestamp: number;
+  app: string;
+}
+
+const releasesCache = new Map<string, CacheEntry>();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
 export interface GitHubAsset {
   name: string;
   browser_download_url: string;
@@ -53,6 +63,19 @@ export interface ElectronUpdaterResponse {
  * Fetch releases from GitHub API
  */
 async function fetchGitHubReleases(app: 'controller' | 'host'): Promise<GitHubRelease[]> {
+  const cacheKey = `releases-${app}`;
+  const now = Date.now();
+  
+  // Check cache first
+  const cached = releasesCache.get(cacheKey);
+  if (cached && (now - cached.timestamp) < CACHE_TTL) {
+    releasesLogger.info(`Using cached releases for ${app}`, { 
+      cached: cached.data.length,
+      age: Math.round((now - cached.timestamp) / 1000) + 's'
+    });
+    return cached.data;
+  }
+  
   try {
     const tagPrefix = app === 'controller' ? 'controller-v' : 'host-v';
     const url = `${GITHUB_API_BASE}/releases`;
@@ -63,10 +86,26 @@ async function fetchGitHubReleases(app: 'controller' | 'host'): Promise<GitHubRe
       headers: {
         'Accept': 'application/vnd.github.v3+json',
         'User-Agent': 'DisplayOps-Admin'
-      }
+      },
+      timeout: 30000 // 30 second timeout
     });
     
     if (!response.ok) {
+      const errorText = await response.text().catch(() => 'Unknown error');
+      releasesLogger.error(`GitHub API request failed`, {
+        status: response.status,
+        statusText: response.statusText,
+        url,
+        app,
+        errorText: errorText.substring(0, 500) // Limit error text
+      });
+      
+      // If we have stale cached data, use it as fallback
+      if (cached) {
+        releasesLogger.warn(`Using stale cached data due to GitHub API error`, { app });
+        return cached.data;
+      }
+      
       throw new Error(`GitHub API request failed: ${response.status} ${response.statusText}`);
     }
     
@@ -77,7 +116,14 @@ async function fetchGitHubReleases(app: 'controller' | 'host'): Promise<GitHubRe
       release.tag_name.startsWith(tagPrefix) && !release.prerelease
     );
     
-    releasesLogger.info(`Found ${appReleases.length} releases for ${app}`, {
+    // Cache the results
+    releasesCache.set(cacheKey, {
+      data: appReleases,
+      timestamp: now,
+      app
+    });
+    
+    releasesLogger.info(`Found ${appReleases.length} releases for ${app} - cached`, {
       releases: appReleases.map(r => r.tag_name)
     });
     
@@ -86,6 +132,13 @@ async function fetchGitHubReleases(app: 'controller' | 'host'): Promise<GitHubRe
     releasesLogger.error(`Failed to fetch releases for ${app}`, {
       error: error instanceof Error ? error.message : String(error)
     });
+    
+    // If we have any cached data (even stale), use it as last resort
+    if (cached) {
+      releasesLogger.warn(`Using stale cached data as last resort`, { app });
+      return cached.data;
+    }
+    
     throw error;
   }
 }
@@ -287,5 +340,19 @@ export async function getAllVersions(app: 'controller' | 'host'): Promise<string
       .filter(v => v.length > 0);
   } catch {
     return [];
+  }
+}
+
+/**
+ * Clear the releases cache for a specific app or all apps
+ */
+export function clearReleasesCache(app?: 'controller' | 'host'): void {
+  if (app) {
+    const cacheKey = `releases-${app}`;
+    releasesCache.delete(cacheKey);
+    releasesLogger.info(`Cleared releases cache for ${app}`);
+  } else {
+    releasesCache.clear();
+    releasesLogger.info('Cleared all releases cache');
   }
 }

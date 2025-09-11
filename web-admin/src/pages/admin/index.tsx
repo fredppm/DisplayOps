@@ -65,20 +65,51 @@ const DownloadButton: React.FC<DownloadButtonProps> = ({ title, description, app
   const [version, setVersion] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loadingVersion, setLoadingVersion] = useState(true);
+  const [retryCount, setRetryCount] = useState(0);
 
-  // Fetch version on component mount
+  // Fetch version on component mount with retry logic
   React.useEffect(() => {
-    const fetchVersion = async () => {
+    const fetchVersion = async (attempt = 1) => {
       try {
         setLoadingVersion(true);
-        const response = await fetch(`/api/updates/${app}?platform=win32`);
+        setError(null);
+        
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+        
+        const response = await fetch(`/api/updates/${app}?platform=win32`, {
+          signal: controller.signal,
+          headers: {
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
+          }
+        });
+        
+        clearTimeout(timeoutId);
         
         if (response.ok) {
           const data = await response.json();
           setVersion(data.version);
+          setRetryCount(0);
+        } else {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
       } catch (err) {
-        // Silently fail for version fetch - user can still try to download
+        console.warn(`Failed to fetch ${app} version (attempt ${attempt}):`, err);
+        
+        // Retry up to 3 times with exponential backoff
+        if (attempt < 3 && err instanceof Error && !err.message.includes('aborted')) {
+          const delay = Math.pow(2, attempt) * 1000; // 2s, 4s, 8s
+          setTimeout(() => {
+            setRetryCount(attempt);
+            fetchVersion(attempt + 1);
+          }, delay);
+          return;
+        }
+        
+        // After all retries failed, still allow user to try downloading
+        setVersion(null);
+        setRetryCount(attempt);
       } finally {
         setLoadingVersion(false);
       }
@@ -92,21 +123,43 @@ const DownloadButton: React.FC<DownloadButtonProps> = ({ title, description, app
       setLoading(true);
       setError(null);
 
-      // Get latest version info
-      const response = await fetch(`/api/updates/${app}?platform=win32`);
+      // Try to use cached version first, otherwise fetch fresh
+      let downloadVersion = version;
       
-      if (!response.ok) {
-        throw new Error('Failed to get version info');
-      }
+      if (!downloadVersion) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout for download
+        
+        const response = await fetch(`/api/updates/${app}?platform=win32`, {
+          signal: controller.signal,
+          headers: {
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
+          }
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (!response.ok) {
+          throw new Error(`Failed to get version info: ${response.status} ${response.statusText}`);
+        }
 
-      const data = await response.json();
-      setVersion(data.version);
+        const data = await response.json();
+        downloadVersion = data.version;
+        setVersion(downloadVersion);
+      }
+      
+      if (!downloadVersion) {
+        throw new Error('No version available for download');
+      }
       
       // Redirect to download
-      window.location.href = `/api/updates/${app}/download/${data.version}?platform=win32`;
+      window.location.href = `/api/updates/${app}/download/${downloadVersion}?platform=win32`;
       
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Download failed');
+      const errorMessage = err instanceof Error ? err.message : 'Download failed';
+      setError(errorMessage);
+      console.error(`Download error for ${app}:`, err);
     } finally {
       setLoading(false);
     }
@@ -140,14 +193,34 @@ const DownloadButton: React.FC<DownloadButtonProps> = ({ title, description, app
         {loadingVersion ? (
           <div className="flex items-center space-x-2">
             <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-gray-400"></div>
-            <p className="text-xs text-gray-500 dark:text-gray-400">Loading version...</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {retryCount > 0 ? `Retrying... (${retryCount}/3)` : 'Loading version...'}
+            </p>
           </div>
         ) : version ? (
-          <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-            Current Version: <span className="text-blue-600 dark:text-blue-400">{version}</span>
-          </p>
+          <div className="flex items-center space-x-2">
+            <div className="w-2 h-2 rounded-full bg-green-500"></div>
+            <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Version: <span className="text-blue-600 dark:text-blue-400">{version}</span>
+            </p>
+          </div>
         ) : (
-          <p className="text-xs text-gray-500 dark:text-gray-400">Version info unavailable</p>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {retryCount >= 3 ? 'Version check failed - download may still work' : 'Version info unavailable'}
+              </p>
+            </div>
+            {retryCount >= 3 && (
+              <button
+                onClick={() => window.location.reload()}
+                className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline"
+              >
+                Retry
+              </button>
+            )}
+          </div>
         )}
       </div>
       

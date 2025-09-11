@@ -254,7 +254,7 @@ class DisplayOpsController {
         this.nextServer = spawn(command, args, {
           cwd: webControllerPath,
           stdio: ['ignore', 'pipe', 'pipe'],
-          shell: true,
+          shell: false, // Don't use shell to avoid path escaping issues
           env: {
             ...process.env,
             NODE_ENV: isProduction ? 'production' : 'development',
