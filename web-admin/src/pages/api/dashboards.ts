@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { Dashboard } from '@/types/shared-types';
 import { createContextLogger } from '@/utils/logger';
-import { grpcServerSingleton } from '@/lib/grpc-server-singleton';
+import { webSocketServerSingleton } from '@/lib/websocket-server-singleton';
 import fs from 'fs';
 import path from 'path';
 
@@ -90,7 +90,7 @@ const generateId = (): string => {
 // Trigger dashboard sync to all controllers
 const triggerDashboardSync = async (): Promise<void> => {
   try {
-    await grpcServerSingleton.triggerDashboardSync();
+    await webSocketServerSingleton.triggerDashboardSync();
     dashboardsApiLogger.info('Dashboard sync triggered successfully');
   } catch (error) {
     dashboardsApiLogger.error('Failed to trigger dashboard sync', { 

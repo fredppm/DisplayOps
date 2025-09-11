@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { NextPage, GetServerSideProps } from 'next';
 import Link from 'next/link';
 import Layout from '@/components/Layout';
@@ -10,7 +10,8 @@ import {
   ChartBarIcon,
   BellIcon,
   ChartPieIcon,
-  ArrowRightIcon
+  ArrowRightIcon,
+  ArrowDownTrayIcon
 } from '@heroicons/react/24/outline';
 import { CheckCircleIcon, ExclamationTriangleIcon, XCircleIcon } from '@heroicons/react/24/solid';
 import { useDashboardData, useSystemHealth } from '@/hooks/useDashboardData';
@@ -53,6 +54,74 @@ interface AdminPageProps {
   dashboardData: AdminDashboardData;
 }
 
+interface DownloadButtonProps {
+  title: string;
+  description: string;
+  app: 'controller' | 'host';
+}
+
+const DownloadButton: React.FC<DownloadButtonProps> = ({ title, description, app }) => {
+  const [loading, setLoading] = useState(false);
+  const [version, setVersion] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleDownload = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Get latest version info
+      const response = await fetch(`/api/updates/${app}?platform=win32`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to get version info');
+      }
+
+      const data = await response.json();
+      setVersion(data.version);
+      
+      // Redirect to download
+      window.location.href = `/api/updates/${app}/download/${data.version}?platform=win32`;
+      
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Download failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <button
+      onClick={handleDownload}
+      disabled={loading}
+      className="group block w-full text-left border border-gray-200 dark:border-gray-600 rounded-lg p-4 hover:border-gray-300 dark:hover:border-gray-500 hover:shadow-md transition-all duration-200 bg-white dark:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
+    >
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center space-x-3">
+          <div className="h-10 w-10 bg-blue-50 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
+            <ArrowDownTrayIcon className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-gray-900 dark:text-gray-100 group-hover:text-gray-800 dark:group-hover:text-gray-50">
+              {title}
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400">{description}</p>
+          </div>
+        </div>
+        {loading && (
+          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+        )}
+      </div>
+      {version && (
+        <p className="text-xs text-gray-500 dark:text-gray-400">Version: {version}</p>
+      )}
+      {error && (
+        <p className="text-xs text-red-600 dark:text-red-400">{error}</p>
+      )}
+    </button>
+  );
+};
+
 const AdminPage: NextPage<AdminPageProps> = ({ dashboardData }) => {
   // Hook para dados dinâmicos (CSR) com refresh automático
   const { monitoringData, alertData, loading: dashboardLoading, error: dashboardError, refetch } = useDashboardData(30000);
@@ -68,7 +137,7 @@ const AdminPage: NextPage<AdminPageProps> = ({ dashboardData }) => {
   // Hook para status do sistema com fallback
   const systemHealth = useSystemHealth(monitoringData);
   
-  // Hook para status completo incluindo gRPC
+  // Hook para status completo incluindo WebSocket
   const { status: adminStatus } = useAdminStatus();
   
   // Usar dados em tempo real quando disponíveis, senão fallback para SSR
@@ -221,14 +290,14 @@ const AdminPage: NextPage<AdminPageProps> = ({ dashboardData }) => {
                     }`}></div>
                   </div>
                 </div>
-                {adminStatus?.grpc && (
+                {adminStatus?.websocket && (
                   <div className="pt-3 border-t border-gray-100 dark:border-gray-700">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-gray-600 dark:text-gray-400">gRPC Service</span>
+                      <span className="text-xs text-gray-600 dark:text-gray-400">WebSocket Service</span>
                       <div className="flex items-center space-x-2">
-                        <div className={`w-2 h-2 rounded-full ${adminStatus.grpc.isRunning ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                        <span className={`text-xs font-medium ${adminStatus.grpc.isRunning ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                          {adminStatus.grpc.isRunning ? 'Running' : 'Offline'}
+                        <div className={`w-2 h-2 rounded-full ${adminStatus.websocket.isRunning ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                        <span className={`text-xs font-medium ${adminStatus.websocket.isRunning ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                          {adminStatus.websocket.isRunning ? 'Running' : 'Offline'}
                         </span>
                       </div>
                     </div>
@@ -259,14 +328,14 @@ const AdminPage: NextPage<AdminPageProps> = ({ dashboardData }) => {
                     }`}></div>
                   </div>
                 </div>
-                {adminStatus?.grpc && (
+                {adminStatus?.websocket && (
                   <div className="pt-3 border-t border-gray-100 dark:border-gray-700">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-gray-600 dark:text-gray-400">gRPC Service</span>
+                      <span className="text-xs text-gray-600 dark:text-gray-400">WebSocket Service</span>
                       <div className="flex items-center space-x-2">
-                        <div className={`w-2 h-2 rounded-full ${adminStatus.grpc.isRunning ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                        <span className={`text-xs font-medium ${adminStatus.grpc.isRunning ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                          {adminStatus.grpc.isRunning ? 'Running' : 'Offline'}
+                        <div className={`w-2 h-2 rounded-full ${adminStatus.websocket.isRunning ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                        <span className={`text-xs font-medium ${adminStatus.websocket.isRunning ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                          {adminStatus.websocket.isRunning ? 'Running' : 'Offline'}
                         </span>
                       </div>
                     </div>
@@ -286,14 +355,14 @@ const AdminPage: NextPage<AdminPageProps> = ({ dashboardData }) => {
                     <div className="w-6 h-6 rounded-full bg-gray-400"></div>
                   </div>
                 </div>
-                {adminStatus?.grpc && (
+                {adminStatus?.websocket && (
                   <div className="pt-3 border-t border-gray-100 dark:border-gray-700">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-gray-600 dark:text-gray-400">gRPC Service</span>
+                      <span className="text-xs text-gray-600 dark:text-gray-400">WebSocket Service</span>
                       <div className="flex items-center space-x-2">
-                        <div className={`w-2 h-2 rounded-full ${adminStatus.grpc.isRunning ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                        <span className={`text-xs font-medium ${adminStatus.grpc.isRunning ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                          {adminStatus.grpc.isRunning ? 'Running' : 'Offline'}
+                        <div className={`w-2 h-2 rounded-full ${adminStatus.websocket.isRunning ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                        <span className={`text-xs font-medium ${adminStatus.websocket.isRunning ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                          {adminStatus.websocket.isRunning ? 'Running' : 'Offline'}
                         </span>
                       </div>
                     </div>
@@ -350,6 +419,23 @@ const AdminPage: NextPage<AdminPageProps> = ({ dashboardData }) => {
                       </div>
                     </Link>
                   ))}
+                </div>
+              </div>
+
+              {/* Downloads Section */}
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Downloads</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <DownloadButton 
+                    title="Controller"
+                    description="Download latest Controller app"
+                    app="controller"
+                  />
+                  <DownloadButton 
+                    title="Host"
+                    description="Download latest Host app"
+                    app="host"
+                  />
                 </div>
               </div>
             </div>

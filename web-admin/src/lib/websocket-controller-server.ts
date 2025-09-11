@@ -51,9 +51,11 @@ export class WebSocketControllerServer extends EventEmitter {
         this.io = existingIO;
 
         // Handle connections
-        this.io.on('connection', (socket) => {
-          this.handleConnection(socket);
-        });
+        if (this.io) {
+          this.io.on('connection', (socket) => {
+            this.handleConnection(socket);
+          });
+        }
 
         // Start connection cleanup
         this.startConnectionCleanup();
@@ -104,21 +106,23 @@ export class WebSocketControllerServer extends EventEmitter {
         }
 
         // Handle server errors (like EADDRINUSE)
-        this.io.on('error', (error: any) => {
-          wsServerLogger.error('Socket.IO server error:', error);
-          if (error.code === 'EADDRINUSE') {
-            wsServerLogger.warn('Port already in use, this may be due to hot reload');
-            // Don't reject, as this might be a hot reload scenario
-            resolve();
-          } else {
-            reject(error);
-          }
-        });
+        if (this.io) {
+          this.io.on('error', (error: any) => {
+            wsServerLogger.error('Socket.IO server error:', error);
+            if (error.code === 'EADDRINUSE') {
+              wsServerLogger.warn('Port already in use, this may be due to hot reload');
+              // Don't reject, as this might be a hot reload scenario
+              resolve();
+            } else {
+              reject(error);
+            }
+          });
 
-        // Handle connections
-        this.io.on('connection', (socket) => {
-          this.handleConnection(socket);
-        });
+          // Handle connections
+          this.io.on('connection', (socket) => {
+            this.handleConnection(socket);
+          });
+        }
 
         // Start connection cleanup
         this.startConnectionCleanup();

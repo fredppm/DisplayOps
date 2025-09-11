@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { createContextLogger } from '@/utils/logger';
-import { grpcServerSingleton } from '@/lib/grpc-server-singleton';
+import { webSocketServerSingleton } from '@/lib/websocket-server-singleton';
 import { loadCookies, saveCookie, deleteCookie, Cookie, CookiesData } from '@/lib/data-adapter';
 
 const cookiesApiLogger = createContextLogger('api-cookies');
@@ -22,7 +22,7 @@ const validateCookie = (data: any): data is Omit<Cookie, 'description'> => {
 // Trigger cookie sync to all controllers
 const triggerCookieSync = async (): Promise<void> => {
   try {
-    await grpcServerSingleton.triggerCookieSync();
+    await webSocketServerSingleton.triggerCookieSync();
     cookiesApiLogger.info('Cookie sync triggered successfully');
   } catch (error) {
     cookiesApiLogger.error('Failed to trigger cookie sync', { 

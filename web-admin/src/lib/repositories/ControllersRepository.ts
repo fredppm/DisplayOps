@@ -1,18 +1,38 @@
 import { Controller } from '@/types/multi-site-types';
-import { BaseRepository } from './BaseRepository';
+import { BasePostgresRepository } from './BasePostgresRepository';
 import { calculateControllersStatus, getControllerStatusStats } from '@/lib/controller-status';
 
-export class ControllersRepository extends BaseRepository<Controller> {
-  constructor() {
-    super('controllers.json');
-  }
-
-  protected getDefaultData() {
-    return { controllers: [] };
-  }
-
-  protected getCollectionKey(): string {
+export class ControllersRepository extends BasePostgresRepository<Controller> {
+  protected getTableName(): string {
     return 'controllers';
+  }
+
+  protected mapDbRowToEntity(row: any): Controller {
+    return {
+      id: row.id,
+      siteId: row.site_id || '',
+      name: row.name,
+      localNetwork: row.local_network || '',
+      mdnsService: row.mdns_service || '',
+      controllerUrl: row.controller_url || '',
+      status: row.status,
+      lastSync: row.last_sync?.toISOString() || '',
+      version: row.version || ''
+    };
+  }
+
+  protected mapEntityToDbRow(entity: Controller): any {
+    return {
+      id: entity.id,
+      site_id: entity.siteId || null,
+      name: entity.name,
+      local_network: entity.localNetwork || null,
+      mdns_service: entity.mdnsService || null,
+      controller_url: entity.controllerUrl || null,
+      status: entity.status,
+      last_sync: entity.lastSync ? new Date(entity.lastSync) : null,
+      version: entity.version || null
+    };
   }
 
   // Override getAll to include real-time status calculation

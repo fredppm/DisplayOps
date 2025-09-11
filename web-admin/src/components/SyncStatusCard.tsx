@@ -46,7 +46,7 @@ interface SyncStatusData {
       lastUpdated: string | null;
     };
   };
-  grpc: {
+  websocket: {
     isRunning: boolean;
     connections: number;
   };
@@ -137,7 +137,7 @@ export default function SyncStatusCard() {
     return null;
   }
 
-  const { overall, controllers, data, grpc, controllersList, alerts } = syncStatus;
+  const { overall, controllers, data, websocket, controllersList, alerts } = syncStatus;
 
   return (
     <div className="bg-white dark:bg-gray-800 shadow rounded-lg border border-gray-200 dark:border-gray-600">

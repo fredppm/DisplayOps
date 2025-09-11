@@ -1,17 +1,33 @@
 import { Site } from '@/types/multi-site-types';
-import { BaseRepository } from './BaseRepository';
+import { BasePostgresRepository } from './BasePostgresRepository';
 
-export class SitesRepository extends BaseRepository<Site> {
-  constructor() {
-    super('sites.json');
-  }
-
-  protected getDefaultData() {
-    return { sites: [] };
-  }
-
-  protected getCollectionKey(): string {
+export class SitesRepository extends BasePostgresRepository<Site> {
+  protected getTableName(): string {
     return 'sites';
+  }
+
+  protected mapDbRowToEntity(row: any): Site {
+    return {
+      id: row.id,
+      name: row.name,
+      location: row.location || '',
+      timezone: row.timezone,
+      status: row.status,
+      controllers: row.controllers || [],
+      createdAt: row.created_at?.toISOString() || '',
+      updatedAt: row.updated_at?.toISOString() || ''
+    };
+  }
+
+  protected mapEntityToDbRow(entity: Site): any {
+    return {
+      id: entity.id,
+      name: entity.name,
+      location: entity.location || null,
+      timezone: entity.timezone,
+      status: entity.status,
+      controllers: entity.controllers || []
+    };
   }
 
   // Site-specific methods

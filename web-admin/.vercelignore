@@ -21,10 +21,6 @@ coverage
 .cursor
 node_modules/.cache
 
-# Data directory (runtime generated)
-data/controllers.json
-data/sites.json
-
 # Build artifacts
 .next/cache
 tsconfig.tsbuildinfo

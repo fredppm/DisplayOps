@@ -1,8 +1,8 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import fs from 'fs/promises';
-import path from 'path';
 import { Controller } from '@/types/multi-site-types';
 import { createContextLogger } from '@/utils/logger';
+import { controllersRepository } from '@/lib/repositories/ControllersRepository';
+import { sitesRepository } from '@/lib/repositories/SitesRepository';
 
 const registerLogger = createContextLogger('controller-register');
 
@@ -35,89 +35,68 @@ interface RegistrationResponse {
   timestamp: string;
 }
 
-async function readControllersData(filePath: string): Promise<{ controllers: Controller[] }> {
-  try {
-    const data = await fs.readFile(filePath, 'utf-8');
-    return JSON.parse(data);
-  } catch (error) {
-    return { controllers: [] };
-  }
-}
-
-async function writeControllersData(filePath: string, data: { controllers: Controller[] }): Promise<void> {
-  await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf-8');
-}
-
-async function readSitesData(filePath: string): Promise<{ sites: any[] }> {
-  try {
-    const data = await fs.readFile(filePath, 'utf-8');
-    return JSON.parse(data);
-  } catch (error) {
-    return { sites: [] };
-  }
-}
-
-async function writeSitesData(filePath: string, data: { sites: any[] }): Promise<void> {
-  await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf-8');
-}
+// PostgreSQL functions are imported from data-postgres.ts
 
 async function registerController(controllerId: string, registrationData: RegistrationRequest): Promise<Controller> {
-  const CONTROLLERS_FILE = path.join(process.cwd(), 'data', 'controllers.json');
-  const SITES_FILE = path.join(process.cwd(), 'data', 'sites.json');
-
-  const controllersData = await readControllersData(CONTROLLERS_FILE);
-  const sitesData = await readSitesData(SITES_FILE);
+  // Load data from repositories
+  const controllers = await controllersRepository.getAll();
+  const sites = await sitesRepository.getAll();
   
   let targetSiteId = registrationData.site_id || undefined;
   if (targetSiteId) {
-    const site = sitesData.sites.find((s: any) => s.id === targetSiteId);
+    const site = sites.find((s: any) => s.id === targetSiteId);
     if (!site) {
       targetSiteId = undefined;
     }
   }
 
-  const existingController = controllersData.controllers.find(
+  const existingController = controllers.find(
     (c: Controller) => c.id === controllerId
   );
 
   if (existingController) {
-    existingController.name = registrationData.location || registrationData.hostname;
-    existingController.localNetwork = registrationData.local_network;
-    existingController.mdnsService = registrationData.mdns_service;
-    existingController.controllerUrl = registrationData.web_admin_url || existingController.controllerUrl;
-    existingController.version = registrationData.version;
-    existingController.status = 'online';
-    existingController.lastSync = new Date().toISOString();
+    // Update existing controller using repository
+    const updatedController = await controllersRepository.update(controllerId, {
+      name: registrationData.location || registrationData.hostname,
+      localNetwork: registrationData.local_network || existingController.localNetwork || '',
+      mdnsService: registrationData.mdns_service || existingController.mdnsService || '',
+      controllerUrl: registrationData.web_admin_url || existingController.controllerUrl || 'http://localhost:3000',
+      version: registrationData.version || existingController.version || '1.0.0',
+      status: 'online',
+      lastSync: new Date().toISOString()
+    });
 
-    await writeControllersData(CONTROLLERS_FILE, controllersData);
-    return existingController;
+    return updatedController!;
   }
 
+  // Create new controller using repository
   const newController: Controller = {
     id: controllerId,
     siteId: targetSiteId || '',
     name: registrationData.location || registrationData.hostname,
-    localNetwork: registrationData.local_network,
-    mdnsService: registrationData.mdns_service,
+    localNetwork: registrationData.local_network || '',
+    mdnsService: registrationData.mdns_service || '',
     controllerUrl: registrationData.web_admin_url || 'http://localhost:3000',
     status: 'online',
     lastSync: new Date().toISOString(),
-    version: registrationData.version
+    version: registrationData.version || '1.0.0'
   };
 
-  controllersData.controllers.push(newController);
-  await writeControllersData(CONTROLLERS_FILE, controllersData);
+  const createdController = await controllersRepository.create(newController);
 
+  // Update site if specified
   if (targetSiteId) {
-    const targetSite = sitesData.sites.find((s: any) => s.id === targetSiteId);
+    const targetSite = sites.find((s: any) => s.id === targetSiteId);
     if (targetSite && !targetSite.controllers.includes(controllerId)) {
       targetSite.controllers.push(controllerId);
-      targetSite.updatedAt = new Date().toISOString();
-      await writeSitesData(SITES_FILE, sitesData);
+      await sitesRepository.update(targetSiteId, {
+        controllers: targetSite.controllers,
+        updatedAt: new Date().toISOString()
+      });
     }
   }
 
-  return newController;
+  return createdController;
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {

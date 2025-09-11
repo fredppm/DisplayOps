@@ -32,7 +32,6 @@ export async function autoInitializeServices() {
     autoInitLogger.debug('Admin client auto-init check', {
       ADMIN_CLIENT_ENABLED: process.env.ADMIN_CLIENT_ENABLED,
       CONTROLLER_AUTO_REGISTER: process.env.CONTROLLER_AUTO_REGISTER,
-      GRPC_ADMIN_ENABLED: process.env.GRPC_ADMIN_ENABLED, // Legacy support
       adminClientEnabled
     });
     

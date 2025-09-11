@@ -1,4 +1,4 @@
-import { BaseRepository } from './BaseRepository';
+import { BasePostgresRepository } from './BasePostgresRepository';
 
 interface User {
   id: string;
@@ -11,17 +11,34 @@ interface User {
   passwordHash?: string;
 }
 
-export class UsersRepository extends BaseRepository<User> {
-  constructor() {
-    super('users.json');
-  }
-
-  protected getDefaultData() {
-    return { users: [] };
-  }
-
-  protected getCollectionKey(): string {
+export class UsersRepository extends BasePostgresRepository<User> {
+  protected getTableName(): string {
     return 'users';
+  }
+
+  protected mapDbRowToEntity(row: any): User {
+    return {
+      id: row.id,
+      email: row.email,
+      name: row.name,
+      role: row.role,
+      sites: Array.isArray(row.sites) ? row.sites : JSON.parse(row.sites || '[]'),
+      createdAt: row.created_at,
+      lastLogin: row.last_login,
+      passwordHash: row.password_hash,
+    };
+  }
+
+  protected mapEntityToDbRow(entity: User): any {
+    return {
+      id: entity.id,
+      email: entity.email,
+      name: entity.name,
+      role: entity.role,
+      sites: JSON.stringify(entity.sites),
+      last_login: entity.lastLogin,
+      password_hash: entity.passwordHash,
+    };
   }
 
   // User-specific methods

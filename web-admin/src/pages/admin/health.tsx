@@ -73,7 +73,7 @@ const HealthPage: NextPage = () => {
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-900 dark:text-gray-100">Port:</span>
-                <span className="text-gray-900 dark:text-gray-100">{healthStatus?.websocket.port || 3000}</span>
+                <span className="text-gray-900 dark:text-gray-100">3001</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-900 dark:text-gray-100">Connections:</span>
