@@ -13,7 +13,7 @@ export class AutoUpdaterService {
   private setupAutoUpdater(): void {
     // Configure auto-updater
     autoUpdater.logger = log;
-    autoUpdater.autoDownload = false; // Don't auto-download, ask user first
+    autoUpdater.autoDownload = true; // Auto-download updates
     autoUpdater.autoInstallOnAppQuit = true;
 
     // Configure update server - always use displayops.vtex.com
@@ -34,7 +34,7 @@ export class AutoUpdaterService {
     });
 
     autoUpdater.on('update-available', (info) => {
-      log.info('Update available:', info);
+      log.info('Update available, downloading automatically:', info);
       this.updateAvailable = true;
       this.showUpdateAvailableNotification(info);
     });
@@ -56,9 +56,14 @@ export class AutoUpdaterService {
     });
 
     autoUpdater.on('update-downloaded', (info) => {
-      log.info('Update downloaded:', info);
+      log.info('Update downloaded, restarting automatically:', info);
       this.updateDownloaded = true;
       this.showUpdateReadyNotification(info);
+      
+      // Auto-restart after 3 seconds
+      setTimeout(() => {
+        this.installUpdate();
+      }, 3000);
     });
   }
 
@@ -98,24 +103,8 @@ export class AutoUpdaterService {
   private showUpdateAvailableNotification(info: any): void {
     const notification = new Notification({
       title: 'DisplayOps Host Agent Update',
-      body: `Version ${info.version} is available. Click to download.`,
-      icon: this.getIconPath(),
-      actions: [
-        { type: 'button', text: 'Download Now' },
-        { type: 'button', text: 'Later' }
-      ]
-    });
-
-    notification.on('action', (event, index) => {
-      if (index === 0) { // Download Now
-        this.downloadUpdate().catch(err => {
-          log.error('Failed to start download:', err);
-        });
-      }
-    });
-
-    notification.on('click', () => {
-      this.showUpdateDialog(info);
+      body: `Version ${info.version} is being downloaded automatically...`,
+      icon: this.getIconPath()
     });
 
     notification.show();
@@ -124,22 +113,8 @@ export class AutoUpdaterService {
   private showUpdateReadyNotification(info: any): void {
     const notification = new Notification({
       title: 'Update Ready',
-      body: `Version ${info.version} has been downloaded. Restart to install.`,
-      icon: this.getIconPath(),
-      actions: [
-        { type: 'button', text: 'Restart Now' },
-        { type: 'button', text: 'Later' }
-      ]
-    });
-
-    notification.on('action', (event, index) => {
-      if (index === 0) { // Restart Now
-        this.installUpdate();
-      }
-    });
-
-    notification.on('click', () => {
-      this.showRestartDialog(info);
+      body: `Version ${info.version} downloaded. Restarting in 3 seconds...`,
+      icon: this.getIconPath()
     });
 
     notification.show();
