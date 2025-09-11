@@ -213,7 +213,12 @@ class DisplayOpsController {
       log.info('Starting embedded Next.js server...');
       
       const webControllerPath = this.getWebControllerPath();
-      const isProduction = app.isPackaged;
+      const isProduction = app.isPackaged || process.env.NODE_ENV === 'production' || !webControllerPath.includes('node_modules');
+      
+      log.info(`Debug - app.isPackaged: ${app.isPackaged}`);
+      log.info(`Debug - NODE_ENV: ${process.env.NODE_ENV}`);
+      log.info(`Debug - webControllerPath: ${webControllerPath}`);
+      log.info(`Debug - isProduction: ${isProduction}`);
       
       if (!fs.existsSync(webControllerPath)) {
         const error = `Web controller path not found: ${webControllerPath}`;
@@ -234,8 +239,10 @@ class DisplayOpsController {
         const config = this.configManager.loadConfig();
         process.env.HOSTNAME = config.hostname;
 
-        const command = 'npm';
-        const args = isProduction ? ['start'] : ['run', 'dev'];
+        // Always use the standalone server.js to avoid npm/next dependency issues
+        const serverPath = path.join(webControllerPath, 'server.js');
+        const command = process.execPath; // Always use bundled Node.js
+        const args = [serverPath];
 
         log.info(`Starting server on port ${port} at ${webControllerPath}`);
         log.info(`Command: ${command} ${args.join(' ')}`);

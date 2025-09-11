@@ -1,6 +1,6 @@
 {
   "name": "displayops-controller-electron",
-  "version": "1.0.2",
+  "version": "1.0.4",
   "description": "DisplayOps Web Controller - Electron wrapper with embedded Next.js server",
   "main": "dist/main.js",
   "scripts": {
@@ -28,13 +28,19 @@
     "icon": "assets/icon.png",
     "files": [
       "dist/**/*",
+      "assets/**/*",
       "../web-controller/.next/**/*",
       "../web-controller/package.json",
       "../web-controller/next.config.js",
+      "../web-controller/server.js",
       "../web-controller/node_modules/**/*",
       "!../web-controller/node_modules/.bin/**/*"
     ],
     "extraResources": [
+      {
+        "from": "assets",
+        "to": "assets"
+      },
       {
         "from": "../web-controller",
         "to": "web-controller",
