@@ -241,15 +241,16 @@ class DisplayOpsController {
 
         // Always use the standalone server.js to avoid npm/next dependency issues
         const serverPath = path.join(webControllerPath, 'server.js');
-        const command = process.execPath; // Keep without quotes for spawn
-        const args = [serverPath]; // Keep without quotes for spawn
+        
+        // Use node command with shell to properly execute server.js
+        const command = `node "${serverPath}"`;
 
         log.info(`Starting server on port ${port} at ${webControllerPath}`);
-        log.info(`Command: "${command}" "${serverPath}"`);
+        log.info(`Command: ${command}`);
         
         this.addToServerLog(`🚀 Starting Next.js server on port ${port}`, 'info');
         this.addToServerLog(`📁 Working directory: ${webControllerPath}`, 'info');
-        this.addToServerLog(`⚡ Command: "${command}" "${serverPath}"`, 'info');
+        this.addToServerLog(`⚡ Command: ${command}`, 'info');
 
         // Check if server.js exists before trying to start
         if (!fs.existsSync(serverPath)) {
@@ -260,11 +261,10 @@ class DisplayOpsController {
           return;
         }
 
-        this.nextServer = spawn(command, args, {
+        this.nextServer = spawn(command, [], {
           cwd: webControllerPath,
           stdio: ['ignore', 'pipe', 'pipe'],
-          shell: false, // Keep false - spawn handles paths with spaces correctly
-          windowsVerbatimArguments: false, // This helps with path handling on Windows
+          shell: true, // Use shell for node command
           env: {
             ...process.env,
             NODE_ENV: isProduction ? 'production' : 'development',

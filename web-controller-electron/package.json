@@ -28,7 +28,6 @@
     "icon": "assets/icon.png",
     "files": [
       "dist/**/*",
-      "assets/**/*",
       "../web-controller/.next/**/*",
       "../web-controller/package.json",
       "../web-controller/next.config.js",
