@@ -58,12 +58,12 @@ jobs:
 
       - name: Update package.json version
         shell: bash
-        working-directory: web-controller-electron
+        working-directory: web-controller
         run: |
           npm version ${{ steps.version.outputs.version }} --no-git-tag-version
 
       - name: Install dependencies
-        working-directory: web-controller-electron
+        working-directory: web-controller
         run: |
           # Install dependencies without workspace conflicts
           npm install --no-workspaces
@@ -85,7 +85,7 @@ jobs:
 
       - name: Build Electron app (Windows)
         if: matrix.os == 'windows-latest'
-        working-directory: web-controller-electron
+        working-directory: web-controller
         run: |
           npm run dist:win
         env:
@@ -93,7 +93,7 @@ jobs:
 
       - name: Build Electron app (macOS)
         if: matrix.os == 'macos-latest'
-        working-directory: web-controller-electron
+        working-directory: web-controller
         run: |
           echo "Starting macOS build..."
           npm run build
@@ -103,7 +103,7 @@ jobs:
 
       - name: Build Electron app (Linux)
         if: matrix.os == 'ubuntu-latest'
-        working-directory: web-controller-electron
+        working-directory: web-controller
         run: |
           echo "Starting Linux build with comprehensive debugging..."
           
@@ -143,13 +143,13 @@ jobs:
 
       - name: List build artifacts
         shell: bash
-        working-directory: web-controller-electron
+        working-directory: web-controller
         run: |
           echo "Build artifacts:"
           find release -type f -name "*.exe" -o -name "*.dmg" -o -name "*.AppImage" -o -name "*.deb" 2>/dev/null || echo "No artifacts found"
 
       - name: Create Release with GitHub CLI
-        working-directory: web-controller-electron
+        working-directory: web-controller
         shell: bash
         run: |
           # Debug GitHub CLI setup

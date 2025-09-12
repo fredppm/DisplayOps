@@ -82,13 +82,18 @@ async function fetchGitHubReleases(app: 'controller' | 'host'): Promise<GitHubRe
     
     releasesLogger.info(`Fetching releases from GitHub`, { url, app, tagPrefix });
     
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+    
     const response = await fetch(url, {
       headers: {
         'Accept': 'application/vnd.github.v3+json',
         'User-Agent': 'DisplayOps-Admin'
       },
-      timeout: 30000 // 30 second timeout
+      signal: controller.signal
     });
+    
+    clearTimeout(timeoutId);
     
     if (!response.ok) {
       const errorText = await response.text().catch(() => 'Unknown error');
