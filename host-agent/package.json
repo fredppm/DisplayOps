@@ -34,6 +34,11 @@
     ],
     "extraResources": [
       {
+        "from": "assets",
+        "to": "assets",
+        "filter": ["**/*"]
+      },
+      {
         "from": "../shared",
         "to": "shared",
         "filter": [
@@ -59,7 +64,9 @@
       "createStartMenuShortcut": true,
       "runAfterFinish": true,
       "menuCategory": "DisplayOps",
-      "uninstallDisplayName": "DisplayOps Host Agent"
+      "uninstallDisplayName": "DisplayOps Host Agent",
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico"
     },
     "mac": {
       "icon": "assets/icon.icns",
