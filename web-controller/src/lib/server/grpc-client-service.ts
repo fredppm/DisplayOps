@@ -7,14 +7,6 @@ import { createContextLogger } from '@/utils/logger';
 
 const grpcClientLogger = createContextLogger('grpc-client');
 
-// Extend process interface for Electron's resourcesPath property
-declare global {
-  namespace NodeJS {
-    interface Process {
-      resourcesPath?: string;
-    }
-  }
-}
 
 // Load protobuf definition
 const PROTO_PATH = process.resourcesPath 

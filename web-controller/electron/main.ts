@@ -1,8 +1,8 @@
-import { app, BrowserWindow, Tray, Menu, shell, dialog, ipcMain, MenuItem } from 'electron';
-import { spawn, ChildProcess } from 'child_process';
+import { app, BrowserWindow, Tray, Menu, shell, dialog, ipcMain, MenuItem, Notification } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
+import * as http from 'http';
 import log from 'electron-log';
 import { autoUpdater } from 'electron-updater';
 import AutoLaunch from 'auto-launch';
@@ -18,7 +18,7 @@ class DisplayOpsController {
   private mainWindow: BrowserWindow | null = null;
   private consoleWindow: BrowserWindow | null = null;
   private tray: Tray | null = null;
-  private nextServer: ChildProcess | null = null;
+  private nextServer: any = null;
   private serverPort: number = 3000;
   private serverReady: boolean = false;
   private autoLauncher: AutoLaunch;
@@ -27,6 +27,7 @@ class DisplayOpsController {
   private setupDialog: SetupDialog;
   private serverLogs: string[] = [];
   private consoleUpdateTimeout: NodeJS.Timeout | null = null;
+  private keepAliveTimer: NodeJS.Timeout | null = null;
 
   constructor() {
     this.autoLauncher = new AutoLaunch({
@@ -46,10 +47,38 @@ class DisplayOpsController {
     app.on('window-all-closed', this.onWindowAllClosed.bind(this));
     app.on('activate', this.onActivate.bind(this));
     app.on('before-quit', this.onBeforeQuit.bind(this));
+    
+    // Add debugging for unexpected exits
+    process.on('exit', (code) => {
+      log.error('Process exiting with code:', code);
+      log.error('Stack trace at exit:', new Error().stack);
+    });
+    
+    process.on('SIGTERM', () => {
+      log.error('Received SIGTERM, process terminating');
+      log.error('Stack trace at SIGTERM:', new Error().stack);
+    });
+    
+    process.on('SIGINT', () => {
+      log.error('Received SIGINT, process terminating');
+      log.error('Stack trace at SIGINT:', new Error().stack);
+    });
+    
+    process.on('uncaughtException', (error) => {
+      log.error('Uncaught exception:', error);
+      log.error('Stack:', error.stack);
+    });
+    
+    process.on('unhandledRejection', (reason, promise) => {
+      log.error('Unhandled rejection at promise:', promise);
+      log.error('Reason:', reason);
+    });
 
     // Prevent multiple instances
     const gotTheLock = app.requestSingleInstanceLock();
     if (!gotTheLock) {
+      // Show notification that app is already running
+      this.showAlreadyRunningNotification();
       app.quit();
       return;
     }
@@ -96,61 +125,109 @@ class DisplayOpsController {
   private async onReady(): Promise<void> {
     log.info('App is ready, starting DisplayOps Controller...');
     
-    // Create a hidden main window to keep the process alive
-    this.createMainWindow();
-    if (this.mainWindow) {
-      this.mainWindow.hide();
-    }
-    
-    // Check if this is first run
-    if (this.configManager.isFirstRun()) {
-      log.info('First run detected, showing setup dialog...');
-      try {
-        const config = await this.setupDialog.showSetupDialog();
+    try {
+      // Create a hidden main window to keep the process alive
+      log.info('Creating main window...');
+      this.createMainWindow();
+      if (this.mainWindow) {
+        this.mainWindow.hide();
+        log.info('Main window created and hidden');
+      }
+      
+      // Check if this is first run
+      log.info('Checking if this is first run...');
+      const isFirstRun = this.configManager.isFirstRun();
+      log.info(`First run check result: ${isFirstRun}`);
+      
+      if (isFirstRun) {
+        log.info('First run detected, showing setup dialog...');
+        try {
+          const config = await this.setupDialog.showSetupDialog();
+          this.serverPort = config.serverPort;
+          log.info('Setup completed with config:', config);
+          
+          // Now start server with chosen configuration
+          log.info('Starting server with setup configuration...');
+          await this.startNextServer();
+          log.info('Server started successfully with setup config');
+        } catch (error) {
+          log.error('Setup dialog failed:', error);
+          // Use defaults if setup fails
+          this.serverPort = 3000;
+          log.info('Using default server port 3000 due to setup failure');
+          await this.startNextServer();
+          log.info('Server started with default configuration');
+        }
+      } else {
+        // Load saved configuration
+        log.info('Loading saved configuration...');
+        const config = this.configManager.loadConfig();
         this.serverPort = config.serverPort;
-        log.info('Setup completed with config:', config);
+        log.info('Loaded saved configuration:', config);
         
-        // Now start server with chosen configuration
-        await this.startNextServer();
-      } catch (error) {
-        log.error('Setup dialog failed:', error);
-        // Use defaults if setup fails
+        // Start server with saved configuration (in background)
+        log.info('About to start Next.js server...');
+        this.startNextServer().then(() => {
+          log.info('Next.js server startup completed successfully');
+        }).catch(error => {
+          log.error('Failed to start server:', error);
+          // DON'T let server startup errors crash the entire app
+        });
+      }
+      
+      // Create tray after everything is initialized
+      log.info('Creating system tray...');
+      this.createTray();
+      log.info('System tray created successfully');
+      
+      // Check for updates after startup
+      setTimeout(() => {
+        log.info('Checking for updates...');
+        this.autoUpdaterService.checkForUpdates();
+      }, 5000); // Wait 5 seconds after startup
+      
+      // Add keep-alive timer to prevent process exit
+      this.startKeepAliveTimer();
+      
+      log.info('DisplayOps Controller started successfully');
+      
+    } catch (error) {
+      log.error('Critical error during onReady():', error);
+      // Add more specific error handling
+      if (error instanceof Error) {
+        log.error('Error message:', error.message);
+        log.error('Error stack:', error.stack);
+      }
+      
+      // Don't let critical errors crash the app - try to recover
+      try {
+        log.info('Attempting to recover from critical error...');
         this.serverPort = 3000;
         await this.startNextServer();
+        this.createTray();
+        log.info('Recovery successful');
+      } catch (recoveryError) {
+        log.error('Recovery failed:', recoveryError);
+        // At this point, we should probably quit gracefully
+        setTimeout(() => {
+          log.error('Quitting due to unrecoverable error');
+          app.quit();
+        }, 2000);
       }
-    } else {
-      // Load saved configuration
-      const config = this.configManager.loadConfig();
-      this.serverPort = config.serverPort;
-      log.info('Loaded saved configuration:', config);
-      
-      // Start server with saved configuration (in background)
-      this.startNextServer().catch(error => {
-        log.error('Failed to start server:', error);
-      });
     }
-    
-    // Create tray after everything is initialized
-    this.createTray();
-    
-    // Check for updates after startup
-    setTimeout(() => {
-      this.autoUpdaterService.checkForUpdates();
-    }, 5000); // Wait 5 seconds after startup
-    
-    // Don't show window initially - run in background
-    // this.createMainWindow();
-
-    log.info('DisplayOps Controller started successfully');
   }
 
   private onWindowAllClosed(): void {
     // Keep app running even when all windows are closed (system tray app)
     // Don't quit on macOS unless explicitly requested
+    log.info('All windows closed, but keeping app running (system tray app)');
+    // Explicitly prevent quit
+    // app.quit() should NOT be called here
   }
 
   private onActivate(): void {
     // Don't create windows - this is a tray-only app
+    log.info('App activated (macOS behavior)');
   }
 
   private quitApplication(): void {
@@ -175,17 +252,25 @@ class DisplayOpsController {
     log.info('Starting cleanup...');
     
     if (this.nextServer) {
-      log.info('Stopping Next.js server...');
-      this.nextServer.kill('SIGTERM');
-      
-      // Give it a moment to gracefully shut down
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      if (this.nextServer && !this.nextServer.killed) {
-        log.info('Force killing Next.js server...');
-        this.nextServer.kill('SIGKILL');
+      log.info('Stopping integrated Next.js server...');
+      try {
+        // Close HTTP server gracefully
+        await new Promise<void>((resolve) => {
+          this.nextServer.close((error?: Error) => {
+            if (error) {
+              log.error('Error closing server:', error);
+            } else {
+              log.info('✅ Integrated Next.js server stopped gracefully');
+            }
+            resolve();
+          });
+        });
+      } catch (error) {
+        log.error('Error during server cleanup:', error);
       }
+      
       this.nextServer = null;
+      this.serverReady = false;
     }
     
     if (this.tray) {
@@ -205,168 +290,130 @@ class DisplayOpsController {
       this.consoleUpdateTimeout = null;
     }
     
+    if (this.keepAliveTimer) {
+      clearInterval(this.keepAliveTimer);
+      this.keepAliveTimer = null;
+      log.info('Keep-alive timer cleared');
+    }
+    
     log.info('Cleanup completed');
   }
 
   private async startNextServer(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      log.info('Starting embedded Next.js server...');
-      
-      const webControllerPath = this.getWebControllerPath();
-      const isProduction = app.isPackaged || process.env.NODE_ENV === 'production' || !webControllerPath.includes('node_modules');
-      
-      log.info(`Debug - app.isPackaged: ${app.isPackaged}`);
-      log.info(`Debug - NODE_ENV: ${process.env.NODE_ENV}`);
-      log.info(`Debug - webControllerPath: ${webControllerPath}`);
-      log.info(`Debug - isProduction: ${isProduction}`);
-      
-      if (!fs.existsSync(webControllerPath)) {
-        const error = `Web controller path not found: ${webControllerPath}`;
-        log.error(error);
-        reject(new Error(error));
-        return;
-      }
+    return new Promise(async (resolve, reject) => {
+      try {
+        log.info('Starting embedded Next.js server...');
+        
+        const webControllerPath = this.getWebControllerPath();
+        const isProduction = app.isPackaged || process.env.NODE_ENV === 'production';
+        
+        log.info(`Debug - app.isPackaged: ${app.isPackaged}`);
+        log.info(`Debug - NODE_ENV: ${process.env.NODE_ENV}`);
+        log.info(`Debug - webControllerPath: ${webControllerPath}`);
+        log.info(`Debug - isProduction: ${isProduction}`);
+        
+        this.addToServerLog(`🚀 Starting Next.js server internally`, 'info');
+        this.addToServerLog(`📁 Working directory: ${webControllerPath}`, 'info');
+        this.addToServerLog(`⚙️ Mode: ${isProduction ? 'Production' : 'Development'}`, 'info');
 
-      // Find available port starting from configured port
-      this.findAvailablePort(this.serverPort).then(port => {
+        // Find available port starting from configured port
+        const port = await this.findAvailablePort(this.serverPort);
         if (port !== this.serverPort) {
           log.info(`Configured port ${this.serverPort} unavailable, using ${port}`);
           this.serverPort = port;
         }
-        process.env.PORT = port.toString();
-        
-        // Use configured hostname
+
+        // Use configured hostname, but override for development
         const config = this.configManager.loadConfig();
-        process.env.HOSTNAME = config.hostname;
+        const hostname = isProduction ? config.hostname : 'localhost'; // Use localhost in development
 
-        const serverPath = path.join(webControllerPath, 'server.js');
+        // Change working directory to web-controller root
+        log.info(`Current working directory: ${process.cwd()}`);
+        process.chdir(webControllerPath);
+        log.info(`Changed working directory to: ${process.cwd()}`);
 
-        // Resolve Node embutido por plataforma quando empacotado
-        function resolveBundledNode(): string {
-          const base = path.join(process.resourcesPath, 'nodejs');
-          switch (process.platform) {
-            case 'win32':
-              return path.join(base, 'node.exe');
-            case 'darwin':
-            case 'linux':
-              return path.join(base, 'bin', 'node'); // sugestão de layout em *nix
-            default:
-              return path.join(base, 'node'); // fallback
-          }
+        // Set environment variables
+        process.env.PORT = port.toString();
+        process.env.HOSTNAME = hostname;
+        // Set NODE_ENV using a workaround for TypeScript readonly issue
+        const targetEnv = isProduction ? 'production' : 'development';
+        if (!process.env.NODE_ENV || process.env.NODE_ENV !== targetEnv) {
+          (process.env as any).NODE_ENV = targetEnv;
         }
 
-        let nodePath: string;
-        if (app.isPackaged) {
-          nodePath = resolveBundledNode();
-        } else {
-          nodePath = 'node'; // usa PATH em dev
-        }
-
-        log.info(`Starting server on port ${port} at ${webControllerPath}`);
-        log.info(`Node path: ${nodePath}`);
-        log.info(`Server script: ${serverPath}`);
+        // Use integrated Next.js approach (same as our test solution)
+        log.info('Initializing Next.js for integrated server...');
+        const nextModule = require('next');
+        log.info('Next.js module loaded successfully');
         
-        this.addToServerLog(`🚀 Starting Next.js server on port ${port}`, 'info');
-        this.addToServerLog(`📁 Working directory: ${webControllerPath}`, 'info');
-        this.addToServerLog(`⚡ Node: ${nodePath}`, 'info');
-        this.addToServerLog(`📜 Script: ${serverPath}`, 'info');
+        const nextApp = nextModule({
+          dev: !isProduction,
+          dir: webControllerPath,
+          quiet: false,
+          customServer: true
+        });
+        
+        log.info('Next.js app created, preparing...');
+        this.addToServerLog(`⚙️ Preparing Next.js application...`, 'info');
 
-        // Check if server.js exists
-        if (!fs.existsSync(serverPath)) {
-          const error = `Server script not found: ${serverPath}`;
-          log.error(error);
-          this.addToServerLog(`❌ ${error}`, 'error');
-          reject(new Error(error));
-          return;
-        }
+        // Wait for prepare() first, then create server
+        log.info('Preparing Next.js...');
+        await nextApp.prepare();
+        log.info('Next.js preparation completed');
+        this.addToServerLog(`✅ Next.js preparation completed`, 'success');
+        
+        // Create request handler
+        log.info('Creating request handler...');
+        const handle = nextApp.getRequestHandler();
 
-        // Check if bundled Node.js exists (only in production)
-        if (app.isPackaged && !fs.existsSync(nodePath)) {
-          const error = `Bundled Node.js not found: ${nodePath}`;
-          log.error(error);
-          this.addToServerLog(`❌ ${error}`, 'error');
-          reject(new Error(error));
-          return;
-        }
-
-        // The key: use spawn with array of arguments, not shell
-        // This handles spaces automatically in both executable and arguments
-        this.nextServer = spawn(nodePath, [serverPath], {
-          cwd: webControllerPath,
-          stdio: ['ignore', 'pipe', 'pipe'],
-          shell: false, // This is crucial - let spawn handle the path escaping
-          env: {
-            ...process.env,
-            NODE_ENV: isProduction ? 'production' : 'development',
-            PORT: port.toString(),
-            HOSTNAME: '0.0.0.0'
-          }
+        // Create HTTP server with integrated Next.js
+        log.info('Creating integrated HTTP server...');
+        this.nextServer = http.createServer((req, res) => {
+          // Use Next.js request handler directly
+          handle(req, res);
         });
 
-        let startupTimeout: NodeJS.Timeout | null = null;
-
-        this.nextServer.stdout?.on('data', (data) => {
-          const output = data.toString().trim();
-          if (output) {
-            log.info(`Next.js stdout: ${output}`);
-            this.addToServerLog(output, 'info');
-          }
-          
-          // Check if server is ready
-          if (output.includes('Ready on') || output.includes('started server on') || output.includes('Ready in')) {
-            if (!this.serverReady) {
-              this.serverReady = true;
-              if (startupTimeout) {
-                clearTimeout(startupTimeout);
-              }
-              log.info('Next.js server is ready');
-              this.addToServerLog('✅ Server is ready and accepting connections', 'success');
-              resolve();
-            }
-          }
-        });
-
-        this.nextServer.stderr?.on('data', (data) => {
-          const output = data.toString().trim();
-          if (output) {
-            log.error(`Next.js stderr: ${output}`);
-            this.addToServerLog(output, 'error');
-          }
-        });
-
-        this.nextServer.on('close', (code) => {
-          log.warn(`Next.js server exited with code ${code}`);
-          this.addToServerLog(`❌ Server exited with code ${code}`, 'error');
+        // Configure server error handling before starting
+        this.nextServer.on('error', (error: any) => {
+          log.error('Next.js server error:', error);
+          this.addToServerLog(`❌ Server error: ${error.message}`, 'error');
           this.serverReady = false;
-        });
-
-        this.nextServer.on('error', (error) => {
-          log.error('Failed to start Next.js server:', error);
-          this.addToServerLog(`❌ Failed to start server: ${error.message}`, 'error');
-          if (startupTimeout) {
-            clearTimeout(startupTimeout);
-          }
           reject(error);
         });
 
-        // Timeout after 30 seconds
-        startupTimeout = setTimeout(() => {
+        // Start listening with proper callback
+        this.nextServer.listen(port, hostname, () => {
+          this.serverReady = true;
+          log.info(`✅ Integrated Next.js server running on http://${hostname}:${port}`);
+          this.addToServerLog(`✅ Server listening on http://${hostname}:${port}`, 'success');
+          this.addToServerLog(`🌐 Access locally: http://localhost:${port}`, 'info');
+          resolve(); // Resolve when server starts listening
+        });
+
+        // Timeout safety net
+        setTimeout(() => {
           if (!this.serverReady) {
             log.error('Next.js server startup timeout');
+            this.addToServerLog(`❌ Server startup timeout (30s)`, 'error');
             reject(new Error('Server startup timeout'));
           }
         }, 30000);
-      });
+
+      } catch (error) {
+        log.error('Failed to start integrated Next.js server:', error);
+        this.addToServerLog(`❌ Failed to start server: ${error}`, 'error');
+        reject(error);
+      }
     });
   }
 
   private getWebControllerPath(): string {
     if (app.isPackaged) {
-      // In production, look for the embedded web-controller
-      return path.join(process.resourcesPath, 'web-controller');
+      // In production, the current directory is the app root  
+      return process.cwd();
     } else {
-      // In development, use the relative path
-      return path.join(__dirname, '..', '..', 'web-controller');
+      // In development, go from electron/dist to project root
+      return path.join(__dirname, '..', '..');
     }
   }
 
@@ -463,14 +510,13 @@ class DisplayOpsController {
   }
 
   private getTrayIconPath(): string {
-    // Use smaller icon for system tray (32x32 is ideal)
-    const iconName = process.platform === 'win32' ? 'icon-32.png' : 
-                    process.platform === 'darwin' ? 'icon-32.png' : 'icon-32.png';
+    // Use existing icon from public folder
+    const iconName = 'logo-ready.png';
     
     if (app.isPackaged) {
-      return path.join(process.resourcesPath, 'assets', iconName);
+      return path.join(process.resourcesPath, 'public', iconName);
     } else {
-      return path.join(__dirname, '..', 'assets', iconName);
+      return path.join(__dirname, '..', '..', 'public', iconName);
     }
   }
 
@@ -638,17 +684,14 @@ class DisplayOpsController {
           // Stop current server gracefully
           if (this.nextServer) {
             log.info('Stopping current server for reconfiguration...');
-            this.nextServer.kill('SIGTERM');
-            
-            // Wait for graceful shutdown
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            
-            if (this.nextServer && !this.nextServer.killed) {
-              log.info('Force killing server...');
-              this.nextServer.kill('SIGKILL');
-            }
+            this.nextServer.close(() => {
+              log.info('Server closed for reconfiguration');
+            });
             this.nextServer = null;
             this.serverReady = false;
+            
+            // Wait a moment for graceful shutdown
+            await new Promise(resolve => setTimeout(resolve, 1000));
           }
 
           // Update port and restart
@@ -1147,6 +1190,15 @@ class DisplayOpsController {
     return Buffer.from(svgLogo).toString('base64');
   }
 
+  private startKeepAliveTimer(): void {
+    // Create a timer to keep the process alive
+    this.keepAliveTimer = setInterval(() => {
+      log.debug('Keep-alive heartbeat');
+    }, 30000); // Every 30 seconds
+    
+    log.info('Keep-alive timer started to prevent process exit');
+  }
+
   private showAbout(): void {
     const { app } = require('electron');
     const config = this.configManager.loadConfig();
@@ -1161,6 +1213,39 @@ class DisplayOpsController {
     }).then(result => {
       if (result.response === 1) {
         shell.openExternal('https://github.com/yourusername/displayops');
+      }
+    });
+  }
+
+  private showAlreadyRunningNotification(): void {
+    log.info('DisplayOps Controller is already running');
+    
+    // Wait for app to be ready before showing notification
+    app.whenReady().then(() => {
+      if (Notification.isSupported()) {
+        const notification = new Notification({
+          title: 'DisplayOps Controller',
+          body: 'Application is already running. Click the system tray icon to access.',
+          icon: this.getTrayIconPath(),
+          silent: false,
+          urgency: 'normal'
+        });
+        
+        notification.show();
+        
+        // Auto-close notification after 5 seconds
+        setTimeout(() => {
+          notification.close();
+        }, 5000);
+        
+        // Optional: click on notification opens the interface
+        notification.on('click', () => {
+          shell.openExternal('http://localhost:3000');
+        });
+        
+      } else {
+        // Minimal fallback - just log, no intrusive dialog
+        log.info('Notifications not supported, app already running message logged only');
       }
     });
   }
