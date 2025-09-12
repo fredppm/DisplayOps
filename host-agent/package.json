@@ -131,6 +131,8 @@
     "electron-builder": "^24.9.1",
     "electron-reloader": "^1.2.3",
     "eslint": "^8.56.0",
+    "png-to-ico": "^3.0.1",
+    "png2icons": "^2.0.1",
     "typescript": "^5.3.3",
     "wait-on": "^7.2.0"
   },

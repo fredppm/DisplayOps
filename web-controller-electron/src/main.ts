@@ -239,20 +239,39 @@ class DisplayOpsController {
         const config = this.configManager.loadConfig();
         process.env.HOSTNAME = config.hostname;
 
-        // Always use the standalone server.js to avoid npm/next dependency issues
         const serverPath = path.join(webControllerPath, 'server.js');
-        
-        // Use node command with shell to properly execute server.js
-        const command = `node "${serverPath}"`;
+
+        // Resolve Node embutido por plataforma quando empacotado
+        function resolveBundledNode(): string {
+          const base = path.join(process.resourcesPath, 'nodejs');
+          switch (process.platform) {
+            case 'win32':
+              return path.join(base, 'node.exe');
+            case 'darwin':
+            case 'linux':
+              return path.join(base, 'bin', 'node'); // sugestão de layout em *nix
+            default:
+              return path.join(base, 'node'); // fallback
+          }
+        }
+
+        let nodePath: string;
+        if (app.isPackaged) {
+          nodePath = resolveBundledNode();
+        } else {
+          nodePath = 'node'; // usa PATH em dev
+        }
 
         log.info(`Starting server on port ${port} at ${webControllerPath}`);
-        log.info(`Command: ${command}`);
+        log.info(`Node path: ${nodePath}`);
+        log.info(`Server script: ${serverPath}`);
         
         this.addToServerLog(`🚀 Starting Next.js server on port ${port}`, 'info');
         this.addToServerLog(`📁 Working directory: ${webControllerPath}`, 'info');
-        this.addToServerLog(`⚡ Command: ${command}`, 'info');
+        this.addToServerLog(`⚡ Node: ${nodePath}`, 'info');
+        this.addToServerLog(`📜 Script: ${serverPath}`, 'info');
 
-        // Check if server.js exists before trying to start
+        // Check if server.js exists
         if (!fs.existsSync(serverPath)) {
           const error = `Server script not found: ${serverPath}`;
           log.error(error);
@@ -261,10 +280,21 @@ class DisplayOpsController {
           return;
         }
 
-        this.nextServer = spawn(command, [], {
+        // Check if bundled Node.js exists (only in production)
+        if (app.isPackaged && !fs.existsSync(nodePath)) {
+          const error = `Bundled Node.js not found: ${nodePath}`;
+          log.error(error);
+          this.addToServerLog(`❌ ${error}`, 'error');
+          reject(new Error(error));
+          return;
+        }
+
+        // The key: use spawn with array of arguments, not shell
+        // This handles spaces automatically in both executable and arguments
+        this.nextServer = spawn(nodePath, [serverPath], {
           cwd: webControllerPath,
           stdio: ['ignore', 'pipe', 'pipe'],
-          shell: true, // Use shell for node command
+          shell: false, // This is crucial - let spawn handle the path escaping
           env: {
             ...process.env,
             NODE_ENV: isProduction ? 'production' : 'development',
