@@ -1,6 +1,6 @@
 {
   "name": "displayops-web-controller",
-  "version": "1.0.5",
+  "version": "0.1.50",
   "description": "DisplayOps Web Controller - Next.js web interface with optional Electron desktop app",
   "main": "electron/dist/main.js",
   "private": true,
@@ -72,7 +72,7 @@
       "output": "release",
       "buildResources": "build"
     },
-    "icon": "assets/icon.png",
+    "icon": "assets/icon.ico",
     "files": [
       "electron/dist/**/*",
       ".next/**/*",
@@ -88,10 +88,18 @@
         "from": "assets",
         "to": "assets",
         "filter": ["**/*"]
-      }
+      },
+      {
+        "from": ".next",
+        "to": ".next"
+      },
+      { "from": ".next/static",     "to": ".next/standalone/web-controller/.next/static" },
+      { "from": "public",     "to": ".next/standalone/web-controller/public" },
+      { "from": "public",     "to": "public" },
+      { "from": "../shared/proto/host-agent.proto",     "to": "shared/proto/host-agent.proto" }
     ],
     "win": {
-      "icon": "assets/icon.png",
+      "icon": "assets/icon.ico",
       "target": [
         {
           "target": "nsis",

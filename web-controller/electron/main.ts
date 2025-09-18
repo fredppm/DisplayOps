@@ -4,7 +4,6 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as http from 'http';
 import log from 'electron-log';
-import { autoUpdater } from 'electron-updater';
 import AutoLaunch from 'auto-launch';
 import { AutoUpdaterService } from './auto-updater';
 import { ConfigManager } from './config-manager';
@@ -13,12 +12,12 @@ import { SetupDialog } from './setup-dialog';
 // Configure logging
 log.transports.file.level = 'info';
 log.transports.console.level = 'debug';
+Object.assign(console, log.functions);
 
 class DisplayOpsController {
   private mainWindow: BrowserWindow | null = null;
   private consoleWindow: BrowserWindow | null = null;
   private tray: Tray | null = null;
-  private nextServer: any = null;
   private serverPort: number = 3000;
   private serverReady: boolean = false;
   private autoLauncher: AutoLaunch;
@@ -250,28 +249,8 @@ class DisplayOpsController {
 
   private async cleanup(): Promise<void> {
     log.info('Starting cleanup...');
-    
-    if (this.nextServer) {
-      log.info('Stopping integrated Next.js server...');
-      try {
-        // Close HTTP server gracefully
-        await new Promise<void>((resolve) => {
-          this.nextServer.close((error?: Error) => {
-            if (error) {
-              log.error('Error closing server:', error);
-            } else {
-              log.info('✅ Integrated Next.js server stopped gracefully');
-            }
-            resolve();
-          });
-        });
-      } catch (error) {
-        log.error('Error during server cleanup:', error);
-      }
       
-      this.nextServer = null;
-      this.serverReady = false;
-    }
+    this.serverReady = false;
     
     if (this.tray) {
       log.info('Destroying tray...');
@@ -316,13 +295,7 @@ class DisplayOpsController {
         this.addToServerLog(`📁 Working directory: ${webControllerPath}`, 'info');
         this.addToServerLog(`⚙️ Mode: ${isProduction ? 'Production' : 'Development'}`, 'info');
 
-        // Find available port starting from configured port
-        const port = await this.findAvailablePort(this.serverPort);
-        if (port !== this.serverPort) {
-          log.info(`Configured port ${this.serverPort} unavailable, using ${port}`);
-          this.serverPort = port;
-        }
-
+    
         // Use configured hostname, but override for development
         const config = this.configManager.loadConfig();
         const hostname = isProduction ? config.hostname : 'localhost'; // Use localhost in development
@@ -333,71 +306,16 @@ class DisplayOpsController {
         log.info(`Changed working directory to: ${process.cwd()}`);
 
         // Set environment variables
-        process.env.PORT = port.toString();
         process.env.HOSTNAME = hostname;
-        // Set NODE_ENV using a workaround for TypeScript readonly issue
-        const targetEnv = isProduction ? 'production' : 'development';
-        if (!process.env.NODE_ENV || process.env.NODE_ENV !== targetEnv) {
-          (process.env as any).NODE_ENV = targetEnv;
-        }
-
-        // Use integrated Next.js approach (same as our test solution)
+        
         log.info('Initializing Next.js for integrated server...');
-        const nextModule = require('next');
-        log.info('Next.js module loaded successfully');
-        
-        const nextApp = nextModule({
-          dev: !isProduction,
-          dir: webControllerPath,
-          quiet: false,
-          customServer: true
-        });
-        
-        log.info('Next.js app created, preparing...');
-        this.addToServerLog(`⚙️ Preparing Next.js application...`, 'info');
-
-        // Wait for prepare() first, then create server
-        log.info('Preparing Next.js...');
-        await nextApp.prepare();
-        log.info('Next.js preparation completed');
-        this.addToServerLog(`✅ Next.js preparation completed`, 'success');
-        
-        // Create request handler
-        log.info('Creating request handler...');
-        const handle = nextApp.getRequestHandler();
-
-        // Create HTTP server with integrated Next.js
-        log.info('Creating integrated HTTP server...');
-        this.nextServer = http.createServer((req, res) => {
-          // Use Next.js request handler directly
-          handle(req, res);
-        });
-
-        // Configure server error handling before starting
-        this.nextServer.on('error', (error: any) => {
-          log.error('Next.js server error:', error);
-          this.addToServerLog(`❌ Server error: ${error.message}`, 'error');
-          this.serverReady = false;
-          reject(error);
-        });
-
-        // Start listening with proper callback
-        this.nextServer.listen(port, hostname, () => {
-          this.serverReady = true;
-          log.info(`✅ Integrated Next.js server running on http://${hostname}:${port}`);
-          this.addToServerLog(`✅ Server listening on http://${hostname}:${port}`, 'success');
-          this.addToServerLog(`🌐 Access locally: http://localhost:${port}`, 'info');
-          resolve(); // Resolve when server starts listening
-        });
-
-        // Timeout safety net
-        setTimeout(() => {
-          if (!this.serverReady) {
-            log.error('Next.js server startup timeout');
-            this.addToServerLog(`❌ Server startup timeout (30s)`, 'error');
-            reject(new Error('Server startup timeout'));
-          }
-        }, 30000);
+        const nextServerPath = path.resolve(webControllerPath, 'web-controller', 'server.js');
+        log.info(`Next.js server absolute path: ${nextServerPath}`);
+        require(nextServerPath);
+        this.serverReady = true;
+        log.info(`✅ Integrated Next.js server running on http://${hostname}:${this.serverPort}`);
+        this.addToServerLog(`✅ Server listening on http://${hostname}:${this.serverPort}`, 'success');
+        this.addToServerLog(`🌐 Access locally: http://localhost:${this.serverPort}`, 'info');
 
       } catch (error) {
         log.error('Failed to start integrated Next.js server:', error);
@@ -410,7 +328,7 @@ class DisplayOpsController {
   private getWebControllerPath(): string {
     if (app.isPackaged) {
       // In production, the current directory is the app root  
-      return process.cwd();
+      return path.join(process.resourcesPath, '.next', 'standalone');
     } else {
       // In development, go from electron/dist to project root
       return path.join(__dirname, '..', '..');
@@ -546,7 +464,7 @@ class DisplayOpsController {
         webSecurity: true
       },
       icon: this.getTrayIconPath(),
-      title: 'DisplayOps Controller'
+      title: 'DisplayOps Controller',
     });
 
     const url = `http://localhost:${this.serverPort}`;
@@ -657,21 +575,6 @@ class DisplayOpsController {
     }
   }
 
-  private showSettings(): void {
-    dialog.showMessageBox({
-      type: 'info',
-      title: 'Settings',
-      message: 'Settings',
-      detail: `Server running on:\n- Local: http://localhost:${this.serverPort}\n- Network: http://${this.getNetworkIP()}:${this.serverPort}\n\nClick "Open Interface" to access the web interface.`,
-      buttons: ['OK', 'Open Interface'],
-      defaultId: 1
-    }).then(result => {
-      if (result.response === 1) {
-        this.openInBrowser();
-      }
-    });
-  }
-
   private async showReconfigureDialog(): Promise<void> {
     try {
         // Show setup dialog first (don't stop server until we have new config)
@@ -681,19 +584,6 @@ class DisplayOpsController {
         if (config.serverPort !== this.serverPort) {
           log.info(`Port changed from ${this.serverPort} to ${config.serverPort}, restarting server...`);
           
-          // Stop current server gracefully
-          if (this.nextServer) {
-            log.info('Stopping current server for reconfiguration...');
-            this.nextServer.close(() => {
-              log.info('Server closed for reconfiguration');
-            });
-            this.nextServer = null;
-            this.serverReady = false;
-            
-            // Wait a moment for graceful shutdown
-            await new Promise(resolve => setTimeout(resolve, 1000));
-          }
-
           // Update port and restart
           this.serverPort = config.serverPort;
           await this.startNextServer();
@@ -733,7 +623,7 @@ class DisplayOpsController {
       dialog.showErrorBox('Reconfiguration Failed', errorMsg);
       
       // Ensure we have a running server
-      if (!this.nextServer || !this.serverReady) {
+      if (!this.serverReady) {
         log.info('Attempting to restart server with previous settings...');
         try {
           await this.startNextServer();
@@ -1240,7 +1130,7 @@ class DisplayOpsController {
         
         // Optional: click on notification opens the interface
         notification.on('click', () => {
-          shell.openExternal('http://localhost:3000');
+          shell.openExternal(`http://localhost:${this.serverPort}`);
         });
         
       } else {
