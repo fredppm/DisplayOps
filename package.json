@@ -48,5 +48,8 @@
     "display-control",
     "mdns-discovery"
   ],
-  "author": "DisplayOps Management System"
+  "author": "DisplayOps Management System",
+  "dependencies": {
+    "multicast-dns": "^7.2.5"
+  }
 }

@@ -108,7 +108,6 @@ export class GrpcHostClient extends EventEmitter {
           reject(new Error(`gRPC health check failed: ${error.message}`));
           return;
         }
-
         resolve(response);
       });
     });

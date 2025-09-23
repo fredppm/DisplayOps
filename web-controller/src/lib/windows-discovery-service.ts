@@ -93,7 +93,7 @@ export class WindowsDiscoveryService {
     try {
       // Set up mDNS callbacks - now connects gRPC instead of HTTP polling
       this.mdnsService.onHostDiscovered((discoveredHost) => {
-        windowsDiscoveryLogger.info('mDNS discovered host', { agentId: discoveredHost.txt?.agentId || discoveredHost.name });
+        windowsDiscoveryLogger.info('mDNS discovered host', { addresses: discoveredHost.addresses, agentId: discoveredHost.txt?.agentId || discoveredHost.name });
         this.connectToDiscoveredHost(discoveredHost);
       });
 
@@ -108,19 +108,6 @@ export class WindowsDiscoveryService {
       
     } catch (error) {
       windowsDiscoveryLogger.error('Failed to start mDNS discovery', { error: error instanceof Error ? error.message : String(error) });
-      // Continue with fallback localhost if enabled
-      if (process.env.OFFICE_DISPLAY_INCLUDE_LOCALHOST === 'true') {
-        windowsDiscoveryLogger.info('Fallback: Attempting localhost connection');
-        const localhostHost = {
-          name: 'localhost-agent',
-          host: 'localhost',
-          port: 8082, // gRPC port
-          addresses: ['127.0.0.1'],
-          txt: { agentId: 'localhost-agent' },
-          fqdn: 'localhost._displayops._tcp.local'
-        };
-        this.connectToDiscoveredHost(localhostHost);
-      }
     }
   }
 
@@ -185,7 +172,7 @@ export class WindowsDiscoveryService {
   // Helper method to select the best IP address for connection
   private selectPrimaryIP(addresses: string[]): string {
     if (!addresses || addresses.length === 0) {
-      return 'localhost';
+      return '127.0.0.1';
     }
     
     // Filter out IPv6 addresses for now

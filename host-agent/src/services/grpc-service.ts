@@ -13,9 +13,7 @@ import { ConfigManager } from '../managers/config-manager';
 import { StateManager } from './state-manager';
 
 // Load protobuf definition
-const PROTO_PATH = process.resourcesPath 
-  ? join(process.resourcesPath, 'shared', 'proto', 'host-agent.proto') // Production (Electron packaged)
-  : join(__dirname, '..', '..', '..', 'shared', 'proto', 'host-agent.proto'); // Development
+const PROTO_PATH =  join(__dirname, '..', '..', '..', '..', '..', 'shared', 'proto', 'host-agent.proto'); // Development
 
 const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
   keepCase: true,

@@ -634,11 +634,11 @@ export class GrpcClientService extends EventEmitter {
           displayCount: heartbeatData.displayStatuses.length,
           displays: heartbeatData.displayStatuses.map((display: any, index: number) => ({
             index: index + 1,
-            id: display.display_id || 'N/A',
+            id: display.display_id,
             active: display.is_active || false,
-            dashboard: display.assigned_dashboard?.dashboard_id || 'Nenhum',
-            url: display.assigned_dashboard?.url || 'N/A',
-            windowId: display.window_id || 'N/A'
+            dashboard: display.assigned_dashboard?.dashboard_id,
+            url: display.assigned_dashboard?.url,
+            windowId: display.window_id
           }))
         });
         
@@ -888,9 +888,9 @@ export class GrpcClientService extends EventEmitter {
       attemptCount++;
       const connection = this.connections.get(hostId);
       
-      // 🔍 DIAGNÓSTICO: Log detalhado a cada tentativa
-      if (attemptCount === 1 || attemptCount % 10 === 0) { // Log na primeira tentativa e depois a cada 10
-        grpcClientLogger.debug('waitForConnection: Tentativa', {
+      // 🔍 DIAGNOSTIC: Detailed log on each attempt
+      if (attemptCount === 1 || attemptCount % 10 === 0) { // Log on first attempt and then every 10 attempts
+        grpcClientLogger.debug('waitForConnection: Attempt', {
           attemptCount,
           hostId,
           connectionFound: !!connection,
@@ -906,7 +906,7 @@ export class GrpcClientService extends EventEmitter {
       }
       
       if (connection && connection.isConnected) {
-        grpcClientLogger.debug('waitForConnection: Conexão encontrada', {
+        grpcClientLogger.debug('waitForConnection: Connection found', {
           hostId,
           attempts: attemptCount,
           duration: Date.now() - startTime

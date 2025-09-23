@@ -36,7 +36,9 @@
       {
         "from": "assets",
         "to": "assets",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       },
       {
         "from": "../shared",
@@ -146,9 +148,9 @@
   "dependencies": {
     "@grpc/grpc-js": "^1.10.1",
     "@grpc/proto-loader": "^0.7.10",
-    "@types/bonjour": "^3.5.13",
-    "bonjour": "^3.5.0",
+    "@types/multicast-dns": "^7.2.4",
     "electron-log": "^5.4.3",
-    "electron-updater": "^6.1.7"
+    "electron-updater": "^6.1.7",
+    "multicast-dns": "^7.2.5"
   }
 }

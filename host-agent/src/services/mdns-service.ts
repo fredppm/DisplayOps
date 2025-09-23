@@ -1,27 +1,35 @@
-const bonjour = require('bonjour');
+import mdns from 'multicast-dns';
 import { ConfigManager } from '../managers/config-manager';
 import { StateManager } from './state-manager';
 import os from 'os';
 
+interface MulticastDNS {
+  query(packet: any): void;
+  respond(answers: any[]): void;
+  on(event: string, listener: (...args: any[]) => void): void;
+  destroy(): void;
+}
+
 export class MDNSService {
-  private bonjourInstance: any;
-  private publishedService: any | null = null;
+  private mdnsInstance: MulticastDNS | null = null;
   private isAdvertising: boolean = false;
   private configManager: ConfigManager;
   private stateManager: StateManager;
   private updateInterval: NodeJS.Timeout | null = null;
+  private serviceName: string = '';
+  private serviceType: string = '_displayops._tcp.local';
+  private servicePort: number = 8082;
 
   constructor(configManager: ConfigManager, stateManager: StateManager) {
     this.configManager = configManager;
     this.stateManager = stateManager;
-    this.bonjourInstance = bonjour();
   }
 
   public startAdvertising(): void {
     const config = this.configManager.getConfig();
-    const serviceName = `${config.hostname}-${config.agentId}`;
+    this.serviceName = `${config.hostname}-${config.agentId}`;
     
-    console.log(`🚀 Starting mDNS advertising as: ${serviceName}`);
+    console.log(`🚀 [MULTICAST-DNS] Starting mDNS advertising as: ${this.serviceName}`);
 
     try {
       // Stop existing service if any
@@ -29,26 +37,18 @@ export class MDNSService {
 
       this.isAdvertising = true;
       
-      // Publish the service using bonjour
-      this.publishedService = this.bonjourInstance.publish({
-        name: serviceName,
-        type: 'displayops',
-        port: 8082, // gRPC port
-        txt: this.getTxtRecord()
+      // Create multicast-dns instance
+      this.mdnsInstance = mdns();
+      
+      // Set up query listener to respond to service discovery
+      this.mdnsInstance.on('query', (query: { questions?: Array<{ name: string; type: string; class: string }> }) => {
+        this.handleQuery(query);
       });
 
-      // Set up event listeners
-      this.publishedService.on('up', () => {
-        console.log('✅ mDNS service published successfully');
-        console.log(`   Name: ${this.publishedService?.name}`);
-        console.log(`   Type: _${this.publishedService?.type}._tcp.local`);
-        console.log(`   Port: ${this.publishedService?.port}`);
-        console.log(`   Host: ${this.publishedService?.host}`);
-      });
-
-      this.publishedService.on('error', (error: any) => {
-        console.error('❌ mDNS service error:', error);
-      });
+      console.log('✅ [MULTICAST-DNS] mDNS service published successfully');
+      console.log(`   Name: ${this.serviceName}`);
+      console.log(`   Type: ${this.serviceType}`);
+      console.log(`   Port: ${this.servicePort}`);
 
       // Set up periodic TXT record updates
       this.startPeriodicUpdates();
@@ -68,9 +68,84 @@ export class MDNSService {
       this.updateInterval = null;
     }
     
-    if (this.publishedService) {
-      this.publishedService.stop();
-      this.publishedService = null;
+    if (this.mdnsInstance) {
+      this.mdnsInstance.destroy();
+      this.mdnsInstance = null;
+    }
+  }
+
+  private handleQuery(query: { questions?: Array<{ name: string; type: string; class: string }> }): void {
+    if (!this.isAdvertising || !this.mdnsInstance) return;
+
+    const responses: Array<{
+      name: string;
+      type: string;
+      class: string;
+      ttl: number;
+      data: any;
+    }> = [];
+
+    for (const question of query.questions || []) {
+      const questionName = question.name.toLowerCase();
+      
+      // Respond to PTR queries for our service type
+      if (question.type === 'PTR' && questionName === this.serviceType) {
+        responses.push({
+          name: this.serviceType,
+          type: 'PTR',
+          class: 'IN',
+          ttl: 120,
+          data: `${this.serviceName}.${this.serviceType}`
+        });
+      }
+      
+      // Respond to SRV queries for our specific service
+      if (question.type === 'SRV' && questionName === `${this.serviceType}`) {
+        responses.push({
+          name: `${this.serviceName}.${this.serviceType}`,
+          type: 'SRV',
+          class: 'IN',
+          ttl: 120,
+          data: {
+            priority: 0,
+            weight: 0,
+            port: this.servicePort,
+            target: `${os.hostname()}.local`
+          }
+        });
+      }
+      
+      // Respond to TXT queries for our specific service
+      if (question.type === 'TXT' && questionName === `${this.serviceType}`) {
+        const txtRecord = this.getTxtRecord();
+        const txtData = Object.entries(txtRecord).map(([key, value]) => `${key}=${value}`);
+        
+        responses.push({
+          name: `${this.serviceName}.${this.serviceType}`,
+          type: 'TXT',
+          class: 'IN',
+          ttl: 120,
+          data: txtData
+        });
+      }
+
+      // Respond to A queries for our hostname
+      if (question.type === 'A' && questionName === `${this.serviceType}`) {
+        const addresses = this.getLocalAddresses();
+        for (const address of addresses) {
+          responses.push({
+            name: `${os.hostname()}.local`,
+            type: 'A',
+            class: 'IN',
+            ttl: 120,
+            data: address
+          });
+        }
+      }
+    }
+
+    if (responses.length > 0) {
+      this.mdnsInstance.respond(responses);
     }
   }
 
@@ -126,25 +201,16 @@ export class MDNSService {
   }
 
   private updateTxtRecord(): void {
-    if (!this.isAdvertising || !this.publishedService) {
+    if (!this.isAdvertising || !this.mdnsInstance) {
       return;
     }
 
     try {
       console.log('🔄 Updating mDNS TXT record...');
       
-      // Stop and republish with new TXT record
-      const config = this.configManager.getConfig();
-      const serviceName = `${config.hostname}-${config.agentId}`;
-      
-      this.publishedService.stop();
-      
-      this.publishedService = this.bonjourInstance.publish({
-        name: serviceName,
-        type: 'displayops',
-        port: 8082,
-        txt: this.getTxtRecord()
-      });
+      // With multicast-dns, we don't need to republish
+      // The TXT record will be updated when the next query comes in
+      // since getTxtRecord() is called dynamically in handleQuery
       
     } catch (error) {
       console.error('❌ Error updating mDNS TXT record:', error);
@@ -161,20 +227,18 @@ export class MDNSService {
   }
 
   public getServiceInfo() {
-    if (!this.isAdvertising || !this.publishedService) {
+    if (!this.isAdvertising || !this.mdnsInstance) {
       return null;
     }
-
-    const config = this.configManager.getConfig();
     
     return {
-      name: `${config.hostname}-${config.agentId}`,
-      type: '_displayops._tcp.local',
-      port: 8082, // gRPC port
+      name: this.serviceName,
+      type: this.serviceType,
+      port: this.servicePort,
       txt: this.getTxtRecord(),
       addresses: this.getLocalAddresses(),
-      host: this.publishedService.host,
-      fqdn: this.publishedService.fqdn
+      host: `${os.hostname()}.local`,
+      fqdn: `${this.serviceName}.${this.serviceType}`
     };
   }
 
@@ -199,8 +263,5 @@ export class MDNSService {
 
   public destroy(): void {
     this.stopAdvertising();
-    if (this.bonjourInstance) {
-      this.bonjourInstance.destroy();
-    }
   }
 }

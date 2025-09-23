@@ -82,7 +82,7 @@ class DiscoverySingleton {
         // Notify all event handlers
         const changeType = isNewHost ? 'host_added' : 'host_updated';
         this.notifyHandlers(changeType, host);
-        discoveryLogger.info(`📡 ${isNewHost ? 'New host discovered' : 'Host updated'}:`, host.id);
+        discoveryLogger.info(`📡 ${isNewHost ? 'New host discovered' : 'Host updated'}:`, { hostId: host.id });
       });
 
       this.discoveryService.onHostRemoved((hostId) => {
