@@ -1,6 +1,6 @@
 {
   "name": "displayops-host-agent",
-  "version": "1.0.0",
+  "version": "1.0.52",
   "description": "Host agent for DisplayOps Management System - runs on mini PCs to control displays",
   "main": "dist/host-agent/src/main.js",
   "scripts": {
@@ -148,9 +148,7 @@
   "dependencies": {
     "@grpc/grpc-js": "^1.10.1",
     "@grpc/proto-loader": "^0.7.10",
-    "@types/multicast-dns": "^7.2.4",
     "electron-log": "^5.4.3",
-    "electron-updater": "^6.1.7",
-    "multicast-dns": "^7.2.5"
+    "electron-updater": "^6.1.7"
   }
 }

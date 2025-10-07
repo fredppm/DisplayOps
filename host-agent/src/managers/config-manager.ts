@@ -35,6 +35,8 @@ export interface AgentSettings {
   mdnsUpdateInterval: number;
   autoStart: boolean;
   debugMode: boolean;
+  webAdminUrl: string;
+  useMDNS: boolean;
 }
 
 // Function to get real display configuration
@@ -70,7 +72,9 @@ const DEFAULT_CONFIG: AgentConfig = {
     healthCheckInterval: 120000, // 2 minutes instead of 30 seconds
     mdnsUpdateInterval: 1800000, // 30 minutes - reduce frequent restarts
     autoStart: true,
-    debugMode: false
+    debugMode: false,
+    webAdminUrl: 'http://localhost:3000', // Default Web-Admin URL
+    useMDNS: false // Disable mDNS by default, use direct connection
   }
 };
 

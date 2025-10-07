@@ -20,6 +20,7 @@ if (process.env.NODE_ENV === 'development') {
 
 import { HostService } from './services/host-service';
 import { MDNSService } from './services/mdns-service';
+import { DirectConnectionService } from './services/direct-connection-service';
 import { DebugService } from './services/debug-service';
 import { DisplayIdentifier } from './services/display-identifier';
 import { DisplayMonitor } from './services/display-monitor';
@@ -68,6 +69,7 @@ async function ensurePortAvailable(port: number): Promise<boolean> {
 class HostAgent {
   private hostService: HostService;
   private mdnsService: MDNSService;
+  private directConnectionService: DirectConnectionService;
   private debugService: DebugService;
   private displayIdentifier: DisplayIdentifier;
   private displayMonitor: DisplayMonitor;
@@ -89,6 +91,7 @@ class HostAgent {
     this.stateManager = new StateManager();
     this.hostService = new HostService(this.configManager, this.stateManager);
     this.mdnsService = new MDNSService(this.configManager, this.stateManager);
+    this.directConnectionService = new DirectConnectionService(this.configManager, this.stateManager);
     this.debugService = new DebugService(this.configManager);
     this.displayIdentifier = new DisplayIdentifier();
     this.displayMonitor = new DisplayMonitor();
@@ -601,11 +604,103 @@ class HostAgent {
     // Server cleanup is handled by gRPC service
   }
 
-  public start(): void {
-    logger.system('Starting DisplayOps Host Agent...');
-    logger.info(`Agent ID: ${this.configManager.getAgentId()}`);
-    logger.info(`Version: ${this.configManager.getVersion()}`);
-    logger.info('Debug Mode: Press Ctrl+Shift+D to toggle debug overlay');
+  public async start(): Promise<void> {
+    try {
+      logger.system('🚀 Starting DisplayOps Host Agent...');
+      logger.info(`Agent ID: ${this.configManager.getAgentId()}`);
+      logger.info(`Version: ${this.configManager.getVersion()}`);
+      logger.info('Debug Mode: Press Ctrl+Shift+D to toggle debug overlay');
+      
+      // Ensure port is available
+      const port = 8082;
+      const portAvailable = await ensurePortAvailable(port);
+      if (!portAvailable) {
+        throw new Error(`Port ${port} is not available`);
+      }
+
+      // Start services in order
+      await this.hostService.start();
+      await this.grpcService.start();
+      
+      // Start direct connection to Web-Admin (replaces mDNS)
+      await this.directConnectionService.start();
+      
+      // Keep mDNS as fallback (optional)
+      const useMDNS = this.configManager.getSettings().useMDNS !== false;
+      if (useMDNS) {
+        this.mdnsService.startAdvertising();
+        logger.info('📡 mDNS advertising started (fallback mode)');
+      } else {
+        logger.info('🚫 mDNS advertising disabled - using direct connection only');
+      }
+      
+      await this.debugService.start();
+      await this.displayIdentifier.start();
+      await this.displayMonitor.start();
+      await this.autoRestoreService.start();
+      await this.debugOverlayManager.start();
+      await this.systemTrayManager.start();
+      await this.cookieManager.start();
+      await this.autoUpdaterService.start();
+
+      // Set up event listeners
+      this.setupEventListeners();
+
+      logger.success('✅ DisplayOps Host Agent started successfully');
+      logger.info(`   gRPC Server: localhost:${port}`);
+      logger.info(`   Direct Connection: ${this.configManager.getSettings().webAdminUrl || 'http://localhost:3000'}`);
+      logger.info(`   mDNS: ${useMDNS ? 'enabled (fallback)' : 'disabled'}`);
+
+    } catch (error) {
+      logger.error('❌ Failed to start Host Agent:', error);
+      throw error;
+    }
+  }
+
+  private setupEventListeners(): void {
+    // Direct connection events
+    this.directConnectionService.on('connected', () => {
+      logger.success('✅ Connected to Web-Admin');
+      this.systemTrayManager.updateStatus('connected');
+    });
+
+    this.directConnectionService.on('disconnected', () => {
+      logger.warn('❌ Disconnected from Web-Admin');
+      this.systemTrayManager.updateStatus('disconnected');
+    });
+
+    this.directConnectionService.on('connection-error', () => {
+      logger.error('⚠️ Web-Admin connection error');
+      this.systemTrayManager.updateStatus('error');
+    });
+
+    // State changes trigger updates
+    this.stateManager.on('display-state-changed', () => {
+      this.directConnectionService.forceUpdate();
+    });
+  }
+
+  public async stop(): Promise<void> {
+    logger.info('🛑 Stopping DisplayOps Host Agent...');
+    
+    try {
+      await this.directConnectionService.stop();
+      this.mdnsService.stopAdvertising();
+      await this.grpcService.stop();
+      await this.hostService.stop();
+      await this.debugService.stop();
+      await this.displayIdentifier.stop();
+      await this.displayMonitor.stop();
+      await this.autoRestoreService.stop();
+      await this.debugOverlayManager.stop();
+      await this.systemTrayManager.stop();
+      await this.cookieManager.stop();
+      await this.autoUpdaterService.stop();
+      
+      logger.success('✅ DisplayOps Host Agent stopped');
+    } catch (error) {
+      logger.error('❌ Error stopping Host Agent:', error);
+    }
   }
 }
 
@@ -642,5 +737,8 @@ if (!gotTheLock) {
 
   // Initialize and start the host agent only if we got the lock
   const hostAgent = new HostAgent();
-  hostAgent.start();
+  hostAgent.start().catch((error) => {
+    console.error('❌ Failed to start host agent:', error);
+    process.exit(1);
+  });
 }
