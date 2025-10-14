@@ -1,7 +1,7 @@
 import React from 'react';
 import { NextPage } from 'next';
 import Link from 'next/link';
-import Layout from '@/components/Layout';
+import AdminLayout from '@/components/AdminLayout';
 import SyncStatusCard from '@/components/SyncStatusCard';
 import { useAdminStatus } from '@/contexts/AdminStatusContext';
 
@@ -19,7 +19,7 @@ const HealthPage: NextPage = () => {
   };
 
   return (
-    <Layout>
+    <AdminLayout>
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
         <div className="container mx-auto p-4">
         <div className="mb-6 flex items-center justify-between">
@@ -199,7 +199,7 @@ const HealthPage: NextPage = () => {
         </div>
         </div>
       </div>
-    </Layout>
+    </AdminLayout>
   );
 };
 

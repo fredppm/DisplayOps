@@ -23,16 +23,13 @@ const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
 });
 
 const protoDescriptor = grpc.loadPackageDefinition(packageDefinition) as any;
-console.log('Proto descriptor keys:', Object.keys(protoDescriptor));
 
 const displayops = protoDescriptor.displayops;
 
 if (!displayops) {
-  console.error('displayops package not found. Available packages:', Object.keys(protoDescriptor));
+  console.error('❌ displayops package not found. Available packages:', Object.keys(protoDescriptor));
   throw new Error('Failed to load displayops package from proto definition');
 }
-
-console.log('displayops keys:', Object.keys(displayops));
 
 if (!displayops.HostAgent) {
   console.error('HostAgent service not found. Available services:', Object.keys(displayops));
@@ -416,14 +413,26 @@ export class GrpcService extends EventEmitter {
   }
 
   private async handleIdentifyDisplays(cmd: any): Promise<any> {
+    logger.info('🔍 IDENTIFY_DISPLAYS command received', { 
+      rawCmd: cmd, 
+      duration_seconds: cmd.duration_seconds 
+    });
+    
     const duration = cmd.duration_seconds || 5;
     const pattern = cmd.pattern || 'highlight';
+    
+    logger.info('🖥️ Calling displayIdentifier.identifyDisplays', { 
+      duration, 
+      pattern 
+    });
     
     const result = await this.displayIdentifier.identifyDisplays({
       duration,
       fontSize: cmd.font_size || 48,
       backgroundColor: cmd.background_color || '#000000'
     });
+    
+    logger.info('✅ Display identification result:', { result });
 
     // identifyDisplays retorna string, mas protobuf espera array
     // Vamos retornar array de displays com status

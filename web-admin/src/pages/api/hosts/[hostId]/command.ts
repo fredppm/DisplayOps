@@ -17,6 +17,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
   }
 
+  const startTime = Date.now(); // Define before try for catch block access
+  
   try {
     // Get host information
     const host = await hostsRepository.getById(hostId as string);
@@ -29,6 +31,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const command = req.body;
+    
     hostCommandLogger.info('🚀 Executing command on host', {
       hostId,
       commandType: command.type,
@@ -85,10 +88,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           command_id: `cmd_${Date.now()}`,
           type: 'IDENTIFY_DISPLAYS',
           payload: {
-            duration_seconds: command.payload?.duration || 5,
-            pattern: command.payload?.pattern || 'highlight',
-            font_size: command.payload?.font_size || 200,
-            background_color: command.payload?.background_color || 'rgba(0, 0, 0, 0.8)'
+            duration_seconds: 5
           }
         });
         break;
@@ -165,11 +165,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
 
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Command execution failed';
+    
     hostCommandLogger.error('❌ Command execution failed:', error);
     
     return res.status(500).json({
       success: false,
-      error: error instanceof Error ? error.message : 'Command execution failed',
+      error: errorMessage,
       timestamp: new Date().toISOString()
     });
   }

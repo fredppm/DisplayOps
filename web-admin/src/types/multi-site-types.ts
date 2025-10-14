@@ -6,21 +6,8 @@ export interface Site {
   location: string;
   timezone: string;
   status: 'online' | 'offline' | 'error';
-  controllers: string[];
   createdAt: string;
   updatedAt: string;
-}
-
-export interface Controller {
-  id: string;
-  siteId: string;
-  name: string;
-  localNetwork: string;
-  mdnsService: string;
-  controllerUrl: string;
-  status: 'online' | 'offline' | 'error';
-  lastSync: string;
-  version: string;
 }
 
 // Dashboard configuration for multi-site
@@ -33,7 +20,6 @@ export interface MultiSiteDashboard {
   requiresAuth: boolean;
   refreshInterval?: number;
   siteRestrictions?: string[]; // Site IDs where this dashboard can be used
-  controllerRestrictions?: string[]; // Controller IDs where this dashboard can be used
 }
 
 // User management for multi-site
@@ -51,39 +37,11 @@ export interface User {
 // Site statistics and health metrics
 export interface SiteMetrics {
   siteId: string;
-  totalControllers: number;
-  onlineControllers: number;
   totalHostAgents: number;
   onlineHostAgents: number;
   totalDisplays: number;
   activeDisplays: number;
   lastUpdated: string;
-}
-
-// Controller health and synchronization status
-export interface ControllerHealth {
-  controllerId: string;
-  status: 'online' | 'offline' | 'error' | 'syncing';
-  lastHeartbeat?: string;
-  lastSync?: string;
-  syncStatus: 'success' | 'failed' | 'pending';
-  hostAgents: number;
-  displays: number;
-  version: string;
-  uptime?: number;
-  errors?: string[];
-}
-
-// Synchronization logs and audit trail
-export interface SyncLog {
-  id: string;
-  controllerId: string;
-  timestamp: string;
-  type: 'configuration' | 'dashboards' | 'commands' | 'heartbeat';
-  status: 'success' | 'failed' | 'pending';
-  data?: any;
-  error?: string;
-  duration?: number;
 }
 
 // Configuration management
@@ -118,21 +76,6 @@ export interface UpdateSiteRequest {
   timezone?: string;
 }
 
-export interface CreateControllerRequest {
-  siteId: string;
-  name: string;
-  localNetwork: string;
-  mdnsService?: string;
-  controllerUrl?: string;
-}
-
-export interface UpdateControllerRequest {
-  name?: string;
-  localNetwork?: string;
-  mdnsService?: string;
-  controllerUrl?: string;
-}
-
 // Response wrappers
 export interface ApiResponse<T = any> {
   success: boolean;
@@ -160,12 +103,6 @@ export interface SystemHealth {
     warning: number;
     critical: number;
   };
-  controllers: {
-    total: number;
-    online: number;
-    offline: number;
-    error: number;
-  };
   hostAgents: {
     total: number;
     online: number;
@@ -183,12 +120,9 @@ export interface SystemHealth {
 export interface SystemEvent {
   id: string;
   type: 'site-added' | 'site-updated' | 'site-deleted' | 
-        'controller-online' | 'controller-offline' | 'controller-error' |
         'host-agent-connected' | 'host-agent-disconnected' |
-        'display-activated' | 'display-deactivated' |
-        'sync-completed' | 'sync-failed';
+        'display-activated' | 'display-deactivated';
   siteId?: string;
-  controllerId?: string;
   hostAgentId?: string;
   displayId?: string;
   data?: any;
@@ -202,34 +136,14 @@ export interface SiteFormData {
   timezone: string;
 }
 
-export interface ControllerFormData {
-  siteId: string;
-  name: string;
-  localNetwork: string;
-  mdnsService: string;
-}
-
 // Error types specific to multi-site operations
 export class MultiSiteError extends Error {
   constructor(
     message: string,
     public code: string,
-    public siteId?: string,
-    public controllerId?: string
+    public siteId?: string
   ) {
     super(message);
     this.name = 'MultiSiteError';
-  }
-}
-
-export class SynchronizationError extends MultiSiteError {
-  constructor(message: string, controllerId: string) {
-    super(message, 'SYNC_ERROR', undefined, controllerId);
-  }
-}
-
-export class ControllerConnectionError extends MultiSiteError {
-  constructor(message: string, controllerId: string) {
-    super(message, 'CONTROLLER_CONNECTION_ERROR', undefined, controllerId);
   }
 }

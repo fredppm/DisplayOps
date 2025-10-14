@@ -185,6 +185,24 @@ export class RegistryService extends EventEmitter {
     const config = this.configManager.getConfig();
     const displayStates = this.stateManager.getAllDisplayStates();
 
+    // Calculate metrics
+    const totalMem = os.totalmem();
+    const freeMem = os.freemem();
+    const usedMem = totalMem - freeMem;
+    const memoryUsagePercent = Math.round((usedMem / totalMem) * 100 * 10) / 10;
+
+    // CPU usage calculation (average over all cores)
+    const cpus = os.cpus();
+    let totalIdle = 0;
+    let totalTick = 0;
+    cpus.forEach(cpu => {
+      for (const type in cpu.times) {
+        totalTick += cpu.times[type as keyof typeof cpu.times];
+      }
+      totalIdle += cpu.times.idle;
+    });
+    const cpuUsagePercent = Math.round((1 - totalIdle / totalTick) * 100 * 10) / 10;
+
     const heartbeatData = {
       agentId: config.agentId,
       status: isOffline ? 'offline' : 'online',
@@ -200,7 +218,23 @@ export class RegistryService extends EventEmitter {
           assignedDashboard: displayState?.assignedDashboard || null,
           isActive: displayState?.isActive || false
         };
-      })
+      }),
+      systemInfo: {
+        platform: os.platform(),
+        arch: os.arch(),
+        nodeVersion: process.version,
+        electronVersion: process.versions.electron || 'N/A',
+        totalMemoryGB: Math.round(os.totalmem() / (1024 * 1024 * 1024) * 10) / 10,
+        cpuCores: os.cpus().length,
+        cpuModel: os.cpus()[0]?.model || 'Unknown',
+        uptime: Math.floor(os.uptime())
+      },
+      metrics: {
+        cpuUsagePercent: cpuUsagePercent,
+        memoryUsagePercent: memoryUsagePercent,
+        memoryUsedGB: Math.round(usedMem / (1024 * 1024 * 1024) * 10) / 10,
+        memoryTotalGB: Math.round(totalMem / (1024 * 1024 * 1024) * 10) / 10
+      }
     };
 
     const response = await fetch(`${this.webAdminUrl}/api/hosts/heartbeat`, {

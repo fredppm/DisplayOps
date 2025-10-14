@@ -6,7 +6,6 @@ import os from 'os';
 export interface AgentConfig {
   agentId: string;
   hostname: string;
-  controllerUrl?: string;
   version: string;
   displays: DisplayConfig[];
   settings: AgentSettings;
@@ -189,14 +188,6 @@ export class ConfigManager {
 
   public getSettings(): AgentSettings {
     return this.config.settings;
-  }
-
-  public getControllerUrl(): string | undefined {
-    return this.config.controllerUrl;
-  }
-
-  public setControllerUrl(url: string): void {
-    this.updateConfig({ controllerUrl: url });
   }
 
   // System information methods

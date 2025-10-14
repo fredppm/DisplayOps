@@ -44,6 +44,7 @@ CREATE TABLE hosts (
     version VARCHAR(20) DEFAULT '1.0.0',
     displays JSONB DEFAULT '[]', -- Array of display configurations
     system_info JSONB DEFAULT '{}', -- System information (CPU, RAM, etc)
+    metrics JSONB DEFAULT NULL, -- Real-time metrics (CPU usage, memory usage) updated every heartbeat
     site_id VARCHAR(50), -- Optional site assignment
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),

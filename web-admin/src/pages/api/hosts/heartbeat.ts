@@ -18,6 +18,22 @@ interface HeartbeatRequest {
     assignedDashboard?: any;
     isActive: boolean;
   }>;
+  systemInfo?: {
+    platform: string;
+    arch: string;
+    nodeVersion: string;
+    electronVersion: string;
+    totalMemoryGB: number;
+    cpuCores: number;
+    cpuModel: string;
+    uptime: number;
+  };
+  metrics?: {
+    cpuUsagePercent: number;
+    memoryUsagePercent: number;
+    memoryUsedGB: number;
+    memoryTotalGB: number;
+  };
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -51,7 +67,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Update host status and display information
-    const updatedHost = await hostsRepository.update(host.id, {
+    const updateData: any = {
       status: heartbeatData.status,
       lastSeen: heartbeatData.lastSeen,
       displays: heartbeatData.displays.map(display => ({
@@ -61,7 +77,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         height: display.height,
         isPrimary: display.isPrimary
       }))
-    });
+    };
+
+    // Include systemInfo if provided (for uptime and other dynamic system data)
+    if (heartbeatData.systemInfo) {
+      updateData.systemInfo = heartbeatData.systemInfo;
+    }
+
+    // Include metrics if provided (CPU, memory usage)
+    if (heartbeatData.metrics) {
+      updateData.metrics = heartbeatData.metrics;
+    }
+
+    const updatedHost = await hostsRepository.update(host.id, updateData);
 
     // Only log at debug level to reduce noise (heartbeats are frequent)
     // Log at info level only for status changes

@@ -14,6 +14,8 @@ export class SystemTrayManager {
   private onShowDebugOverlayCallback?: () => void;
   private onOpenCookieEditorCallback?: () => void;
   private onCheckForUpdatesCallback?: () => void;
+  private onIdentifyDisplaysCallback?: () => void;
+  private onOpenAdminCallback?: () => void;
   
   // Preloaded icons cache to prevent missing images when system goes offline
   private preloadedIcons: Map<string, Electron.NativeImage> = new Map();
@@ -28,11 +30,15 @@ export class SystemTrayManager {
     onShowDebugOverlay?: () => void;
     onOpenCookieEditor?: () => void;
     onCheckForUpdates?: () => void;
+    onIdentifyDisplays?: () => void;
+    onOpenAdmin?: () => void;
   }): void {
     this.onRefreshDisplaysCallback = callbacks.onRefreshDisplays;
     this.onShowDebugOverlayCallback = callbacks.onShowDebugOverlay;
     this.onOpenCookieEditorCallback = callbacks.onOpenCookieEditor;
     this.onCheckForUpdatesCallback = callbacks.onCheckForUpdates;
+    this.onIdentifyDisplaysCallback = callbacks.onIdentifyDisplays;
+    this.onOpenAdminCallback = callbacks.onOpenAdmin;
   }
 
   /**
@@ -99,8 +105,14 @@ export class SystemTrayManager {
     const cachedStates = Array.from(this.preloadedIcons.keys());
     logger.info(`📋 Available cached icon states: ${cachedStates.join(', ')}`);
     
-    // Force preload all possible fallback variants as well
-    this.preloadFallbackIcons();
+    // Only preload fallback icons if some icons failed to load from files
+    const hasAllMainIcons = this.iconStates.every(state => this.preloadedIcons.has(state));
+    if (!hasAllMainIcons) {
+      logger.info('⚠️  Some icons missing, preloading fallback icons...');
+      this.preloadFallbackIcons();
+    } else {
+      logger.debug('✅ All main icons loaded successfully, skipping fallback generation');
+    }
   }
 
   /**
@@ -237,7 +249,7 @@ export class SystemTrayManager {
       });
 
       this.tray.on('double-click', () => {
-        this.openWebController();
+        // Double-click behavior removed
       });
     } else {
       // Just update the existing tray icon
@@ -284,7 +296,7 @@ export class SystemTrayManager {
   }
 
   private createFallbackIcon(state: 'idle' | 'ready' | 'error' | 'synced' = 'idle'): Electron.NativeImage {
-    logger.warn(`Creating fallback icon for state: ${state}`);
+    logger.debug(`Creating fallback icon for state: ${state}`);
     
     // Create state-specific fallback icon colors
     const stateColors = {
@@ -312,7 +324,7 @@ export class SystemTrayManager {
       
       // If SVG doesn't work, create a simple bitmap fallback
       if (icon.isEmpty()) {
-        logger.warn('SVG fallback failed, creating bitmap fallback');
+        logger.debug('SVG fallback empty, using bitmap fallback instead');
         return this.createBitmapFallback(state);
       }
       
@@ -429,12 +441,19 @@ export class SystemTrayManager {
         type: 'separator'
       },
       {
-        label: 'Open Web Controller',
-        click: () => this.openWebController()
+        label: 'Open Web Admin',
+        click: () => this.openAdmin()
+      },
+      {
+        type: 'separator'
       },
       {
         label: 'Show Debug Overlay',
         click: () => this.showDebugOverlay()
+      },
+      {
+        label: 'Identify Displays',
+        click: () => this.identifyDisplays()
       },
       {
         label: 'Refresh Displays',
@@ -461,34 +480,6 @@ export class SystemTrayManager {
     ]);
 
     this.tray.setContextMenu(contextMenu);
-  }
-
-
-  private openWebController(): void {
-    // Try common web controller ports
-    const possibleUrls = [
-      'http://localhost:3000',
-      'http://localhost:3001'
-    ];
-    
-    // For now, just try the default port (user can manually navigate if needed)
-    const url = possibleUrls[0];
-    
-    // Open in default browser
-    import('electron').then(({ shell }) => {
-      shell.openExternal(url);
-    });
-    
-    logger.info(`Opening web controller at ${url}`);
-    
-    // Show notification
-    if (this.tray) {
-      this.tray.displayBalloon({
-        title: 'Web Controller',
-        content: `Opening ${url}\nIf not running, start it with "npm run dev:web"`,
-        iconType: 'info'
-      });
-    }
   }
 
   private showDebugOverlay(): void {
@@ -538,6 +529,30 @@ export class SystemTrayManager {
     
     if (this.onCheckForUpdatesCallback) {
       this.onCheckForUpdatesCallback();
+    }
+  }
+
+  private identifyDisplays(): void {
+    logger.info('Identify Displays requested from system tray');
+    
+    if (this.onIdentifyDisplaysCallback) {
+      this.onIdentifyDisplaysCallback();
+      
+      if (this.tray) {
+        this.tray.displayBalloon({
+          title: 'Display Identification',
+          content: 'Showing display numbers for 5 seconds...',
+          iconType: 'info'
+        });
+      }
+    }
+  }
+
+  private openAdmin(): void {
+    logger.info('Open Web Admin requested from system tray');
+    
+    if (this.onOpenAdminCallback) {
+      this.onOpenAdminCallback();
     }
   }
 

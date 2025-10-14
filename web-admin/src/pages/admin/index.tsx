@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { NextPage, GetServerSideProps } from 'next';
 import Link from 'next/link';
-import Layout from '@/components/Layout';
+import AdminLayout from '@/components/AdminLayout';
 import { 
   UsersIcon, 
   BuildingOfficeIcon, 
@@ -333,7 +333,7 @@ const AdminPage: NextPage<AdminPageProps> = ({ dashboardData }) => {
   ];
 
   return (
-    <Layout>
+    <AdminLayout>
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
         <div className="container mx-auto px-6 py-8">
           {/* Status de Conexão SSE */}
@@ -633,7 +633,7 @@ const AdminPage: NextPage<AdminPageProps> = ({ dashboardData }) => {
           </div>
         </div>
       </div>
-    </Layout>
+    </AdminLayout>
   );
 };
 

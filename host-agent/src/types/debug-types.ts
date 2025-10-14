@@ -38,19 +38,6 @@ export interface WindowDebugInfo {
   lastActivity?: Date;
 }
 
-export interface MdnsDebugInfo {
-  serviceStatus: 'advertising' | 'stopped' | 'error';
-  discoveredHosts: number;
-  lastAdvertisement?: Date;
-  networkInterface?: string;
-  serviceData?: {
-    name: string;
-    type: string;
-    port: number;
-    txt: Record<string, string>;
-  };
-}
-
 export interface PerformanceMetrics {
   memoryUsage: {
     rss: number;

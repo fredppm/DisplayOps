@@ -12,6 +12,7 @@ export class DisplayIdentifier {
   private identifierWindows: BrowserWindow[] = [];
   private isActive: boolean = false;
   private windowManager?: WindowManager;
+  private forceCloseTimer?: NodeJS.Timeout;
 
   public setWindowManager(windowManager: WindowManager): void {
     this.windowManager = windowManager;
@@ -25,7 +26,7 @@ export class DisplayIdentifier {
     const {
       duration = 5,
       fontSize = 200,
-      backgroundColor = 'rgba(0, 0, 0, 0.8)'
+      backgroundColor = 'rgba(0, 180, 255, 0.95)' // Cyan/Blue neon
     } = options;
 
     try {
@@ -81,9 +82,14 @@ export class DisplayIdentifier {
           this.closeIdentifierWindows();
         }, duration * 1000);
 
-        // Emergency force-close after duration + 2 seconds
-        setTimeout(() => {
-          this.forceCloseAllWindows();
+        // Emergency force-close after duration + 2 seconds (only if needed)
+        this.forceCloseTimer = setTimeout(() => {
+          // Only force close if there are still windows open
+          if (this.identifierWindows.some(w => !w.isDestroyed())) {
+            this.forceCloseAllWindows();
+          } else {
+            console.log('✅ All identifier windows already closed, skipping force close');
+          }
         }, (duration + 2) * 1000);
       }
 
@@ -138,13 +144,13 @@ export class DisplayIdentifier {
               
               overlay.innerHTML = \`
                 <div style="text-align: center; color: white; animation: pulse 1.5s ease-in-out infinite alternate;">
-                  <div style="font-size: ${fontSize}px; font-weight: 900; line-height: 1; text-shadow: 0 0 20px rgba(255, 255, 255, 0.5); margin-bottom: 20px;">
+                  <div style="font-size: ${fontSize}px; font-weight: 900; line-height: 1; text-shadow: 0 0 40px rgba(255, 255, 255, 0.9), 0 0 80px rgba(0, 255, 255, 0.6), 0 0 120px rgba(0, 200, 255, 0.4); margin-bottom: 20px; color: #FFFFFF;">
                     ${displayNumber}
                   </div>
-                  <div style="font-size: 24px; font-weight: 600; opacity: 0.8; margin-bottom: 10px;">
+                  <div style="font-size: 24px; font-weight: 600; text-shadow: 0 0 20px rgba(255, 255, 255, 0.7); margin-bottom: 10px;">
                     Display ${displayNumber}
                   </div>
-                  <div style="font-size: 14px; opacity: 0.4; position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);">
+                  <div style="font-size: 14px; opacity: 0.6; position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);">
                     Click anywhere or press any key to close
                   </div>
                 </div>
@@ -209,6 +215,12 @@ export class DisplayIdentifier {
 
     this.identifierWindows = [];
     this.isActive = false;
+    
+    // Cancel force close timer if all windows are closed
+    if (this.forceCloseTimer) {
+      clearTimeout(this.forceCloseTimer);
+      this.forceCloseTimer = undefined;
+    }
   }
 
   private async createIdentifierWindow(
@@ -307,21 +319,26 @@ export class DisplayIdentifier {
       font-size: ${fontSize}px;
       font-weight: 900;
       line-height: 1;
-      text-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
+      text-shadow: 
+        0 0 40px rgba(255, 255, 255, 0.9),
+        0 0 80px rgba(0, 255, 255, 0.6),
+        0 0 120px rgba(0, 200, 255, 0.4);
       margin-bottom: 20px;
+      color: #FFFFFF;
     }
     
     .info {
       font-size: 24px;
       font-weight: 600;
-      opacity: 0.8;
+      text-shadow: 0 0 20px rgba(255, 255, 255, 0.7);
       margin-bottom: 10px;
     }
     
     .resolution {
       font-size: 18px;
-      opacity: 0.6;
+      opacity: 0.7;
       font-weight: normal;
+      text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
     }
     
     .close-hint {
@@ -330,7 +347,7 @@ export class DisplayIdentifier {
       left: 50%;
       transform: translateX(-50%);
       font-size: 14px;
-      opacity: 0.4;
+      opacity: 0.6;
       color: white;
     }
     
@@ -443,6 +460,11 @@ export class DisplayIdentifier {
 
     this.identifierWindows = [];
     this.isActive = false;
+    
+    // Clear the timer reference
+    if (this.forceCloseTimer) {
+      this.forceCloseTimer = undefined;
+    }
   }
 
   public cleanup(): void {

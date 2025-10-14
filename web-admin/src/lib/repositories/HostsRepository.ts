@@ -28,6 +28,12 @@ export interface Host {
     cpuModel: string;
     uptime: number;
   };
+  metrics?: {
+    cpuUsagePercent: number;
+    memoryUsagePercent: number;
+    memoryUsedGB: number;
+    memoryTotalGB: number;
+  };
   version: string;
   status: 'online' | 'offline' | 'error'; // Computed property (not stored in DB)
   lastSeen: string;
@@ -156,6 +162,7 @@ class HostsRepository {
       grpcPort: row.grpc_port,
       displays: row.displays || [],
       systemInfo: row.system_info || {},
+      metrics: row.metrics || undefined,
       version: row.version,
       status: getHostStatus(row.last_seen), // Calculate status dynamically
       lastSeen: row.last_seen,
@@ -303,6 +310,10 @@ class HostsRepository {
         if (updateData.systemInfo !== undefined) {
           setClauses.push(`system_info = $${paramCount++}`);
           values.push(JSON.stringify(updateData.systemInfo));
+        }
+        if (updateData.metrics !== undefined) {
+          setClauses.push(`metrics = $${paramCount++}`);
+          values.push(JSON.stringify(updateData.metrics));
         }
         if (updateData.version !== undefined) {
           setClauses.push(`version = $${paramCount++}`);

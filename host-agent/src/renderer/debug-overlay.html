@@ -354,13 +354,8 @@
 
   <div class="status-bar">
     <div class="status-item">
-      <div class="status-dot green" id="mdnsStatus"></div>
-      <span>mDNS</span>
+      <span>Displays: <span id="displayCount">0</span></span>
     </div>
-
-         <div class="status-item">
-       <span>Displays: <span id="displayCount">0</span></span>
-     </div>
     <div class="status-item">
       <span>Uptime: <span id="uptime">0s</span></span>
     </div>
@@ -622,11 +617,6 @@
 
       updateStatusBar() {
         if (!this.metrics) return;
-
-        // Update status dots
-        const mdnsStatus = document.getElementById('mdnsStatus');
-        
-        mdnsStatus.className = `status-dot ${this.metrics.mdnsStatus === 'active' ? 'green' : 'red'}`;
 
         // Update counters
         const displayCount = this.metrics.displays ? this.metrics.displays.length : 0;

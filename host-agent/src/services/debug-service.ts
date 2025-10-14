@@ -4,7 +4,7 @@ import { ConfigManager } from '../managers/config-manager';
 export interface DebugEvent {
   id: string;
   timestamp: Date;
-  type: 'api_request' | 'api_response' | 'mdns_event' | 'window_event' | 'system_event' | 'error';
+  type: 'api_request' | 'api_response' | 'window_event' | 'system_event' | 'error';
   category: string;
   message: string;
   data?: any;
@@ -17,7 +17,6 @@ export interface SystemMetrics {
   uptime: number;
   activeWindows: number;
   apiRequestsPerMinute: number;
-  mdnsStatus: 'active' | 'inactive' | 'error';
   displays: any[];
 }
 
@@ -126,21 +125,6 @@ export class DebugService extends EventEmitter {
     this.addEvent(event);
   }
 
-  public logMdnsEvent(event: string, data?: any): void {
-    if (!this.isEnabled) return;
-
-    const debugEvent: DebugEvent = {
-      id: this.generateEventId(),
-      timestamp: new Date(),
-      type: 'mdns_event',
-      category: 'mDNS',
-      message: event,
-      data
-    };
-
-    this.addEvent(debugEvent);
-  }
-
   public logWindowEvent(windowId: string, event: string, data?: any): void {
     if (!this.isEnabled) return;
 
@@ -205,7 +189,6 @@ export class DebugService extends EventEmitter {
       uptime: process.uptime(),
       activeWindows: this.getActiveWindowsCount(),
       apiRequestsPerMinute: this.getApiRequestsPerMinute(),
-      mdnsStatus: this.getMdnsStatus(),
       displays: this.getDisplays()
     };
   }
@@ -260,12 +243,6 @@ export class DebugService extends EventEmitter {
     // This should be connected to the WindowManager
     // For now, return a mock value
     return 0; // Will be updated when integrated
-  }
-
-  private getMdnsStatus(): 'active' | 'inactive' | 'error' {
-    // This should be connected to the MDNSService
-    // For now, return a mock status
-    return 'active'; // Will be updated when integrated
   }
 
   private getDisplays(): any[] {

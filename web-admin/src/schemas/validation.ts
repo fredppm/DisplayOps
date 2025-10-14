@@ -6,7 +6,6 @@ export const SiteSchema = z.object({
   name: z.string().min(1, 'Site name is required').max(100, 'Site name is too long'),
   location: z.string().min(1, 'Location is required').max(100, 'Location is too long'),
   timezone: z.string().min(1, 'Timezone is required'),
-  controllers: z.array(z.string()),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });
@@ -23,46 +22,6 @@ export const UpdateSiteSchema = z.object({
   timezone: z.string().min(1, 'Timezone is required').optional(),
 });
 
-// Controller validation schemas
-export const ControllerSchema = z.object({
-  id: z.string().min(1, 'Controller ID is required'),
-  siteId: z.string().min(1, 'Site ID is required'),
-  name: z.string().min(1, 'Controller name is required').max(100, 'Controller name is too long'),
-  localNetwork: z.string().regex(/^(\d{1,3}\.){3}\d{1,3}\/\d{1,2}$/, 'Invalid network format (use CIDR notation)'),
-  mdnsService: z.string().min(1, 'mDNS service is required'),
-  controllerUrl: z.string().url('Invalid URL format'),
-  status: z.enum(['online', 'offline', 'error']),
-  lastSync: z.string().datetime(),
-  version: z.string().min(1, 'Version is required'),
-});
-
-export const CreateControllerSchema = z.object({
-  siteId: z.string().min(1, 'Site ID is required'),
-  name: z.string().min(1, 'Controller name is required').max(100, 'Controller name is too long'),
-  localNetwork: z.string().regex(/^(\d{1,3}\.){3}\d{1,3}\/\d{1,2}$/, 'Invalid network format (use CIDR notation)'),
-  mdnsService: z.string().min(1, 'mDNS service is required').default('_displayops._tcp.local'),
-  controllerUrl: z.string().url('Invalid URL format').optional(),
-});
-
-export const UpdateControllerSchema = z.object({
-  name: z.string().min(1, 'Controller name is required').max(100, 'Controller name is too long').optional(),
-  localNetwork: z.string().regex(/^(\d{1,3}\.){3}\d{1,3}\/\d{1,2}$/, 'Invalid network format (use CIDR notation)').optional(),
-  mdnsService: z.string().min(1, 'mDNS service is required').optional(),
-  controllerUrl: z.string().url('Invalid URL format').optional(),
-});
-
-// Auto-register controller schema
-export const AutoRegisterControllerSchema = z.object({
-  hostname: z.string().min(1, 'Hostname is required').max(100, 'Hostname is too long'),
-  localNetwork: z.string().regex(/^(\d{1,3}\.){3}\d{1,3}\/\d{1,2}$/, 'Invalid network format (use CIDR notation)'),
-  macAddress: z.string().regex(/^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/, 'Invalid MAC address format'),
-  location: z.string().min(1, 'Location is required').max(200, 'Location is too long').optional(),
-  version: z.string().min(1, 'Version is required').default('1.0.0'),
-  siteId: z.string().min(1, 'Site ID is required').optional(), // Optional for auto-registration
-  mdnsService: z.string().min(1, 'mDNS service is required').default('_displayops._tcp.local'),
-  controllerUrl: z.string().url('Invalid URL format').optional(),
-});
-
 // Multi-site dashboard schema
 export const MultiSiteDashboardSchema = z.object({
   id: z.string().min(1, 'Dashboard ID is required'),
@@ -73,7 +32,6 @@ export const MultiSiteDashboardSchema = z.object({
   requiresAuth: z.boolean(),
   refreshInterval: z.number().min(1000, 'Refresh interval must be at least 1 second').optional(),
   siteRestrictions: z.array(z.string()).optional(),
-  controllerRestrictions: z.array(z.string()).optional(),
 });
 
 // User schema

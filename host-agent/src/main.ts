@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, shell } from 'electron';
 // 🚀 gRPC Migration: Express/REST imports removed - using gRPC only
 // import express from 'express';
 // import cors from 'cors';
@@ -121,46 +121,8 @@ class HostAgent {
 
   // 🚀 gRPC Migration: Express/REST API removed - using gRPC only
   private async setupExpress(): Promise<void> {
-    console.log('⚠️ setupExpress() is deprecated - using gRPC only');
+    // Deprecated - using gRPC only
     return;
-    
-    /* REMOVED: REST API Server
-    // Check if port is available before starting server
-    const port = this.configManager.getApiPort();
-    const portAvailable = await ensurePortAvailable(port);
-    
-    if (!portAvailable) {
-      console.error(`Cannot start server - port ${port} is not available`);
-      console.error('Please check if another instance is running or if another service is using this port');
-      process.exit(1);
-    }
-    
-    // Middleware
-    this.expressApp.use(cors());
-    this.expressApp.use(express.json());
-    
-    // Health check endpoint
-    this.expressApp.get('/health', (req, res) => {
-      res.json({
-        success: true,
-        data: {
-          status: 'healthy',
-          uptime: process.uptime(),
-          version: this.configManager.getVersion(),
-          timestamp: new Date()
-        }
-      });
-    });
-    
-    // API routes
-    const apiRouter = new ApiRouter(this.hostService, this.windowManager, this.debugService, this.displayIdentifier, this.displayMonitor, this.mdnsService, this.configManager, this.stateManager);
-    this.expressApp.use('/api', apiRouter.getRouter());
-    
-    // Start server
-    this.server = this.expressApp.listen(port, async () => {
-      logger.success(`Host agent API server listening on port ${port}`);
-    });
-    */ 
   }
 
   // 🚀 NEW: Start gRPC service independently 
@@ -201,7 +163,9 @@ class HostAgent {
         onRefreshDisplays: () => this.handleRefreshDisplays(),
         onShowDebugOverlay: () => this.handleToggleDebugOverlay(),
         onOpenCookieEditor: () => this.handleOpenCookieEditor(),
-        onCheckForUpdates: () => this.autoUpdaterService.manualCheckForUpdates()
+        onCheckForUpdates: () => this.autoUpdaterService.manualCheckForUpdates(),
+        onIdentifyDisplays: () => this.handleIdentifyDisplays(),
+        onOpenAdmin: () => this.handleOpenAdmin()
       });
       
       // Update display configuration from system
@@ -544,6 +508,45 @@ class HostAgent {
       await this.cookieManager.openCookieEditor();
     } catch (error) {
       logger.error('Failed to open cookie editor:', error);
+    }
+  }
+
+  private async handleIdentifyDisplays(): Promise<void> {
+    logger.info('Identifying displays from system tray request');
+    
+    try {
+      await this.displayIdentifier.identifyDisplays({
+        duration: 5,
+        fontSize: 200,
+        backgroundColor: 'rgba(0, 180, 255, 0.95)' // Cyan/Blue neon
+      });
+    } catch (error) {
+      logger.error('Failed to identify displays:', error);
+    }
+  }
+
+  private async handleOpenAdmin(): Promise<void> {
+    logger.info('Opening Web Admin from system tray request');
+    
+    try {
+      const webAdminUrl = this.configManager.getSettings().webAdminUrl || 'http://localhost:3000';
+      
+      await shell.openExternal(webAdminUrl);
+      logger.info(`Opened Web Admin at ${webAdminUrl}`);
+      
+      // Show notification
+      this.systemTrayManager.showNotification(
+        'Web Admin',
+        `Opening ${webAdminUrl} in your browser`,
+        'info'
+      );
+    } catch (error) {
+      logger.error('Failed to open Web Admin:', error);
+      this.systemTrayManager.showNotification(
+        'Error',
+        'Failed to open Web Admin in browser',
+        'error'
+      );
     }
   }
 

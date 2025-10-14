@@ -7,27 +7,13 @@ interface Site {
   name: string;
   location: string;
   timezone: string;
-  controllers: string[];
   status: 'online' | 'offline' | 'error';
   createdAt: string;
   updatedAt: string;
 }
 
-interface Controller {
-  id: string;
-  siteId: string;
-  name: string;
-  localNetwork: string;
-  mdnsService: string;
-  controllerUrl: string;
-  status: 'online' | 'offline' | 'error';
-  lastSync: string;
-  version: string;
-}
-
 interface AppState {
   sites: Site[];
-  controllers: Controller[];
   loading: boolean;
   error: string | null;
 }
@@ -40,16 +26,11 @@ type AppAction =
   | { type: 'ADD_SITE'; payload: Site }
   | { type: 'UPDATE_SITE'; payload: Site }
   | { type: 'DELETE_SITE'; payload: string }
-  | { type: 'SET_CONTROLLERS'; payload: Controller[] }
-  | { type: 'ADD_CONTROLLER'; payload: Controller }
-  | { type: 'UPDATE_CONTROLLER'; payload: Controller }
-  | { type: 'DELETE_CONTROLLER'; payload: string }
   | { type: 'RESET_STATE' };
 
 // Initial state
 const initialState: AppState = {
   sites: [],
-  controllers: [],
   loading: false,
   error: null,
 };
@@ -86,29 +67,6 @@ function appReducer(state: AppState, action: AppAction): AppState {
         sites: state.sites.filter(site => site.id !== action.payload)
       };
     
-    case 'SET_CONTROLLERS':
-      return { ...state, controllers: action.payload };
-    
-    case 'ADD_CONTROLLER':
-      return { 
-        ...state, 
-        controllers: [...state.controllers, action.payload] 
-      };
-    
-    case 'UPDATE_CONTROLLER':
-      return {
-        ...state,
-        controllers: state.controllers.map(controller => 
-          controller.id === action.payload.id ? action.payload : controller
-        )
-      };
-    
-    case 'DELETE_CONTROLLER':
-      return {
-        ...state,
-        controllers: state.controllers.filter(controller => controller.id !== action.payload)
-      };
-    
     case 'RESET_STATE':
       return initialState;
     
@@ -125,12 +83,7 @@ interface AppContextType {
   addSite: (site: Omit<Site, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateSite: (id: string, updates: Partial<Site>) => void;
   deleteSite: (id: string) => void;
-  addController: (controller: Omit<Controller, 'id' | 'lastSync'>) => void;
-  updateController: (id: string, updates: Partial<Controller>) => void;
-  deleteController: (id: string) => void;
   getSiteById: (id: string) => Site | undefined;
-  getControllerById: (id: string) => Controller | undefined;
-  getControllersBySite: (siteId: string) => Controller[];
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -143,17 +96,13 @@ interface AppProviderProps {
 export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   const [state, dispatch] = useReducer(appReducer, initialState);
   const [persistedSites, setPersistedSites] = useLocalStorage<Site[]>('displayops-sites', []);
-  const [persistedControllers, setPersistedControllers] = useLocalStorage<Controller[]>('displayops-controllers', []);
 
   // Load persisted data on mount
   useEffect(() => {
     if (persistedSites.length > 0) {
       dispatch({ type: 'SET_SITES', payload: persistedSites });
     }
-    if (persistedControllers.length > 0) {
-      dispatch({ type: 'SET_CONTROLLERS', payload: persistedControllers });
-    }
-  }, [persistedSites, persistedControllers]);
+  }, [persistedSites]);
 
   // Persist data when state changes
   useEffect(() => {
@@ -161,12 +110,6 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       setPersistedSites(state.sites);
     }
   }, [state.sites, setPersistedSites]);
-
-  useEffect(() => {
-    if (state.controllers.length > 0) {
-      setPersistedControllers(state.controllers);
-    }
-  }, [state.controllers, setPersistedControllers]);
 
   // Helper functions
   const addSite = (siteData: Omit<Site, 'id' | 'createdAt' | 'updatedAt'>) => {
@@ -196,41 +139,8 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     dispatch({ type: 'DELETE_SITE', payload: id });
   };
 
-  const addController = (controllerData: Omit<Controller, 'id' | 'lastSync'>) => {
-    const controller: Controller = {
-      ...controllerData,
-      id: `controller-${Date.now()}`,
-      lastSync: new Date().toISOString(),
-    };
-    dispatch({ type: 'ADD_CONTROLLER', payload: controller });
-  };
-
-  const updateController = (id: string, updates: Partial<Controller>) => {
-    const existingController = state.controllers.find(c => c.id === id);
-    if (existingController) {
-      const updatedController: Controller = {
-        ...existingController,
-        ...updates,
-        lastSync: new Date().toISOString(),
-      };
-      dispatch({ type: 'UPDATE_CONTROLLER', payload: updatedController });
-    }
-  };
-
-  const deleteController = (id: string) => {
-    dispatch({ type: 'DELETE_CONTROLLER', payload: id });
-  };
-
   const getSiteById = (id: string) => {
     return state.sites.find(site => site.id === id);
-  };
-
-  const getControllerById = (id: string) => {
-    return state.controllers.find(controller => controller.id === id);
-  };
-
-  const getControllersBySite = (siteId: string) => {
-    return state.controllers.filter(controller => controller.siteId === siteId);
   };
 
   const value: AppContextType = {
@@ -239,12 +149,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     addSite,
     updateSite,
     deleteSite,
-    addController,
-    updateController,
-    deleteController,
     getSiteById,
-    getControllerById,
-    getControllersBySite,
   };
 
   return (
@@ -264,4 +169,4 @@ export const useApp = () => {
 };
 
 // Export types
-export type { Site, Controller, AppState, AppAction };
+export type { Site, AppState, AppAction };

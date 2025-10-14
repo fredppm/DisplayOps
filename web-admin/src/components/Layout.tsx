@@ -4,9 +4,7 @@ import { useRouter } from 'next/router';
 import { ChevronDownIcon, UserCircleIcon } from 'lucide-react';
 import { ToastProvider } from '@/contexts/ToastContext';
 import ThemeToggle from '@/components/ThemeToggle';
-import { SyncAlertManager, createSyncAlert } from '@/components/SyncAlert';
 import { useAuth } from '@/contexts/AuthContext';
-import { useAdminStatus } from '@/contexts/AdminStatusContext';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -18,28 +16,12 @@ const LayoutContent: React.FC<LayoutProps> = ({ children }) => {
   const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
   const [isSystemDropdownOpen, setIsSystemDropdownOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [syncAlerts, setSyncAlerts] = useState<any[]>([]);
   const userDropdownRef = useRef<HTMLDivElement>(null);
   const systemDropdownRef = useRef<HTMLDivElement>(null);
-  
-  // Use SSE for sync monitoring instead of polling
-  const { status: sseStatus, alerts: sseAlerts } = useAdminStatus();
 
   const isActiveRoute = (path: string): boolean => {
     return router.pathname.startsWith(path);
   };
-
-  // Generate alerts from SSE data
-  useEffect(() => {
-    if (!sseStatus || !sseAlerts) return;
-    
-    const newAlerts: any[] = [...sseAlerts];
-
-    // Controller sync alerts removed - using direct host connections now
-    // Legacy SSE sync logic disabled
-
-    setSyncAlerts(newAlerts);
-  }, [sseStatus, sseAlerts]);
 
 
   useEffect(() => {
@@ -296,13 +278,6 @@ const LayoutContent: React.FC<LayoutProps> = ({ children }) => {
           {children}
         </div>
       </main>
-
-      {/* Global Sync Alert Manager */}
-      <SyncAlertManager 
-        alerts={syncAlerts}
-        maxAlerts={3}
-        position="top-right"
-      />
     </div>
   );
 };

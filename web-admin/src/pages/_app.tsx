@@ -6,7 +6,6 @@ import { AppProvider } from '@/contexts/AppContext';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { ToastProvider } from '@/contexts/ToastContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
-import { AdminStatusProvider } from '@/contexts/AdminStatusContext';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -18,13 +17,11 @@ export default function App({ Component, pageProps }: AppProps) {
     <ThemeProvider>
       <AuthProvider>
         <AppProvider>
-          <AdminStatusProvider>
-            <ToastProvider>
-              <main className={inter.className}>
-                <Component {...pageProps} />
-              </main>
-            </ToastProvider>
-          </AdminStatusProvider>
+          <ToastProvider>
+            <main className={inter.className}>
+              <Component {...pageProps} />
+            </main>
+          </ToastProvider>
         </AppProvider>
       </AuthProvider>
     </ThemeProvider>
