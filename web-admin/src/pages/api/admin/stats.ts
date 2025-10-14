@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { controllersRepository } from '@/lib/repositories/ControllersRepository';
+import { hostsRepository } from '@/lib/repositories/HostsRepository';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
@@ -8,16 +8,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const controllers = await controllersRepository.getAll();
-    const stats = await controllersRepository.getStatsCount();
+    const hosts = await hostsRepository.getAll();
+    const onlineHosts = hosts.filter(h => h.status === 'online').length;
 
     return res.status(200).json({
       success: true,
       data: {
         totalUsers: 4, // Mock data - replace with actual user count from auth
         totalSites: 2, // Mock data - replace with actual sites count
-        totalControllers: stats.total,
-        systemStatus: stats.online > 0 ? 'Online' : 'Offline',
+        totalHosts: hosts.length,
+        onlineHosts: onlineHosts,
+        systemStatus: onlineHosts > 0 ? 'Online' : 'Offline',
         timestamp: new Date().toISOString()
       }
     });

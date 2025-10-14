@@ -35,27 +35,8 @@ const LayoutContent: React.FC<LayoutProps> = ({ children }) => {
     
     const newAlerts: any[] = [...sseAlerts];
 
-    // Check for controllers with pending syncs from SSE data
-    if (sseStatus.controllersList) {
-      sseStatus.controllersList.forEach((controller: any) => {
-        const pendingSyncs: string[] = [];
-        if (controller.dashboardSync?.pending) pendingSyncs.push('Dashboards');
-        if (controller.cookieSync?.pending) pendingSyncs.push('Cookies');
-        
-        if (pendingSyncs.length > 0) {
-          newAlerts.push({
-            id: `controller-sync-${controller.controllerId}-${Date.now()}`,
-            type: 'warning',
-            title: `${controller.name} Sync Pending`,
-            message: `Pending sync: ${pendingSyncs.join(', ')}`,
-            timestamp: new Date().toISOString(),
-            controllerId: controller.controllerId,
-            autoHide: false,
-            persist: true
-          });
-        }
-      });
-    }
+    // Controller sync alerts removed - using direct host connections now
+    // Legacy SSE sync logic disabled
 
     setSyncAlerts(newAlerts);
   }, [sseStatus, sseAlerts]);
@@ -80,7 +61,7 @@ const LayoutContent: React.FC<LayoutProps> = ({ children }) => {
 
   const navigationItems = [
     { name: 'Sites', href: '/sites', current: isActiveRoute('/sites') },
-    { name: 'Controllers', href: '/controllers', current: isActiveRoute('/controllers') },
+    { name: 'Hosts', href: '/hosts', current: isActiveRoute('/hosts') },
     { name: 'Dashboards', href: '/dashboards', current: isActiveRoute('/dashboards') },
     { name: 'Cookies', href: '/cookies', current: isActiveRoute('/cookies') },
   ];

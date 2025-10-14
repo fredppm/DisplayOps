@@ -44,7 +44,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     let result;
     switch (command.type) {
-      case 'open_dashboard':
       case 'OPEN_DASHBOARD':
         result = await grpcClient.executeCommand({
           command_id: `cmd_${Date.now()}`,
@@ -59,8 +58,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         });
         break;
 
-      case 'refresh_page':
-      case 'REFRESH_PAGE':
+      case 'REFRESH_DASHBOARD':
         result = await grpcClient.executeCommand({
           command_id: `cmd_${Date.now()}`,
           type: 'REFRESH_DASHBOARD',
@@ -70,8 +68,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         });
         break;
 
-      case 'sync_cookies':
-      case 'SYNC_COOKIES':
+      case 'SET_COOKIES':
+      case 'SYNC_COOKIES': // Used by AuthorizationManager
         result = await grpcClient.executeCommand({
           command_id: `cmd_${Date.now()}`,
           type: 'SET_COOKIES',
@@ -82,13 +80,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         });
         break;
 
-      case 'identify_displays':
       case 'IDENTIFY_DISPLAYS':
         result = await grpcClient.executeCommand({
           command_id: `cmd_${Date.now()}`,
           type: 'IDENTIFY_DISPLAYS',
           payload: {
-            duration: command.payload?.duration || 5
+            duration_seconds: command.payload?.duration || 5,
+            pattern: command.payload?.pattern || 'highlight',
+            font_size: command.payload?.font_size || 200,
+            background_color: command.payload?.background_color || 'rgba(0, 0, 0, 0.8)'
           }
         });
         break;
@@ -108,13 +108,39 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         });
         break;
 
-      case 'RESTART_BROWSER':
+      case 'RESTART_DASHBOARD':
         result = await grpcClient.executeCommand({
           command_id: `cmd_${Date.now()}`,
           type: 'RESTART_DASHBOARD',
           payload: {
             targetDisplay: command.targetDisplay
           }
+        });
+        break;
+
+      case 'REMOVE_DASHBOARD':
+        result = await grpcClient.executeCommand({
+          command_id: `cmd_${Date.now()}`,
+          type: 'REMOVE_DASHBOARD',
+          payload: {
+            targetDisplay: command.targetDisplay
+          }
+        });
+        break;
+
+      case 'DEBUG_ENABLE':
+        result = await grpcClient.executeCommand({
+          command_id: `cmd_${Date.now()}`,
+          type: 'DEBUG_ENABLE',
+          payload: {}
+        });
+        break;
+
+      case 'DEBUG_DISABLE':
+        result = await grpcClient.executeCommand({
+          command_id: `cmd_${Date.now()}`,
+          type: 'DEBUG_DISABLE',
+          payload: {}
         });
         break;
 
@@ -148,4 +174,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
   }
 }
+
 

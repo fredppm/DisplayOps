@@ -2,7 +2,7 @@ import { NextApiResponse } from 'next';
 import { Site, UpdateSiteRequest, ApiResponse } from '@/types/multi-site-types';
 import { UpdateSiteSchema } from '@/schemas/validation';
 import { withPermission, ProtectedApiRequest } from '@/lib/api-protection';
-import { sitesRepository, controllersRepository } from '@/lib/repositories';
+import { sitesRepository, hostsRepository } from '@/lib/repositories';
 
 async function handler(req: ProtectedApiRequest, res: NextApiResponse<ApiResponse<Site>>) {
   const { id } = req.query;

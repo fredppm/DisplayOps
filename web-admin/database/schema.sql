@@ -27,23 +27,28 @@ CREATE TABLE sites (
     location VARCHAR(255),
     timezone VARCHAR(50) NOT NULL DEFAULT 'UTC',
     status VARCHAR(20) NOT NULL DEFAULT 'offline' CHECK (status IN ('online', 'offline', 'maintenance')),
-    controllers TEXT[] NOT NULL DEFAULT '{}', -- Array of controller IDs
+    hosts TEXT[] NOT NULL DEFAULT '{}', -- Array of host IDs (mini PCs running host-agent)
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
--- Controllers table
-CREATE TABLE controllers (
-    id VARCHAR(50) PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    local_network VARCHAR(50), -- CIDR notation like "172.28.64.0/24"
-    mdns_service VARCHAR(100) DEFAULT '_displayops._tcp.local',
-    controller_url VARCHAR(500),
-    status VARCHAR(20) NOT NULL DEFAULT 'offline' CHECK (status IN ('online', 'offline', 'maintenance', 'error')),
-    last_sync TIMESTAMP WITH TIME ZONE,
+-- Hosts table (mini PCs running host-agent)
+-- Note: Status (online/offline) is calculated dynamically from last_seen timestamp
+-- Status = 'online' if last_seen < 2 minutes ago, 'offline' otherwise
+CREATE TABLE hosts (
+    agent_id VARCHAR(100) PRIMARY KEY, -- Unique agent identifier (e.g., "agent-vtex-b9lh6z3")
+    hostname VARCHAR(255) NOT NULL,
+    ip_address VARCHAR(50),
+    grpc_port INTEGER NOT NULL DEFAULT 8082,
+    last_seen TIMESTAMP WITH TIME ZONE, -- Status calculated from this field
     version VARCHAR(20) DEFAULT '1.0.0',
+    displays JSONB DEFAULT '[]', -- Array of display configurations
+    system_info JSONB DEFAULT '{}', -- System information (CPU, RAM, etc)
+    site_id VARCHAR(50), -- Optional site assignment
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    
+    FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE SET NULL
 );
 
 -- Audit log table
@@ -75,20 +80,18 @@ CREATE TABLE user_sessions (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
--- Dashboards/Hosts table
+-- Dashboards table
 CREATE TABLE dashboards (
     id VARCHAR(50) PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     url VARCHAR(500) NOT NULL,
     site_id VARCHAR(50),
-    controller_id VARCHAR(50),
     status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'maintenance')),
     config JSONB DEFAULT '{}',
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     
-    FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE SET NULL,
-    FOREIGN KEY (controller_id) REFERENCES controllers(id) ON DELETE SET NULL
+    FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE SET NULL
 );
 
 -- Indexes for performance
@@ -99,8 +102,11 @@ CREATE INDEX idx_users_last_login ON users(last_login);
 CREATE INDEX idx_sites_status ON sites(status);
 CREATE INDEX idx_sites_updated_at ON sites(updated_at);
 
-CREATE INDEX idx_controllers_status ON controllers(status);
-CREATE INDEX idx_controllers_last_sync ON controllers(last_sync);
+-- Hosts indexes (agent_id is PK, no need for separate index)
+CREATE INDEX idx_hosts_last_seen ON hosts(last_seen); -- For status calculation and cleanup
+CREATE INDEX idx_hosts_site_id ON hosts(site_id); -- For site lookups
+CREATE INDEX idx_hosts_hostname ON hosts(hostname); -- For search
+CREATE INDEX idx_hosts_ip_address ON hosts(ip_address); -- For network lookups
 
 CREATE INDEX idx_audit_log_user_id ON audit_log(user_id);
 CREATE INDEX idx_audit_log_timestamp ON audit_log(timestamp);
@@ -110,7 +116,6 @@ CREATE INDEX idx_user_sessions_user_id ON user_sessions(user_id);
 CREATE INDEX idx_user_sessions_expires_at ON user_sessions(expires_at);
 
 CREATE INDEX idx_dashboards_site_id ON dashboards(site_id);
-CREATE INDEX idx_dashboards_controller_id ON dashboards(controller_id);
 CREATE INDEX idx_dashboards_status ON dashboards(status);
 
 -- Triggers for updated_at
@@ -128,7 +133,7 @@ CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
 CREATE TRIGGER update_sites_updated_at BEFORE UPDATE ON sites
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_controllers_updated_at BEFORE UPDATE ON controllers
+CREATE TRIGGER update_hosts_updated_at BEFORE UPDATE ON hosts
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_dashboards_updated_at BEFORE UPDATE ON dashboards

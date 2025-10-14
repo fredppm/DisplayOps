@@ -1,6 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { createContextLogger } from '@/utils/logger';
 import { hostsRepository } from '@/lib/repositories/HostsRepository';
+import { broadcastHostEvent } from './events';
 
 const hostRegisterLogger = createContextLogger('host-register');
 
@@ -72,8 +73,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       grpcPort: registrationData.grpcPort
     });
 
+    console.log('📦 Received registration data:', JSON.stringify(registrationData, null, 2));
+
     // Check if host already exists
     const existingHost = await hostsRepository.getByAgentId(registrationData.agentId);
+    console.log('🔍 Existing host found:', existingHost ? 'YES' : 'NO');
     
     if (existingHost) {
       // Update existing host
@@ -88,10 +92,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         lastSeen: new Date().toISOString()
       });
 
-      hostRegisterLogger.info('✅ Host updated successfully', {
+      if (!updatedHost) {
+        throw new Error('Failed to update host');
+      }
+
+      hostRegisterLogger.debug('✅ Host updated (re-registration)', {
         hostId: updatedHost.id,
-        agentId: registrationData.agentId
+        agentId: registrationData.agentId,
+        status: updatedHost.status
       });
+
+      // Only broadcast significant updates (not routine heartbeats)
+      // The heartbeat endpoint handles routine updates
+      if (existingHost.status !== updatedHost.status) {
+        broadcastHostEvent({
+          type: 'host_updated',
+          host: updatedHost
+        });
+      }
 
       return res.status(200).json({
         success: true,
@@ -118,6 +136,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         agentId: registrationData.agentId
       });
 
+      // Broadcast registration event to SSE clients
+      broadcastHostEvent({
+        type: 'host_registered',
+        host: newHost
+      });
+
       return res.status(201).json({
         success: true,
         message: `Host registered successfully`,
@@ -128,12 +152,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   } catch (error) {
     hostRegisterLogger.error('❌ Host registration failed:', error);
+    console.error('Full error details:', error);
+    console.error('Stack trace:', error instanceof Error ? error.stack : 'No stack trace');
     
     return res.status(500).json({
       success: false,
       message: `Registration failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      error: error instanceof Error ? error.message : String(error),
       timestamp: new Date().toISOString()
     });
   }
 }
+
 

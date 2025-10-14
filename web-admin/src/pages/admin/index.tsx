@@ -639,21 +639,20 @@ const AdminPage: NextPage<AdminPageProps> = ({ dashboardData }) => {
 
 export const getServerSideProps: GetServerSideProps = async () => {
   try {
-    // Import repositories - usando padrão repository ao invés de api-server
+    // Import repositories
     const { UsersRepository } = await import('@/lib/repositories/UsersRepository');
     const { SitesRepository } = await import('@/lib/repositories/SitesRepository');
-    const { ControllersRepository } = await import('@/lib/repositories/ControllersRepository');
+    const { hostsRepository } = await import('@/lib/repositories/HostsRepository');
     
     // Instanciar repositories
     const usersRepo = new UsersRepository();
     const sitesRepo = new SitesRepository();
-    const controllersRepo = new ControllersRepository();
     
     // Buscar dados dos repositories
-    const [users, sites, controllers] = await Promise.all([
+    const [users, sites, hosts] = await Promise.all([
       usersRepo.getAll(),
       sitesRepo.getAll(),
-      controllersRepo.getAll()
+      hostsRepository.getAll()
     ]);
     
     // Preparar dados do dashboard - remover dados sensíveis
@@ -666,7 +665,7 @@ export const getServerSideProps: GetServerSideProps = async () => {
         lastLogin: user.lastLogin
       })),
       sites: sites as any,
-      controllers: controllers as any
+      controllers: hosts as any // Legacy field name, now hosts
     };
     
     return {

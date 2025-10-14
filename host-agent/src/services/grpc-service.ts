@@ -8,7 +8,6 @@ import { WindowManager } from '../managers/window-manager';
 import { DebugService } from './debug-service';
 import { DisplayIdentifier } from './display-identifier';
 import { DisplayMonitor } from './display-monitor';
-import { MDNSService } from './mdns-service';
 import { ConfigManager } from '../managers/config-manager';
 import { StateManager } from './state-manager';
 
@@ -55,7 +54,6 @@ export class GrpcService extends EventEmitter {
     private debugService: DebugService,
     private displayIdentifier: DisplayIdentifier,
     private displayMonitor: DisplayMonitor,
-    private mdnsService: MDNSService,
     private configManager: ConfigManager,
     private stateManager: StateManager
   ) {

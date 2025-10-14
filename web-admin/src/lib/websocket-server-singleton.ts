@@ -1,297 +1,113 @@
-import { WebSocketControllerServer } from './websocket-controller-server';
-// Removed controller-status-monitor - WebSocket handles real-time status
 import { createContextLogger } from '@/utils/logger';
 
 const wsLogger = createContextLogger('websocket');
 
-// Global instance para sobreviver ao hot-reload do Next.js
+// WebSocket functionality disabled - using direct gRPC connections instead
+// Controllers removed in favor of direct host-agent connections
+// This is a stub to maintain compatibility with existing code
+
 declare global {
   var __webSocketServerSingletonInstance: WebSocketServerSingleton | undefined;
 }
 
 class WebSocketServerSingleton {
   private static instance: WebSocketServerSingleton;
-  private server: WebSocketControllerServer | null = null;
   private isStarted: boolean = false;
   private port: number;
 
   private constructor() {
     this.port = parseInt(process.env.WEBSOCKET_CONTROLLER_ADMIN_PORT || process.env.ADMIN_PORT || '3000');
+    wsLogger.info('WebSocketServerSingleton: Legacy WebSocket disabled, using direct gRPC connections');
   }
 
   public static getInstance(): WebSocketServerSingleton {
-    // Usar global instance para sobreviver ao hot-reload
     if (!global.__webSocketServerSingletonInstance) {
-      wsLogger.info('WebSocketServerSingleton: Criando instância GLOBAL singleton (sobrevive hot-reload)');
       global.__webSocketServerSingletonInstance = new WebSocketServerSingleton();
       WebSocketServerSingleton.instance = global.__webSocketServerSingletonInstance;
     } else {
-      wsLogger.debug('WebSocketServerSingleton: Reutilizando instância GLOBAL singleton existente');
       WebSocketServerSingleton.instance = global.__webSocketServerSingletonInstance;
     }
     return WebSocketServerSingleton.instance;
   }
 
-  public async startWithIO(io: any): Promise<WebSocketControllerServer> {
-    wsLogger.info('WebSocket server start with existing Socket.IO instance requested');
-
-    if (this.isStarted && this.server) {
-      wsLogger.debug('WebSocket server already running, returning existing instance');
-      return this.server;
-    }
-
-    try {
-      this.server = new WebSocketControllerServer(this.port);
-      
-      // Set up event listeners for monitoring
-      this.server.on('controller_registered', (controller) => {
-        wsLogger.info('Controller registered via WebSocket:', { 
-          id: controller.id, 
-          name: controller.name 
-        });
-      });
-
-      this.server.on('controller_status_update', (update) => {
-        wsLogger.debug('Controller status update via WebSocket:', { 
-          controller_id: update.controller_id,
-          status: update.status.status 
-        });
-      });
-
-      this.server.on('controller_disconnected', (controllerId) => {
-        wsLogger.warn('Controller disconnected from WebSocket:', { controller_id: controllerId });
-      });
-
-      await this.server.startWithIO(io);
-      this.isStarted = true;
-
-      // Start controller status monitor
-      // Real-time status via WebSocket
-
-      wsLogger.info(`WebSocket Controller-Admin server started with existing Socket.IO instance`);
-      return this.server;
-
-    } catch (error) {
-      wsLogger.error('Failed to start WebSocket Controller-Admin server with Socket.IO:', error);
-      throw error;
-    }
+  // Stub methods for compatibility
+  public async startWithIO(io: any): Promise<any> {
+    wsLogger.debug('WebSocket startWithIO called (disabled, returning mock)');
+    this.isStarted = true;
+    return {};
   }
 
-  public async start(httpServer?: any): Promise<WebSocketControllerServer> {
-    wsLogger.info('WebSocket server start requested', {
-      isStarted: this.isStarted,
-      hasServer: !!this.server,
-      hasGlobalServer: !!global.__webSocketServerSingletonInstance?.server
-    });
-
-    if (this.isStarted && this.server) {
-      wsLogger.debug('WebSocket server already running, returning existing instance');
-      return this.server;
-    }
-
-    // Check if global instance has a running server (hot reload case)
-    if (global.__webSocketServerSingletonInstance?.server && global.__webSocketServerSingletonInstance.isStarted) {
-      wsLogger.info('Hot reload detected: reusing existing WebSocket server from global instance');
-      this.server = global.__webSocketServerSingletonInstance.server;
-      this.isStarted = true;
-      return this.server;
-    }
-
-    try {
-      // Check if WebSocket should be disabled (e.g., in Vercel)
-      const disableWebSocket = process.env.DISABLE_WEBSOCKET_INIT === 'true' || process.env.DISABLE_GRPC_INIT === 'true';
-      if (disableWebSocket) {
-        wsLogger.warn('WebSocket server disabled by environment variable');
-        throw new Error('WebSocket server disabled');
-      }
-
-      // If we had a previous server instance, force stop it first
-      if (this.server) {
-        wsLogger.warn('Cleaning up previous server instance before starting new one');
-        this.server.forceStop();
-        this.server = null;
-        // Wait a bit for cleanup
-        await new Promise(resolve => setTimeout(resolve, 500));
-      }
-
-      this.server = new WebSocketControllerServer(this.port);
-      
-      // Set up event listeners for monitoring
-      this.server.on('controller_registered', (controller) => {
-        wsLogger.info('Controller registered via WebSocket:', { 
-          id: controller.id, 
-          name: controller.name 
-        });
-      });
-
-      this.server.on('controller_status_update', (update) => {
-        wsLogger.debug('Controller status update via WebSocket:', { 
-          controller_id: update.controller_id,
-          status: update.status.status 
-        });
-      });
-
-      this.server.on('controller_disconnected', (controllerId) => {
-        wsLogger.warn('Controller disconnected from WebSocket:', { controller_id: controllerId });
-      });
-
-      await this.server.start(httpServer);
-      this.isStarted = true;
-
-      // Start controller status monitor
-      // Real-time status via WebSocket
-
-      wsLogger.info(`WebSocket Controller-Admin server started on port ${this.port}`);
-      return this.server;
-
-    } catch (error) {
-      // Check if it's a bind error (port in use)
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      const errorCode = (error as any)?.code;
-      
-      if (errorMessage.includes('bind') || errorMessage.includes('address already in use') || errorCode === 'EADDRINUSE') {
-        wsLogger.warn('Port already in use, this may be due to hot reload - attempting graceful handling');
-        
-        // For hot reload scenarios, don't throw error immediately
-        if (global.__webSocketServerSingletonInstance?.server) {
-          wsLogger.info('Using existing WebSocket server instance from hot reload');
-          this.server = global.__webSocketServerSingletonInstance.server;
-          this.isStarted = true;
-          return this.server;
-        }
-        
-        // Try cleanup and retry once
-        if (this.server) {
-          this.server.forceStop();
-          this.server = null;
-        }
-        this.isStarted = false;
-        
-        // Wait and try once more - the server's ensurePortAvailable() will handle aggressive cleanup
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        try {
-          wsLogger.info('Retrying WebSocket server start after port cleanup...');
-          this.server = new WebSocketControllerServer(this.port);
-          await this.server.start(httpServer);
-          this.isStarted = true;
-          // Real-time status via WebSocket
-          wsLogger.info(`WebSocket Controller-Admin server started on port ${this.port} (after retry)`);
-          return this.server;
-        } catch (retryError) {
-          wsLogger.warn('Retry failed, but continuing (may be hot reload):', retryError);
-          // Don't throw on retry failure - may be legitimate hot reload
-          return this.server || new WebSocketControllerServer(this.port);
-        }
-      }
-      
-      wsLogger.error('Failed to start WebSocket Controller-Admin server:', error);
-      throw error;
-    }
+  public async start(httpServer?: any): Promise<any> {
+    wsLogger.debug('WebSocket start called (disabled, returning mock)');
+    this.isStarted = true;
+    return {};
   }
 
-  public async stop(): Promise<void> {
-    if (this.server && this.isStarted) {
-      // Stop controller status monitor
-      // No timer to stop - WebSocket handles status
-      
-      await this.server.stop();
-      this.server = null;
-      this.isStarted = false;
-      wsLogger.info('WebSocket Controller-Admin server stopped');
-    }
+  public stop(): void {
+    wsLogger.debug('WebSocket stop called (disabled)');
+    this.isStarted = false;
   }
 
   public forceStop(): void {
-    if (this.server) {
-      // Stop controller status monitor
-      // No timer to stop - WebSocket handles status
-      
-      this.server.forceStop();
-      this.server = null;
-      this.isStarted = false;
-      wsLogger.info('WebSocket Controller-Admin server force stopped');
-      
-      // Small delay to ensure port is released
-      setTimeout(() => {
-        wsLogger.debug('Port cleanup delay completed');
-      }, 1000);
-    }
-  }
-
-  public getServer(): WebSocketControllerServer | null {
-    return this.server;
+    wsLogger.debug('WebSocket forceStop called (disabled)');
+    this.isStarted = false;
   }
 
   public isRunning(): boolean {
-    return this.isStarted && this.server !== null;
+    return false; // Always return false since WebSocket is disabled
   }
 
   public getPort(): number {
     return this.port;
   }
 
-  public getConnectionStats() {
-    if (!this.server) {
-      return { connected: 0, connections: [] };
-    }
-
-    return {
-      connected: this.server.getConnectionCount(),
-      connections: this.server.getActiveConnections()
-    };
-  }
-
-  public async restart(httpServer?: any): Promise<WebSocketControllerServer> {
-    wsLogger.info('Restarting WebSocket Controller-Admin server...');
-    
-    // Force stop first
-    this.forceStop();
-    
-    // Wait a bit for cleanup
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Start again
-    return await this.start(httpServer);
+  public getConnectionStats(): { connected: number; total: number } {
+    return { connected: 0, total: 0 };
   }
 
   public isControllerConnected(controllerId: string): boolean {
-    return this.server?.isControllerConnected(controllerId) || false;
+    return false;
   }
 
-  // ================================
-  // Dashboard Sync Methods
-  // ================================
-
-  public async triggerDashboardSync(): Promise<void> {
-    if (!this.server) {
-      throw new Error('WebSocket server not initialized');
-    }
-
-    wsLogger.info('Triggering dashboard sync for all controllers');
-    
-    // Mark all controllers as pending sync
-    await this.server.markAllControllersForSync();
-    
-    // Broadcast to online controllers
-    await this.server.broadcastDashboardSync();
+  public async sendCommandToController(controllerId: string, command: any): Promise<void> {
+    wsLogger.warn('sendCommandToController called but WebSocket is disabled');
+    throw new Error('WebSocket functionality disabled - use direct gRPC connections instead');
   }
 
-  public async triggerCookieSync(): Promise<void> {
-    if (!this.server) {
-      throw new Error('WebSocket server not initialized');
-    }
+  public getConnectedControllers(): string[] {
+    return [];
+  }
 
-    wsLogger.info('Triggering cookie sync for all controllers');
-    
-    // Mark all controllers as pending cookie sync
-    await this.server.markAllControllersForCookieSync();
-    
-    // Broadcast to online controllers
-    await this.server.broadcastCookieSync();
+  public getControllerStatus(controllerId: string): any {
+    return null;
+  }
+
+  public getAllControllerStatuses(): any[] {
+    return [];
+  }
+
+  // Sync methods (stubs for compatibility)
+  public triggerDashboardSync(): void {
+    wsLogger.debug('triggerDashboardSync called (disabled)');
+  }
+
+  public triggerCookieSync(): void {
+    wsLogger.debug('triggerCookieSync called (disabled)');
+  }
+
+  // Event emitter stubs
+  public on(event: string, handler: (...args: any[]) => void): void {
+    // No-op
+  }
+
+  public off(event: string, handler: (...args: any[]) => void): void {
+    // No-op
+  }
+
+  public emit(event: string, ...args: any[]): void {
+    // No-op
   }
 }
 
+// Export singleton instance
 export const webSocketServerSingleton = WebSocketServerSingleton.getInstance();
-export default webSocketServerSingleton;
-
-// WebSocket server is now the only communication method

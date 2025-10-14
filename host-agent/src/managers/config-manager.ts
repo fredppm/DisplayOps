@@ -32,11 +32,9 @@ export interface DisplayConfig {
 export interface AgentSettings {
   maxWindows: number;
   healthCheckInterval: number;
-  mdnsUpdateInterval: number;
   autoStart: boolean;
   debugMode: boolean;
   webAdminUrl: string;
-  useMDNS: boolean;
 }
 
 // Function to get real display configuration
@@ -69,12 +67,10 @@ const DEFAULT_CONFIG: AgentConfig = {
   displays: getRealDisplaysConfig(),
   settings: {
     maxWindows: 4,
-    healthCheckInterval: 120000, // 2 minutes instead of 30 seconds
-    mdnsUpdateInterval: 1800000, // 30 minutes - reduce frequent restarts
+    healthCheckInterval: 120000, // 2 minutes
     autoStart: true,
     debugMode: false,
-    webAdminUrl: 'http://localhost:3000', // Default Web-Admin URL
-    useMDNS: false // Disable mDNS by default, use direct connection
+    webAdminUrl: 'http://localhost:3000' // Default Web-Admin URL
   }
 };
 
@@ -104,11 +100,7 @@ export class ConfigManager {
           ...loadedConfig,
           settings: {
             ...DEFAULT_CONFIG.settings,
-            ...loadedConfig.settings,
-            // Force update mDNS interval to new default if still at old value
-            mdnsUpdateInterval: loadedConfig.settings?.mdnsUpdateInterval === 300000 ? 
-              DEFAULT_CONFIG.settings.mdnsUpdateInterval : 
-              (loadedConfig.settings?.mdnsUpdateInterval || DEFAULT_CONFIG.settings.mdnsUpdateInterval)
+            ...loadedConfig.settings
           },
           displays: loadedConfig.displays || DEFAULT_CONFIG.displays
         };

@@ -4,33 +4,13 @@ import { StateManager } from './state-manager';
 import { logger } from '../utils/logger';
 import os from 'os';
 
-export interface HostRegistrationData {
-  agentId: string;
-  hostname: string;
-  ipAddress: string;
-  grpcPort: number;
-  displays: Array<{
-    id: string;
-    name: string;
-    width: number;
-    height: number;
-    isPrimary: boolean;
-  }>;
-  systemInfo: {
-    platform: string;
-    arch: string;
-    nodeVersion: string;
-    electronVersion: string;
-    totalMemoryGB: number;
-    cpuCores: number;
-    cpuModel: string;
-    uptime: number;
-  };
-  version: string;
-  status: 'online' | 'offline';
-}
-
-export class DirectConnectionService extends EventEmitter {
+/**
+ * Registry Service
+ * 
+ * Registers and maintains connection with Web-Admin
+ * Replaces mDNS discovery with direct HTTP communication
+ */
+export class RegistryService extends EventEmitter {
   private configManager: ConfigManager;
   private stateManager: StateManager;
   private webAdminUrl: string;
@@ -38,7 +18,7 @@ export class DirectConnectionService extends EventEmitter {
   private heartbeatInterval: NodeJS.Timeout | null = null;
   private reconnectTimeout: NodeJS.Timeout | null = null;
   private reconnectAttempts: number = 0;
-  private maxReconnectAttempts: number = 5;
+  private maxReconnectAttempts: number = 10;
   private heartbeatIntervalMs: number = 30000; // 30 seconds
 
   constructor(configManager: ConfigManager, stateManager: StateManager) {
@@ -46,29 +26,39 @@ export class DirectConnectionService extends EventEmitter {
     this.configManager = configManager;
     this.stateManager = stateManager;
     this.webAdminUrl = this.configManager.getSettings().webAdminUrl || 'http://localhost:3000';
+    
+    logger.debug('🏗️ RegistryService instance created', {
+      webAdminUrl: this.webAdminUrl
+    });
   }
 
   public async start(): Promise<void> {
-    logger.info('🚀 Starting direct connection to Web-Admin', {
-      webAdminUrl: this.webAdminUrl
-    });
+    // Prevent multiple registration attempts
+    if (this.isRegistered) {
+      logger.debug('Already registered with Web-Admin, skipping');
+      return;
+    }
+
+    logger.info('🌐 Connecting to Web-Admin', { url: this.webAdminUrl });
 
     try {
       await this.register();
       this.startHeartbeat();
       this.isRegistered = true;
       
-      logger.success('✅ Direct connection established successfully');
+      logger.success('✅ Registered with Web-Admin');
       this.emit('connected');
     } catch (error) {
-      logger.error('❌ Failed to establish direct connection:', error);
+      logger.warn('⚠️ Failed to connect to Web-Admin (will retry)', { 
+        error: error instanceof Error ? error.message : String(error)
+      });
       this.scheduleReconnect();
-      throw error;
+      // Don't throw - allow app to continue
     }
   }
 
   public async stop(): Promise<void> {
-    logger.info('🛑 Stopping direct connection');
+    logger.info('🛑 Disconnecting from Web-Admin');
     
     this.isRegistered = false;
     
@@ -84,9 +74,9 @@ export class DirectConnectionService extends EventEmitter {
 
     // Send offline status
     try {
-      await this.sendHeartbeat(true); // offline
+      await this.sendHeartbeat(true);
     } catch (error) {
-      logger.debug('Failed to send offline status:', error);
+      logger.debug('Could not send offline status:', error);
     }
 
     this.emit('disconnected');
@@ -94,10 +84,8 @@ export class DirectConnectionService extends EventEmitter {
 
   private async register(): Promise<void> {
     const config = this.configManager.getConfig();
-    const systemInfo = this.configManager.getSystemInfo();
-    const displayStates = this.stateManager.getAllDisplayStates();
 
-    const registrationData: HostRegistrationData = {
+    const registrationData = {
       agentId: config.agentId,
       hostname: config.hostname,
       ipAddress: this.getLocalIPAddress(),
@@ -110,20 +98,20 @@ export class DirectConnectionService extends EventEmitter {
         isPrimary: display.monitorIndex === 0
       })),
       systemInfo: {
-        platform: systemInfo.platform,
-        arch: systemInfo.arch,
-        nodeVersion: systemInfo.nodeVersion,
-        electronVersion: systemInfo.electronVersion || 'unknown',
+        platform: os.platform(),
+        arch: os.arch(),
+        nodeVersion: process.version,
+        electronVersion: process.versions.electron || 'unknown',
         totalMemoryGB: Math.round(os.totalmem() / 1024 / 1024 / 1024),
         cpuCores: os.cpus().length,
         cpuModel: os.cpus()[0]?.model || 'Unknown',
-        uptime: Math.floor(systemInfo.uptime / 60)
+        uptime: Math.floor(process.uptime() / 60)
       },
       version: config.version,
       status: 'online'
     };
 
-    logger.info('📝 Registering host with Web-Admin', {
+    logger.debug('📝 Registering with Web-Admin', {
       agentId: registrationData.agentId,
       hostname: registrationData.hostname,
       ipAddress: registrationData.ipAddress
@@ -131,37 +119,68 @@ export class DirectConnectionService extends EventEmitter {
 
     const response = await fetch(`${this.webAdminUrl}/api/hosts/register`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(registrationData)
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
+      const errorData = await response.json().catch(() => ({ message: response.statusText }));
       throw new Error(`Registration failed: ${errorData.message || response.statusText}`);
     }
 
     const result = await response.json();
-    logger.success('✅ Host registration successful', {
+    logger.success('✅ Registration successful', {
       hostId: result.assignedHostId,
       message: result.message
     });
   }
 
   private startHeartbeat(): void {
+    // Clear any existing interval first
+    if (this.heartbeatInterval) {
+      logger.debug('Clearing existing heartbeat interval');
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
+    }
+
+    // Send initial heartbeat
+    this.sendHeartbeat().catch(err => {
+      logger.error('Initial heartbeat failed:', err);
+    });
+
+    // Schedule periodic heartbeats
     this.heartbeatInterval = setInterval(async () => {
       try {
         await this.sendHeartbeat();
       } catch (error) {
-        logger.error('❌ Heartbeat failed:', error);
+        logger.error('💔 Heartbeat failed:', error);
         this.handleConnectionError();
       }
     }, this.heartbeatIntervalMs);
+    
+    logger.debug('💓 Heartbeat started', { 
+      intervalSeconds: this.heartbeatIntervalMs / 1000 
+    });
   }
 
+  private lastHeartbeatTime: number = 0;
+
   private async sendHeartbeat(isOffline: boolean = false): Promise<void> {
-    if (!this.isRegistered) return;
+    if (!this.isRegistered && !isOffline) return;
+
+    // Prevent duplicate heartbeats (spam protection)
+    const now = Date.now();
+    const timeSinceLastHeartbeat = now - this.lastHeartbeatTime;
+    
+    if (timeSinceLastHeartbeat < 10000 && !isOffline) { // Less than 10 seconds
+      logger.warn('⚠️ Heartbeat spam detected! Skipping duplicate', {
+        timeSinceLastMs: timeSinceLastHeartbeat,
+        expectedMs: this.heartbeatIntervalMs
+      });
+      return;
+    }
+    
+    this.lastHeartbeatTime = now;
 
     const config = this.configManager.getConfig();
     const displayStates = this.stateManager.getAllDisplayStates();
@@ -186,45 +205,67 @@ export class DirectConnectionService extends EventEmitter {
 
     const response = await fetch(`${this.webAdminUrl}/api/hosts/heartbeat`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(heartbeatData)
     });
 
     if (!response.ok) {
       throw new Error(`Heartbeat failed: ${response.statusText}`);
     }
+
+    logger.debug('💓 Heartbeat sent');
   }
 
   private handleConnectionError(): void {
+    // Stop heartbeat
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
+    }
+    
     this.isRegistered = false;
     this.scheduleReconnect();
     this.emit('connection-error');
   }
 
   private scheduleReconnect(): void {
+    // Clear any existing reconnect timeout
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
+    }
+
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      logger.error('❌ Max reconnection attempts reached');
-      this.emit('max-reconnect-attempts-reached');
+      logger.error('❌ Max reconnection attempts reached', {
+        maxAttempts: this.maxReconnectAttempts
+      });
+      this.emit('max-reconnect-attempts');
       return;
     }
 
-    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000); // Exponential backoff, max 30s
+    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 60000); // Max 60s
     this.reconnectAttempts++;
 
     logger.info('🔄 Scheduling reconnection', {
       attempt: this.reconnectAttempts,
-      delayMs: delay
+      maxAttempts: this.maxReconnectAttempts,
+      delaySeconds: Math.round(delay / 1000)
     });
 
     this.reconnectTimeout = setTimeout(async () => {
+      this.reconnectTimeout = null;
+      
       try {
-        await this.start();
+        await this.register();
+        this.startHeartbeat();
+        this.isRegistered = true;
         this.reconnectAttempts = 0; // Reset on success
+        
+        logger.success('✅ Reconnected to Web-Admin');
+        this.emit('connected');
       } catch (error) {
         logger.error('❌ Reconnection attempt failed:', error);
-        this.handleConnectionError();
+        this.scheduleReconnect();
       }
     }, delay);
   }
@@ -244,7 +285,7 @@ export class DirectConnectionService extends EventEmitter {
       }
     }
     
-    return '127.0.0.1'; // Fallback
+    return '127.0.0.1';
   }
 
   public async forceUpdate(): Promise<void> {
@@ -257,5 +298,4 @@ export class DirectConnectionService extends EventEmitter {
     return this.isRegistered;
   }
 }
-
 

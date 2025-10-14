@@ -1,6 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { createContextLogger } from '@/utils/logger';
 import { hostsRepository } from '@/lib/repositories/HostsRepository';
+import { broadcastHostEvent } from './events';
 
 const heartbeatLogger = createContextLogger('host-heartbeat');
 
@@ -50,7 +51,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Update host status and display information
-    await hostsRepository.update(host.id, {
+    const updatedHost = await hostsRepository.update(host.id, {
       status: heartbeatData.status,
       lastSeen: heartbeatData.lastSeen,
       displays: heartbeatData.displays.map(display => ({
@@ -62,11 +63,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }))
     });
 
-    heartbeatLogger.debug('💓 Heartbeat received', {
-      agentId: heartbeatData.agentId,
-      status: heartbeatData.status,
-      displayCount: heartbeatData.displays.length
-    });
+    // Only log at debug level to reduce noise (heartbeats are frequent)
+    // Log at info level only for status changes
+    if (host.status !== heartbeatData.status) {
+      heartbeatLogger.info('💓 Heartbeat - status changed', {
+        agentId: heartbeatData.agentId,
+        oldStatus: host.status,
+        newStatus: heartbeatData.status
+      });
+    } else {
+      heartbeatLogger.debug('💓 Heartbeat received', {
+        agentId: heartbeatData.agentId,
+        status: heartbeatData.status,
+        displayCount: heartbeatData.displays.length
+      });
+    }
+
+    // Broadcast status change if host went offline
+    if (heartbeatData.status === 'offline' && updatedHost) {
+      broadcastHostEvent({
+        type: 'host_disconnected',
+        hostId: host.id,
+        host: updatedHost
+      });
+    }
 
     return res.status(200).json({
       success: true,
@@ -84,4 +104,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
   }
 }
+
 
