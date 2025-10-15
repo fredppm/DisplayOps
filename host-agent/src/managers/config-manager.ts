@@ -69,7 +69,7 @@ const DEFAULT_CONFIG: AgentConfig = {
     healthCheckInterval: 120000, // 2 minutes
     autoStart: true,
     debugMode: false,
-    webAdminUrl: 'http://localhost:3000' // Default Web-Admin URL
+    webAdminUrl: process.env.WEB_ADMIN_URL || process.env.DISPLAYOPS_WEB_ADMIN_URL || 'http://localhost:3000' // Can be configured via environment variable
   }
 };
 
