@@ -93,6 +93,13 @@ export class ConfigManager {
         const configData = readFileSync(this.configPath, 'utf-8');
         const loadedConfig = JSON.parse(configData);
         
+        // Auto-migrate old localhost default to new production default
+        // Only migrate if it's exactly the old default (localhost:3000)
+        if (loadedConfig.settings?.webAdminUrl === 'http://localhost:3000') {
+          console.log('🔄 Migrating webAdminUrl from localhost to production default');
+          loadedConfig.settings.webAdminUrl = DEFAULT_CONFIG.settings.webAdminUrl;
+        }
+        
         // Merge with defaults to ensure all properties exist
         const mergedConfig = {
           ...DEFAULT_CONFIG,
