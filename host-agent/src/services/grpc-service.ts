@@ -214,6 +214,9 @@ export class GrpcService extends EventEmitter {
         case 'REMOVE_DASHBOARD':
           result = await this.handleRemoveDashboard(request.remove_dashboard);
           break;
+        case 'GET_LOGS':
+          result = await this.handleGetLogs(request.get_logs);
+          break;
         default:
           throw new Error(`Unknown command type: ${request.type}`);
       }
@@ -727,6 +730,55 @@ export class GrpcService extends EventEmitter {
           status_message: `Failed to remove dashboard: ${error instanceof Error ? error.message : 'Unknown error'}`
         }
       };
+    }
+  }
+
+  private async handleGetLogs(cmd: any): Promise<any> {
+    logger.debug('📋 handleGetLogs called');
+    
+    try {
+      const limit = cmd.limit || 100;
+      const level = cmd.level || 'ALL';
+      const since = cmd.since ? new Date(cmd.since.seconds * 1000) : undefined;
+      
+      // Get logs from logger
+      const logs = logger.getLogs(limit, level, since);
+      
+      // Convert to protobuf format
+      const logEntries = logs.map(log => ({
+        id: log.id,
+        timestamp: {
+          seconds: Math.floor(log.timestamp.getTime() / 1000),
+          nanos: (log.timestamp.getTime() % 1000) * 1000000
+        },
+        level: log.level,
+        category: log.category,
+        message: log.message,
+        details: log.details || ''
+      }));
+      
+      const oldestLog = logs.length > 0 ? logs[logs.length - 1] : null;
+      const newestLog = logs.length > 0 ? logs[0] : null;
+      
+      logger.debug(`📋 Returning ${logEntries.length} log entries`);
+      
+      return {
+        get_logs_result: {
+          logs: logEntries,
+          total_count: logs.length,
+          oldest_log_time: oldestLog ? {
+            seconds: Math.floor(oldestLog.timestamp.getTime() / 1000),
+            nanos: (oldestLog.timestamp.getTime() % 1000) * 1000000
+          } : null,
+          newest_log_time: newestLog ? {
+            seconds: Math.floor(newestLog.timestamp.getTime() / 1000),
+            nanos: (newestLog.timestamp.getTime() % 1000) * 1000000
+          } : null
+        }
+      };
+    } catch (error) {
+      logger.error('❌ Failed to get logs:', error);
+      throw error;
     }
   }
 

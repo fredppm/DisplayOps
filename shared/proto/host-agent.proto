@@ -42,6 +42,7 @@ message CommandRequest {
     DebugEnableCommand debug_enable = 16;
     DebugDisableCommand debug_disable = 17;
     RemoveDashboardCommand remove_dashboard = 18;
+    GetLogsCommand get_logs = 19;
   }
 }
 
@@ -63,6 +64,7 @@ message CommandResponse {
     DebugEnableResult debug_enable_result = 17;
     DebugDisableResult debug_disable_result = 18;
     RemoveDashboardResult remove_dashboard_result = 19;
+    GetLogsResult get_logs_result = 20;
   }
 }
 
@@ -77,6 +79,7 @@ enum CommandType {
   DEBUG_ENABLE = 7;
   DEBUG_DISABLE = 8;
   REMOVE_DASHBOARD = 9;
+  GET_LOGS = 10;
 }
 
 // ================================
@@ -129,6 +132,12 @@ message DebugDisableCommand {
 
 message RemoveDashboardCommand {
   string display_id = 1; // Display to remove dashboard from
+}
+
+message GetLogsCommand {
+  int32 limit = 1; // Maximum number of log entries to return (default: 100)
+  string level = 2; // Filter by log level: "ERROR", "WARN", "INFO", "DEBUG", "ALL" (default: "ALL")
+  google.protobuf.Timestamp since = 3; // Get logs since this timestamp (optional)
 }
 
 // ================================
@@ -191,6 +200,22 @@ message RemoveDashboardResult {
   string display_id = 1;
   bool dashboard_removed = 2;
   string status_message = 3;
+}
+
+message GetLogsResult {
+  repeated LogEntry logs = 1;
+  int32 total_count = 2; // Total number of logs available
+  google.protobuf.Timestamp oldest_log_time = 3;
+  google.protobuf.Timestamp newest_log_time = 4;
+}
+
+message LogEntry {
+  string id = 1;
+  google.protobuf.Timestamp timestamp = 2;
+  string level = 3; // "ERROR", "WARN", "INFO", "DEBUG"
+  string category = 4; // e.g. "grpc", "window", "display", "system"
+  string message = 5;
+  string details = 6; // Additional details in JSON format (optional)
 }
 
 // Also define as separate response for the HealthCheck RPC
