@@ -55,12 +55,6 @@ export const SystemHealthSchema = z.object({
     warning: z.number().min(0),
     critical: z.number().min(0),
   }),
-  controllers: z.object({
-    total: z.number().min(0),
-    online: z.number().min(0),
-    offline: z.number().min(0),
-    error: z.number().min(0),
-  }),
   hostAgents: z.object({
     total: z.number().min(0),
     online: z.number().min(0),
@@ -127,10 +121,6 @@ export const createFormValidator = <T>(schema: z.ZodSchema<T>) => {
 export type Site = z.infer<typeof SiteSchema>;
 export type CreateSiteRequest = z.infer<typeof CreateSiteSchema>;
 export type UpdateSiteRequest = z.infer<typeof UpdateSiteSchema>;
-export type Controller = z.infer<typeof ControllerSchema>;
-export type CreateControllerRequest = z.infer<typeof CreateControllerSchema>;
-export type UpdateControllerRequest = z.infer<typeof UpdateControllerSchema>;
-export type AutoRegisterControllerRequest = z.infer<typeof AutoRegisterControllerSchema>;
 export type MultiSiteDashboard = z.infer<typeof MultiSiteDashboardSchema>;
 export type User = z.infer<typeof UserSchema>;
 export type SystemHealth = z.infer<typeof SystemHealthSchema>;
@@ -153,5 +143,4 @@ export const TIMEZONES = [
 ] as const;
 
 export const USER_ROLES = ['admin', 'site-manager', 'viewer'] as const;
-export const CONTROLLER_STATUSES = ['online', 'offline', 'error'] as const;
 export const HEALTH_STATUSES = ['healthy', 'warning', 'critical'] as const;

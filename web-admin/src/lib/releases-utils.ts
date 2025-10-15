@@ -62,7 +62,7 @@ export interface ElectronUpdaterResponse {
 /**
  * Fetch releases from GitHub API
  */
-async function fetchGitHubReleases(app: 'controller' | 'host'): Promise<GitHubRelease[]> {
+async function fetchGitHubReleases(app: 'host'): Promise<GitHubRelease[]> {
   const cacheKey = `releases-${app}`;
   const now = Date.now();
   
@@ -77,7 +77,7 @@ async function fetchGitHubReleases(app: 'controller' | 'host'): Promise<GitHubRe
   }
   
   try {
-    const tagPrefix = app === 'controller' ? 'controller-v' : 'host-v';
+    const tagPrefix = 'host-v';
     const url = `${GITHUB_API_BASE}/releases`;
     
     releasesLogger.info(`Fetching releases from GitHub`, { url, app, tagPrefix });
@@ -178,8 +178,8 @@ function mapAssetToPlatform(asset: GitHubAsset): { platform: string; info: Platf
 /**
  * Convert GitHub release to VersionInfo
  */
-function convertGitHubReleaseToVersionInfo(release: GitHubRelease, app: 'controller' | 'host'): VersionInfo {
-  const tagPrefix = app === 'controller' ? 'controller-v' : 'host-v';
+function convertGitHubReleaseToVersionInfo(release: GitHubRelease, app: 'host'): VersionInfo {
+  const tagPrefix = 'host-v';
   const version = release.tag_name.replace(tagPrefix, '');
   
   const platforms: VersionInfo['platforms'] = {};
@@ -204,7 +204,7 @@ function convertGitHubReleaseToVersionInfo(release: GitHubRelease, app: 'control
  * Get latest version info for electron-updater format
  */
 export async function getLatestVersionForElectronUpdater(
-  app: 'controller' | 'host',
+  app: 'host',
   platform: string = 'win32'
 ): Promise<ElectronUpdaterResponse | null> {
   try {
@@ -266,14 +266,14 @@ export async function getLatestVersionForElectronUpdater(
  * Get download URL for a specific version and platform from GitHub
  */
 export async function getVersionDownloadUrl(
-  app: 'controller' | 'host',
+  app: 'host',
   version: string,
   platform: string
 ): Promise<string | null> {
   try {
     const releases = await fetchGitHubReleases(app);
     
-    const tagPrefix = app === 'controller' ? 'controller-v' : 'host-v';
+    const tagPrefix = 'host-v';
     const targetTag = `${tagPrefix}${version}`;
     
     const release = releases.find(r => r.tag_name === targetTag);
@@ -320,10 +320,10 @@ export async function getVersionDownloadUrl(
 /**
  * Check if a version exists in GitHub releases
  */
-export async function versionExists(app: 'controller' | 'host', version: string): Promise<boolean> {
+export async function versionExists(app: 'host', version: string): Promise<boolean> {
   try {
     const releases = await fetchGitHubReleases(app);
-    const tagPrefix = app === 'controller' ? 'controller-v' : 'host-v';
+    const tagPrefix = 'host-v';
     const targetTag = `${tagPrefix}${version}`;
     
     return releases.some(r => r.tag_name === targetTag);
@@ -335,10 +335,10 @@ export async function versionExists(app: 'controller' | 'host', version: string)
 /**
  * Get all available versions from GitHub releases
  */
-export async function getAllVersions(app: 'controller' | 'host'): Promise<string[]> {
+export async function getAllVersions(app: 'host'): Promise<string[]> {
   try {
     const releases = await fetchGitHubReleases(app);
-    const tagPrefix = app === 'controller' ? 'controller-v' : 'host-v';
+    const tagPrefix = 'host-v';
     
     return releases
       .map(r => r.tag_name.replace(tagPrefix, ''))
@@ -351,7 +351,7 @@ export async function getAllVersions(app: 'controller' | 'host'): Promise<string
 /**
  * Clear the releases cache for a specific app or all apps
  */
-export function clearReleasesCache(app?: 'controller' | 'host'): void {
+export function clearReleasesCache(app?: 'host'): void {
   if (app) {
     const cacheKey = `releases-${app}`;
     releasesCache.delete(cacheKey);

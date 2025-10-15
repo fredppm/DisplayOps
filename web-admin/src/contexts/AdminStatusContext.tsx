@@ -348,15 +348,6 @@ export function AdminStatusProvider({ children }: { children: React.ReactNode })
   }, [startPolling]);
 
   useEffect(() => {
-    // Initialize WebSocket server on first provider mount (server-side only)
-    if (typeof window === 'undefined') {
-      import('@/lib/websocket-server-singleton').then(({ webSocketServerSingleton }) => {
-        webSocketServerSingleton.start().catch((error) => {
-          console.error('Failed to initialize WebSocket server from AdminStatusProvider:', error);
-        });
-      });
-    }
-    
     isMountedRef.current = true;
     connect();
     

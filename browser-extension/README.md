@@ -11,7 +11,7 @@ Elimina a necessidade de extrair cookies manualmente via DevTools, automatizando
 ### ✅ **Core Features**
 - 🔍 **Auto-detecção** de dashboards conhecidos (Grafana, Tableau, Sentry, etc.)
 - 🍪 **Captura automática** de credenciais após login
-- 🚀 **Sincronização one-click** com Office Display Controller
+- 🚀 **Sincronização one-click** com DisplayOps Admin
 - 🔧 **Auto-configuração** do endpoint (localhost:3000)
 - 🔔 **Indicadores visuais** no ícone da extensão (sem notificações invasivas)
 - 📊 **Status em tempo real** dos domínios monitorados
@@ -196,7 +196,7 @@ grafana_sess=abcd1234567890xyz...
 curl http://localhost:3000/api/cookies/status
 
 # Iniciar Office Display se necessário:
-cd web-controller && npm run dev
+cd web-admin && npm run dev
 ```
 
 ---

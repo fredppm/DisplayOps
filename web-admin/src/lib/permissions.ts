@@ -7,12 +7,12 @@ export type Permission =
   | 'sites:update' 
   | 'sites:delete'
   
-  // Controllers permissions
-  | 'controllers:read'
-  | 'controllers:create'
-  | 'controllers:update'
-  | 'controllers:delete'
-  | 'controllers:command'
+  // Hosts permissions
+  | 'hosts:read'
+  | 'hosts:create'
+  | 'hosts:update'
+  | 'hosts:delete'
+  | 'hosts:command'
   
   // Dashboard permissions
   | 'dashboards:read'
@@ -49,7 +49,7 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   admin: [
     // All permissions for admin
     'sites:read', 'sites:create', 'sites:update', 'sites:delete',
-    'controllers:read', 'controllers:create', 'controllers:update', 'controllers:delete', 'controllers:command',
+    'hosts:read', 'hosts:create', 'hosts:update', 'hosts:delete', 'hosts:command',
     'dashboards:read', 'dashboards:create', 'dashboards:update', 'dashboards:delete', 'dashboards:assign',
     'admin:users', 'admin:system', 'admin:audit', 'admin:settings',
     'monitoring:read', 'monitoring:metrics', 'monitoring:logs',
@@ -60,7 +60,7 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   'site-manager': [
     // Site managers can manage their assigned sites
     'sites:read',
-    'controllers:read', 'controllers:update', 'controllers:command',
+    'hosts:read', 'hosts:update', 'hosts:command',
     'dashboards:read', 'dashboards:create', 'dashboards:update', 'dashboards:delete', 'dashboards:assign',
     'monitoring:read', 'monitoring:metrics', 'monitoring:logs',
     'metrics:read',
@@ -70,7 +70,7 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   viewer: [
     // Viewers can only read
     'sites:read',
-    'controllers:read',
+    'hosts:read',
     'dashboards:read',
     'monitoring:read', 'monitoring:metrics',
     'alerts:read'

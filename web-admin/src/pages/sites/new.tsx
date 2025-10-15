@@ -87,7 +87,7 @@ const NewSitePage: NextPage = () => {
                 </h1>
               </div>
               <p className="text-sm text-gray-500 dark:text-gray-400">
-                Add a new site to manage DisplayOps controllers and displays
+                Add a new site to manage DisplayOps host agents and displays
               </p>
             </div>
             <div className="ml-6 flex flex-shrink-0">
@@ -224,9 +224,9 @@ const NewSitePage: NextPage = () => {
                     </div>
                   </div>
                   <div className="ml-3">
-                    <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100">Add Controllers</h4>
+                    <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100">Connect Hosts</h4>
                     <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                      Connect local controllers to manage displays
+                      Connect host agents to manage displays
                     </p>
                   </div>
                 </div>
@@ -255,7 +255,7 @@ const NewSitePage: NextPage = () => {
                   </li>
                   <li className="flex items-start">
                     <span className="text-blue-500 mr-2">•</span>
-                    Controllers will auto-discover via mDNS
+                    Host agents register automatically via HTTP
                   </li>
                   <li className="flex items-start">
                     <span className="text-green-500 mr-2">•</span>

@@ -682,7 +682,7 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
       let hostCount = 0;
       const results: string[] = [];
 
-      // Process cookies locally in web-controller
+      // Process cookies locally in web-admin
       try {
         const response = await fetch('/api/cookies/import', {
           method: 'POST',

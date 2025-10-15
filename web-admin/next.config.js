@@ -6,7 +6,7 @@ const nextConfig = {
     typedRoutes: true
   },
   env: {
-    CUSTOM_KEY: 'office-tv-controller'
+    CUSTOM_KEY: 'office-tv-admin'
   },
   output: 'standalone',
   trailingSlash: false,

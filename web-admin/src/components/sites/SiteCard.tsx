@@ -8,7 +8,7 @@ interface Site {
   name: string;
   location: string;
   timezone: string;
-  controllers: string[];
+  hosts: string[];
   status: 'online' | 'offline' | 'error';
   createdAt: string;
   updatedAt: string;
@@ -49,10 +49,10 @@ const SiteCard: React.FC<SiteCardProps> = ({ site, onEdit, onDelete }) => {
         
         <div className="space-y-2 mb-4">
           <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-600">Controllers:</span>
+            <span className="text-gray-600">Hosts:</span>
             <div className="flex items-center text-gray-900">
               <Monitor className="w-4 h-4 mr-1" />
-              {site.controllers.length}
+              {site.hosts.length}
             </div>
           </div>
           

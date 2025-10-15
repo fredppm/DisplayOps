@@ -37,17 +37,10 @@ interface Site {
   status: 'online' | 'offline';
 }
 
-interface Controller {
-  id: string;
-  name: string;
-  siteId: string;
-  status: 'online' | 'offline';
-}
-
 interface AdminDashboardData {
   users: User[];
   sites: Site[];
-  controllers: Controller[];
+  hosts: any[]; // Using any[] to accommodate serialized Host objects from getServerSideProps
 }
 
 interface AdminPageProps {
@@ -57,7 +50,7 @@ interface AdminPageProps {
 interface DownloadButtonProps {
   title: string;
   description: string;
-  app: 'controller' | 'host';
+  app: 'host';
 }
 
 const DownloadButton: React.FC<DownloadButtonProps> = ({ title, description, app }) => {
@@ -253,9 +246,9 @@ const AdminPageContent: React.FC<AdminPageProps> = ({ dashboardData }) => {
   // Usar dados em tempo real quando disponíveis, senão fallback para SSR
   const totalUsers = dashboardData.users.length;
   const onlineSites = realtimeSites?.filter(s => s.status === 'healthy').length || dashboardData.sites.filter(s => s.status === 'online').length;
-  const onlineHosts = realtimeHosts?.filter(h => h.status === 'online').length || dashboardData.controllers.filter(h => h.status === 'online').length;
+  const onlineHosts = realtimeHosts?.filter(h => h.status === 'online').length || dashboardData.hosts.filter(h => h.status === 'online').length;
   const totalSites = realtimeSites?.length || dashboardData.sites.length;
-  const totalHosts = realtimeHosts?.length || dashboardData.controllers.length;
+  const totalHosts = realtimeHosts?.length || dashboardData.hosts.length;
   const activeAlerts = alertData?.stats?.activeAlerts || 0;
 
   // Função para obter ícone e cor do status do sistema
@@ -673,13 +666,13 @@ export const getServerSideProps: GetServerSideProps = async () => {
         if (serialized.updatedAt) serialized.updatedAt = typeof serialized.updatedAt === 'string' ? serialized.updatedAt : new Date(serialized.updatedAt).toISOString();
         return serialized;
       }) as any,
-      controllers: hosts.map(host => {
+      hosts: hosts.map(host => {
         const serialized: any = { ...host };
         if (serialized.lastSeen) serialized.lastSeen = typeof serialized.lastSeen === 'string' ? serialized.lastSeen : new Date(serialized.lastSeen).toISOString();
         if (serialized.createdAt) serialized.createdAt = typeof serialized.createdAt === 'string' ? serialized.createdAt : new Date(serialized.createdAt).toISOString();
         if (serialized.updatedAt) serialized.updatedAt = typeof serialized.updatedAt === 'string' ? serialized.updatedAt : new Date(serialized.updatedAt).toISOString();
         return serialized;
-      }) as any // Legacy field name, now hosts
+      }) as any
     };
     
     return {
@@ -696,7 +689,7 @@ export const getServerSideProps: GetServerSideProps = async () => {
         dashboardData: {
           users: [],
           sites: [],
-          controllers: []
+          hosts: []
         },
       },
     };

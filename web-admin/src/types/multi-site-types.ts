@@ -6,6 +6,7 @@ export interface Site {
   location: string;
   timezone: string;
   status: 'online' | 'offline' | 'error';
+  hosts: string[]; // Array of host IDs (mini PCs running host-agent)
   createdAt: string;
   updatedAt: string;
 }

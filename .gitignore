@@ -24,8 +24,6 @@ build/
 # NextJS build outputs
 .next/
 out/
-web-controller/.next/
-web-controller/out/
 
 # Electron build outputs
 release/
@@ -74,10 +72,6 @@ host-agent/.cache/
 # NextJS Specific
 # ============================================
 
-# NextJS cache and build
-web-controller/.next/
-web-controller/out/
-web-controller/.swc/
 
 # Vercel
 .vercel
@@ -154,11 +148,9 @@ Icon?
 config/local.json
 config/production.json
 host-agent/config/agent.json
-web-controller/data/config.json
 
 # User data directories
 host-agent/user-data/
-web-controller/user-data/
 
 # Temporary files
 tmp/
@@ -250,10 +242,6 @@ screenshots/
 # Host agent user data
 host-agent/userData/
 
-# Web controller data directory
-web-controller/data/
-!web-controller/data/.gitkeep
-
 # Scripts temporary files
 scripts/temp/
 scripts/*.tmp
@@ -279,5 +267,4 @@ scripts/*.tmp
 !**/README.md
 
 # Keep important configuration templates
-!web-controller/.env.local.example
 !host-agent/.env.example

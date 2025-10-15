@@ -1,6 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { createContextLogger } from '@/utils/logger';
-import { webSocketServerSingleton } from '@/lib/websocket-server-singleton';
 import { cookiesRepository, Cookie, CookieDomain } from '@/lib/repositories/CookiesRepository';
 
 const cookiesApiLogger = createContextLogger('api-cookies');
@@ -17,18 +16,6 @@ const validateCookie = (data: any): data is Omit<Cookie, 'description'> => {
     typeof data.sameSite === 'string' &&
     typeof data.expirationDate === 'number'
   );
-};
-
-// Trigger cookie sync to all controllers
-const triggerCookieSync = async (): Promise<void> => {
-  try {
-    await webSocketServerSingleton.triggerCookieSync();
-    cookiesApiLogger.info('Cookie sync triggered successfully');
-  } catch (error) {
-    cookiesApiLogger.error('Failed to trigger cookie sync', { 
-      error: error instanceof Error ? error.message : String(error) 
-    });
-  }
 };
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -62,8 +49,6 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         await cookiesRepository.addCookieToDomain(domain, newCookie);
         cookiesApiLogger.info('Cookie saved', { domain, cookieName: cookie.name });
 
-        // Trigger sync to all controllers
-        await triggerCookieSync();
 
         return res.status(201).json({
           success: true,
@@ -114,8 +99,6 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           await cookiesRepository.updateDomainCookies(updateDomain, cookiesWithDescription);
         }
 
-        // Trigger sync to all controllers
-        await triggerCookieSync();
 
         // Return updated domain data
         const updatedDomain = await cookiesRepository.getByDomain(updateDomain);
@@ -163,9 +146,6 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
             });
           }
           
-          // Trigger sync to all controllers
-          await triggerCookieSync();
-
           return res.status(200).json({
             success: true,
             data: { deletedCookie: cookieToDelete, domain: deleteDomain }
@@ -180,9 +160,6 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
               error: 'Failed to delete domain'
             });
           }
-
-          // Trigger sync to all controllers
-          await triggerCookieSync();
 
           return res.status(200).json({
             success: true,

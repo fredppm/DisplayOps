@@ -106,9 +106,9 @@ const NewDashboardPage: NextPage = () => {
                     Create New Dashboard
                   </h1>
                 </div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Add a new dashboard to display on controllers and display devices
-                </p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Add a new dashboard to display on host agents and display devices
+              </p>
               </div>
               <div className="ml-6 flex flex-shrink-0">
                 <Link
@@ -305,12 +305,12 @@ const NewDashboardPage: NextPage = () => {
                         <span className="text-xs font-medium text-gray-600 dark:text-gray-300">2</span>
                       </div>
                     </div>
-                    <div className="ml-3">
-                      <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100">Deploy to Controllers</h4>
-                      <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                        Assign dashboard to controllers for display
-                      </p>
-                    </div>
+                  <div className="ml-3">
+                    <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100">Deploy to Hosts</h4>
+                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                      Assign dashboard to host displays
+                    </p>
+                  </div>
                   </div>
                   
                   <div className="flex">

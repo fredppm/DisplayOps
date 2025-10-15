@@ -3,10 +3,10 @@ import { NextRequest, NextResponse } from 'next/server';
 // Protected routes that require authentication
 const PROTECTED_ROUTES = [
   '/sites',
-  '/controllers', 
+  '/hosts', 
   '/admin',
   '/api/sites',
-  '/api/controllers',
+  '/api/hosts',
   '/api/health',
   '/api/audit',
   '/api/users'

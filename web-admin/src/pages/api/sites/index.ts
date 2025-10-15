@@ -53,8 +53,8 @@ async function handler(req: ProtectedApiRequest, res: NextApiResponse<ApiRespons
         name: createData.name,
         location: createData.location,
         timezone: createData.timezone,
-        status: 'offline', // Sites iniciam offline até controllers conectarem
-        controllers: [],
+        status: 'offline', // Sites iniciam offline até hosts conectarem
+        hosts: [],
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };

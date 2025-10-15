@@ -11,7 +11,7 @@ const sharp = require('sharp');
 const ROOT = path.resolve(__dirname, '..');
 const ICONS_DIR = path.join(ROOT, 'browser-extension', 'icons');
 const TRAY_ASSETS_DIR = path.join(ROOT, 'host-agent', 'assets');
-const WEB_PUBLIC_DIR = path.join(ROOT, 'web-controller', 'public');
+const WEB_PUBLIC_DIR = path.join(ROOT, 'web-admin', 'public');
 const LOCAL_VTEX_SVG = path.join(__dirname, 'vtex-icon.svg');
 // Prefer official VTEX brand assets (Rebel Pink). Fallback to existing ones.
 const VTEX_TRAY_ICON_PNG = path.join(ROOT, 'host-agent', 'assets', 'vtex-tray-icon.png');
@@ -149,7 +149,7 @@ async function generateAll() {
     }
   }
 
-  // Generate favicon.ico for web-controller (idle state)
+  // Generate favicon.ico for web-admin (idle state)
   {
     const { default: pngToIco } = await import('png-to-ico');
     const fav16Svg = buildIconSvg(16, STATUS_TO_COLOR.idle, vtexDataUri);

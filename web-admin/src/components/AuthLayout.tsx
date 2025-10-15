@@ -20,7 +20,7 @@ export default function AuthLayout({ children }: AuthLayoutProps) {
   const navigation = [
     { name: 'Dashboard', href: '/' },
     { name: 'Sites', href: '/sites' },
-    { name: 'Controllers', href: '/controllers' },
+    { name: 'Hosts', href: '/hosts' },
     ...(isAdmin() ? [{ name: 'Admin', href: '/admin' }] : []),
   ];
 

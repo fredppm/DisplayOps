@@ -117,7 +117,7 @@ const SitesPage: NextPage = () => {
                   </span>
                 </div>
                 <p className="text-sm text-gray-500 dark:text-gray-400 max-w-2xl">
-                  Manage all your DisplayOps sites and their controllers. Monitor status, configure settings, and deploy dashboards across your network.
+                  Manage all your DisplayOps sites and their hosts. Monitor status, configure settings, and deploy dashboards across your network.
                 </p>
               </div>
               <div className="ml-6 flex flex-shrink-0">
@@ -235,7 +235,7 @@ const SitesPage: NextPage = () => {
                 </span>
               </div>
               <p className="text-sm text-gray-500 dark:text-gray-400 max-w-2xl">
-                Manage all your DisplayOps sites and their controllers. Monitor status, configure settings, and deploy dashboards across your network.
+                Manage all your DisplayOps sites and their hosts. Monitor status, configure settings, and deploy dashboards across your network.
               </p>
             </div>
             <div className="ml-6 flex flex-shrink-0">
@@ -285,7 +285,7 @@ const SitesPage: NextPage = () => {
               </div>
               <h3 className="mt-4 text-sm font-semibold text-gray-900 dark:text-gray-100">No Sites</h3>
               <p className="mt-2 text-sm text-gray-500 dark:text-gray-400 max-w-sm mx-auto">
-                Get started by creating your first site to manage DisplayOps controllers.
+                Get started by creating your first site to manage DisplayOps host agents.
               </p>
               <div className="mt-6">
                 <Link
@@ -333,7 +333,7 @@ const SitesPage: NextPage = () => {
                       </div>
                       <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
                         <Users className="mr-1.5 h-4 w-4 flex-shrink-0 text-gray-400 dark:text-gray-500" />
-                        <span>{site.controllers.length} controller{site.controllers.length !== 1 ? 's' : ''}</span>
+                        <span>{site.hosts.length} host{site.hosts.length !== 1 ? 's' : ''}</span>
                       </div>
                     </div>
 

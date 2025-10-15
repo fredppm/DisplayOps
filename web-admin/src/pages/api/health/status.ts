@@ -1,5 +1,4 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { webSocketServerSingleton } from '@/lib/websocket-server-singleton';
 import { createContextLogger } from '@/utils/logger';
 import { hostsRepository } from '@/lib/repositories/HostsRepository';
 import { dashboardsRepository } from '@/lib/repositories/DashboardsRepository';
@@ -98,7 +97,7 @@ async function getHealthStatus(): Promise<HealthStatus> {
   }, 0);
   
   // Calculate overall health
-  const overallHealth = totalHosts > 0 && onlineHosts / totalHosts < 0.5 ? 'critical' 
+  const overallHealth: 'healthy' | 'warning' | 'critical' = totalHosts > 0 && onlineHosts / totalHosts < 0.5 ? 'critical' 
     : totalHosts > 0 && onlineHosts / totalHosts < 0.8 ? 'warning' 
     : 'healthy';
   
@@ -124,10 +123,10 @@ async function getHealthStatus(): Promise<HealthStatus> {
     hasAnyUnhealthy ? 'critical' :
     hasAnyWarning ? 'warning' : 'healthy';
   
-  // Get WebSocket status
+  // Get WebSocket status (legacy WebSocket disabled - using direct gRPC)
   const websocketStatus = {
-    isRunning: webSocketServerSingleton.isRunning(),
-    connections: 0, // We don't track individual connections anymore
+    isRunning: false,
+    connections: 0,
     port: 3001
   };
 
@@ -163,30 +162,12 @@ async function getHealthStatus(): Promise<HealthStatus> {
   return result;
 }
 
-async function ensureWebSocketInitialized() {
-  // Trigger WebSocket initialization if not already done
-  if (!webSocketServerSingleton.isRunning()) {
-    try {
-      logger.info('Initializing WebSocket server on health check');
-      // Make a request to websocket endpoint to initialize it
-      await fetch('http://localhost:3000/api/websocket').catch(() => {
-        // Ignore fetch errors, just trying to trigger initialization
-      });
-    } catch (error) {
-      logger.warn('Could not trigger WebSocket initialization:', error);
-    }
-  }
-}
-
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
-    // Ensure WebSocket is initialized
-    await ensureWebSocketInitialized();
-    
     const status = await getHealthStatus();
     
     // Set cache headers for efficient polling

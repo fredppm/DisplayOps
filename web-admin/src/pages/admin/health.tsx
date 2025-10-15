@@ -85,27 +85,27 @@ const HealthPageContent: React.FC = () => {
           </div>
           
           <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6 border border-gray-200 dark:border-gray-600">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4 text-orange-600">Controllers</h2>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4 text-orange-600">Host Agents</h2>
             <div className="space-y-2">
               <div className="flex justify-between">
                 <span className="text-gray-900 dark:text-gray-100">Total:</span>
-                <span className="text-gray-900 dark:text-gray-100">{healthStatus?.controllers.total || 0}</span>
+                <span className="text-gray-900 dark:text-gray-100">{healthStatus?.hosts.total || 0}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-900 dark:text-gray-100">Online:</span>
-                <span className={`font-semibold ${getConnectionStatusColor(healthStatus?.controllers.online || 0)}`}>
-                  {healthStatus?.controllers.online || 0}
+                <span className={`font-semibold ${getConnectionStatusColor(healthStatus?.hosts.online || 0)}`}>
+                  {healthStatus?.hosts.online || 0}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-900 dark:text-gray-100">Connected:</span>
-                <span className={`font-semibold ${getConnectionStatusColor(healthStatus?.controllers.online || 0)}`}>
-                  {healthStatus?.controllers.online || 0}
+                <span className={`font-semibold ${getConnectionStatusColor(healthStatus?.hosts.online || 0)}`}>
+                  {healthStatus?.hosts.online || 0}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-900 dark:text-gray-100">Offline:</span>
-                <span className="text-gray-600">{(healthStatus?.controllers.total || 0) - (healthStatus?.controllers.online || 0)}</span>
+                <span className="text-gray-600">{(healthStatus?.hosts.total || 0) - (healthStatus?.hosts.online || 0)}</span>
               </div>
             </div>
           </div>

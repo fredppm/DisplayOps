@@ -39,7 +39,7 @@ export const HostsList: React.FC<HostsListProps> = ({ hosts, isDiscovering, disc
 
   const handleRefreshDisplay = async (host: MiniPC, displayId: string) => {
     try {
-      // ✅ Refresh display via web-controller API (which uses gRPC)
+      // ✅ Refresh display via web-admin API (which uses gRPC)
       const response = await fetch(`/api/host/${host.id}/command`, {
         method: 'POST',
         headers: {
@@ -78,7 +78,7 @@ export const HostsList: React.FC<HostsListProps> = ({ hosts, isDiscovering, disc
     if (!host || !host.metrics.online) return;
 
     try {
-      // ✅ Identify displays via web-controller API (which uses gRPC)
+      // ✅ Identify displays via web-admin API (which uses gRPC)
       const response = await fetch(`/api/host/${hostId}/command`, {
         method: 'POST',
         headers: {
@@ -231,7 +231,7 @@ export const HostsList: React.FC<HostsListProps> = ({ hosts, isDiscovering, disc
       throw new Error('Dashboard not found');
     }
 
-    // ✅ Deploy dashboard via web-controller API (which uses gRPC)
+    // ✅ Deploy dashboard via web-admin API (which uses gRPC)
     const response = await fetch(`/api/host/${hostId}/command`, {
       method: 'POST',
       headers: {
@@ -293,7 +293,7 @@ export const HostsList: React.FC<HostsListProps> = ({ hosts, isDiscovering, disc
       throw new Error('Host not found');
     }
 
-    // Remove dashboard via web-controller API
+    // Remove dashboard via web-admin API
     const response = await fetch(`/api/host/${hostId}/display/${displayId}/remove-dashboard`, {
       method: 'DELETE',
       headers: {

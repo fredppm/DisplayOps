@@ -13,7 +13,7 @@ export class SitesRepository extends BasePostgresRepository<Site> {
       location: row.location || '',
       timezone: row.timezone,
       status: row.status,
-      controllers: row.controllers || [],
+      hosts: row.hosts || [],
       createdAt: row.created_at?.toISOString() || '',
       updatedAt: row.updated_at?.toISOString() || ''
     };
@@ -26,7 +26,7 @@ export class SitesRepository extends BasePostgresRepository<Site> {
       location: entity.location || null,
       timezone: entity.timezone,
       status: entity.status,
-      controllers: entity.controllers || []
+      hosts: entity.hosts || []
     };
   }
 

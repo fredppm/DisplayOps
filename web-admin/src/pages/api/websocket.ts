@@ -1,7 +1,6 @@
 import { NextApiRequest } from 'next';
 import { NextApiResponseServerIO } from '@/types/socket';
 import { Server as SocketIOServer } from 'socket.io';
-import { webSocketServerSingleton } from '@/lib/websocket-server-singleton';
 import { createContextLogger } from '@/utils/logger';
 
 const wsLogger = createContextLogger('websocket-api');
@@ -25,14 +24,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponseS
 
     // Attach to response
     res.socket.server.io = io;
-
-    // Use the singleton instance instead of creating a separate global
-    try {
-      await webSocketServerSingleton.startWithIO(io);
-      wsLogger.info('WebSocket controller server started successfully via singleton');
-    } catch (error) {
-      wsLogger.error('Failed to start WebSocket controller via singleton:', error);
-    }
+    
+    wsLogger.info('Socket.IO server initialized (legacy WebSocket functionality disabled)');
   } else {
     wsLogger.debug('Socket.IO server already initialized');
   }

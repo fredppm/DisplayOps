@@ -1,7 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { Dashboard } from '@/types/shared-types';
 import { createContextLogger } from '@/utils/logger';
-import { webSocketServerSingleton } from '@/lib/websocket-server-singleton';
 import { dashboardsRepository } from '@/lib/repositories/DashboardsRepository';
 
 const dashboardsByIdLogger = createContextLogger('api-dashboards-by-id');
@@ -17,18 +16,6 @@ const validateDashboard = (data: any): data is Omit<Dashboard, 'id'> => {
     typeof data.requiresAuth === 'boolean' &&
     (typeof data.category === 'string' || data.category === undefined)
   );
-};
-
-// Trigger dashboard sync to all controllers
-const triggerDashboardSync = async (): Promise<void> => {
-  try {
-    await webSocketServerSingleton.triggerDashboardSync();
-    dashboardsByIdLogger.info('Dashboard sync triggered successfully');
-  } catch (error) {
-    dashboardsByIdLogger.error('Failed to trigger dashboard sync', { 
-      error: error instanceof Error ? error.message : String(error) 
-    });
-  }
 };
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -97,9 +84,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           category: updateData.category
         });
 
-        // Trigger sync to all controllers
-        await triggerDashboardSync();
-
         return res.status(200).json({
           success: true,
           data: updatedDashboard
@@ -124,9 +108,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             error: 'Failed to delete dashboard'
           });
         }
-
-        // Trigger sync to all controllers
-        await triggerDashboardSync();
 
         return res.status(200).json({
           success: true,

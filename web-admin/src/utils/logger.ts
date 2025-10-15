@@ -33,7 +33,6 @@ const getContextLogLevel = (context: string): string => {
                process.env.LOG_DISCOVERY_LEVEL || 'info',
     grpc: process.env.LOG_GRPC_LEVEL || 'info',
     sync: process.env.LOG_SYNC_LEVEL || 'info',
-    'controller-monitor': process.env.LOG_CONTROLLER_MONITOR_LEVEL || 'info',
   };
   
   return contextLevels[context] || getLogLevel();

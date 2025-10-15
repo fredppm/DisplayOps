@@ -29,7 +29,7 @@ const SiteDetailsPage: NextPage = () => {
   const { addPendingToast } = useToastStore();
   
   const [site, setSite] = useState<Site | null>(null);
-  const [controllers, setControllers] = useState<any[]>([]);
+  const [hosts, setHosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -68,14 +68,14 @@ const SiteDetailsPage: NextPage = () => {
     try {
       setLoading(true);
       
-      // Fetch site and controllers data in parallel
-      const [siteResponse, controllersResponse] = await Promise.all([
+      // Fetch site and hosts data in parallel
+      const [siteResponse, hostsResponse] = await Promise.all([
         fetch(`/api/sites/${id}`),
-        fetch('/api/controllers')
+        fetch('/api/hosts')
       ]);
       
       const siteData = await siteResponse.json();
-      const controllersData = await controllersResponse.json();
+      const hostsData = await hostsResponse.json();
       
       if (siteData.success) {
         setSite(siteData.data);
@@ -83,8 +83,8 @@ const SiteDetailsPage: NextPage = () => {
         setError(siteData.error || 'Site not found');
       }
       
-      if (controllersData.success) {
-        setControllers(controllersData.data || []);
+      if (hostsData.success) {
+        setHosts(hostsData.data || []);
       }
     } catch (err: any) {
       setError('Network error: ' + err.message);
@@ -93,8 +93,8 @@ const SiteDetailsPage: NextPage = () => {
     }
   };
 
-  const siteControllers = controllers.filter(controller => 
-    site?.controllers.includes(controller.id)
+  const siteHosts = hosts.filter(host => 
+    site?.hosts.includes(host.id)
   );
 
   // Helper function to get timezone display label
@@ -419,42 +419,39 @@ const SiteDetailsPage: NextPage = () => {
               </div>
             </div>
 
-            {/* Controllers */}
+            {/* Hosts */}
             <div className="bg-white dark:bg-gray-800 shadow rounded-lg">
               <div className="px-4 py-5 sm:p-6">
                 <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-gray-100 mb-4">
                   <Monitor className="h-5 w-5 inline mr-2" />
-                  Associated Controllers ({siteControllers.length})
+                  Associated Hosts ({siteHosts.length})
                 </h3>
                 
-                {siteControllers.length === 0 ? (
+                {siteHosts.length === 0 ? (
                   <div className="text-center py-6">
                     <Monitor className="mx-auto h-12 w-12 text-gray-400" />
-                    <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-gray-100">No controllers</h3>
+                    <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-gray-100">No hosts</h3>
                     <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                      This site has no associated controllers.
+                      This site has no associated host agents.
                     </p>
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {siteControllers.map((controller) => (
-                      <div key={controller.id} className="border border-gray-200 dark:border-gray-600 rounded-lg p-4">
+                    {siteHosts.map((host) => (
+                      <div key={host.id} className="border border-gray-200 dark:border-gray-600 rounded-lg p-4">
                         <div className="flex items-center justify-between">
                           <div>
-                            <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100">{controller.name}</h4>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">{controller.localNetwork}</p>
-                            <p className="text-xs text-gray-400 dark:text-gray-500">Version {controller.version}</p>
+                            <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100">{host.name}</h4>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">{host.ipAddress}</p>
+                            <p className="text-xs text-gray-400 dark:text-gray-500">{host.displays?.length || 0} displays</p>
                           </div>
                           <div className="flex items-center">
                             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                              controller.status === 'online' 
+                              host.status === 'online' 
                                 ? 'bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-400'
-                                : controller.status === 'offline'
-                                ? 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-300'
-                                : 'bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-400'
+                                : 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-300'
                             }`}>
-                              {controller.status === 'online' ? 'Online' : 
-                               controller.status === 'offline' ? 'Offline' : 'Erro'}
+                              {host.status === 'online' ? 'Online' : 'Offline'}
                             </span>
                           </div>
                         </div>
