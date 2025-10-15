@@ -44,6 +44,8 @@ const HostsPage: NextPage = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const hasInitializedRef = useRef(false);
   const eventSourceRef = useRef<EventSource | null>(null);
+  const isFetchingRef = useRef(false);
+  const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (!hasInitializedRef.current) {
@@ -56,6 +58,9 @@ const HostsPage: NextPage = () => {
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
       }
+      if (fetchTimeoutRef.current) {
+        clearTimeout(fetchTimeoutRef.current);
+      }
     };
   }, []);
 
@@ -67,13 +72,13 @@ const HostsPage: NextPage = () => {
       try {
         const data = JSON.parse(event.data);
         if (data.type === 'host_registered' || data.type === 'host_updated') {
-          // Refresh hosts list
-          fetchHosts();
+          // Debounced refresh to avoid race conditions
+          debouncedFetchHosts();
           if (data.type === 'host_registered') {
             toast.success(`New host registered: ${data.host?.hostname || 'Unknown'}`);
           }
         } else if (data.type === 'host_disconnected') {
-          fetchHosts();
+          debouncedFetchHosts();
         }
       } catch (err) {
         console.error('Error parsing SSE data:', err);
@@ -88,8 +93,29 @@ const HostsPage: NextPage = () => {
     eventSourceRef.current = eventSource;
   };
 
+  const debouncedFetchHosts = () => {
+    // Clear any pending fetch
+    if (fetchTimeoutRef.current) {
+      clearTimeout(fetchTimeoutRef.current);
+    }
+    
+    // Schedule new fetch with 300ms debounce
+    fetchTimeoutRef.current = setTimeout(() => {
+      if (!isFetchingRef.current) {
+        fetchHosts();
+      }
+    }, 300);
+  };
+
   const fetchHosts = async () => {
+    // Prevent concurrent fetches
+    if (isFetchingRef.current) {
+      console.log('⏳ Fetch already in progress, skipping...');
+      return;
+    }
+
     try {
+      isFetchingRef.current = true;
       setLoading(true);
       const response = await fetch('/api/hosts');
       const data = await response.json();
@@ -105,6 +131,7 @@ const HostsPage: NextPage = () => {
       setError('Network error: ' + err.message);
     } finally {
       setLoading(false);
+      isFetchingRef.current = false;
     }
   };
 

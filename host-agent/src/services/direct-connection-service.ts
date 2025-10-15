@@ -45,7 +45,14 @@ export class DirectConnectionService extends EventEmitter {
     super();
     this.configManager = configManager;
     this.stateManager = stateManager;
-    this.webAdminUrl = this.configManager.getSettings().webAdminUrl || 'http://localhost:3000';
+    
+    const configUrl = this.configManager.getSettings().webAdminUrl;
+    this.webAdminUrl = configUrl || process.env.WEB_ADMIN_URL || process.env.DISPLAYOPS_WEB_ADMIN_URL || 'https://displayops.vtex.com';
+    
+    logger.info('🏗️ DirectConnectionService initialized', {
+      configUrl: configUrl || '(empty)',
+      finalUrl: this.webAdminUrl
+    });
   }
 
   public async start(): Promise<void> {
