@@ -15,7 +15,10 @@ interface HeartbeatRequest {
     width: number;
     height: number;
     isPrimary: boolean;
-    assignedDashboard?: any;
+    assignedDashboard?: {
+      dashboardId: string;
+      url: string;
+    } | null;
     isActive: boolean;
   }>;
   systemInfo?: {
@@ -75,7 +78,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         name: display.name,
         width: display.width,
         height: display.height,
-        isPrimary: display.isPrimary
+        isPrimary: display.isPrimary,
+        assignedDashboard: display.assignedDashboard || null,
+        isActive: display.isActive || false
       }))
     };
 
@@ -91,13 +96,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const updatedHost = await hostsRepository.update(host.id, updateData);
 
+    // Check if displays have changed (dashboard assignments)
+    const displaysChanged = JSON.stringify(host.displays) !== JSON.stringify(heartbeatData.displays);
+    
     // Only log at debug level to reduce noise (heartbeats are frequent)
-    // Log at info level only for status changes
+    // Log at info level only for status changes or display changes
     if (host.status !== heartbeatData.status) {
       heartbeatLogger.info('💓 Heartbeat - status changed', {
         agentId: heartbeatData.agentId,
         oldStatus: host.status,
         newStatus: heartbeatData.status
+      });
+    } else if (displaysChanged) {
+      heartbeatLogger.info('💓 Heartbeat - displays changed', {
+        agentId: heartbeatData.agentId,
+        displayCount: heartbeatData.displays.length
       });
     } else {
       heartbeatLogger.debug('💓 Heartbeat received', {
@@ -107,13 +120,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     }
 
-    // Broadcast status change if host went offline
-    if (heartbeatData.status === 'offline' && updatedHost) {
-      broadcastHostEvent({
-        type: 'host_disconnected',
-        hostId: host.id,
-        host: updatedHost
-      });
+    // Broadcast updates via SSE
+    if (updatedHost) {
+      // Broadcast if status changed, displays changed, or host went offline
+      if (heartbeatData.status === 'offline') {
+        broadcastHostEvent({
+          type: 'host_disconnected',
+          hostId: host.id,
+          host: updatedHost
+        });
+      } else {
+        // Always broadcast updates for online hosts (includes metrics updates)
+        broadcastHostEvent({
+          type: 'host_updated',
+          hostId: host.id,
+          host: updatedHost
+        });
+      }
     }
 
     return res.status(200).json({

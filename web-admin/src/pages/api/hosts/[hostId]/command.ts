@@ -51,12 +51,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         result = await grpcClient.executeCommand({
           command_id: `cmd_${Date.now()}`,
           type: 'OPEN_DASHBOARD',
-          payload: {
-            targetDisplay: command.targetDisplay,
-            dashboardId: command.payload?.dashboardId || 'unknown',
+          open_dashboard: {
+            display_id: command.targetDisplay,
+            dashboard_id: command.payload?.dashboardId || 'unknown',
             url: command.payload?.url,
             fullscreen: command.payload?.fullscreen !== false,
-            refreshInterval: command.payload?.refreshInterval || 300000
+            refresh_interval_ms: command.payload?.refreshInterval || 300000
           }
         });
         break;
@@ -65,8 +65,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         result = await grpcClient.executeCommand({
           command_id: `cmd_${Date.now()}`,
           type: 'REFRESH_DASHBOARD',
-          payload: {
-            targetDisplay: command.targetDisplay
+          refresh_dashboard: {
+            display_id: command.targetDisplay
           }
         });
         break;
@@ -76,7 +76,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         result = await grpcClient.executeCommand({
           command_id: `cmd_${Date.now()}`,
           type: 'SET_COOKIES',
-          payload: {
+          set_cookies: {
             cookies: command.payload?.cookies || [],
             domain: command.payload?.domain
           }
@@ -87,8 +87,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         result = await grpcClient.executeCommand({
           command_id: `cmd_${Date.now()}`,
           type: 'IDENTIFY_DISPLAYS',
-          payload: {
-            duration_seconds: 5
+          identify_displays: {
+            duration_seconds: 5,
+            font_size: 200,
+            background_color: 'rgba(0, 180, 255, 0.95)' // Cyan/Blue neon
           }
         });
         break;
@@ -101,8 +103,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         result = await grpcClient.executeCommand({
           command_id: `cmd_${Date.now()}`,
           type: 'TAKE_SCREENSHOT',
-          payload: {
-            targetDisplay: command.targetDisplay,
+          take_screenshot: {
+            display_id: command.targetDisplay,
             format: command.payload?.format || 'png'
           }
         });
@@ -112,8 +114,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         result = await grpcClient.executeCommand({
           command_id: `cmd_${Date.now()}`,
           type: 'RESTART_DASHBOARD',
-          payload: {
-            targetDisplay: command.targetDisplay
+          restart_dashboard: {
+            display_ids: command.targetDisplay ? [command.targetDisplay] : []
           }
         });
         break;
@@ -122,8 +124,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         result = await grpcClient.executeCommand({
           command_id: `cmd_${Date.now()}`,
           type: 'REMOVE_DASHBOARD',
-          payload: {
-            targetDisplay: command.targetDisplay
+          remove_dashboard: {
+            display_id: command.targetDisplay
           }
         });
         break;
@@ -132,7 +134,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         result = await grpcClient.executeCommand({
           command_id: `cmd_${Date.now()}`,
           type: 'DEBUG_ENABLE',
-          payload: {}
+          debug_enable: {}
         });
         break;
 
@@ -140,7 +142,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         result = await grpcClient.executeCommand({
           command_id: `cmd_${Date.now()}`,
           type: 'DEBUG_DISABLE',
-          payload: {}
+          debug_disable: {}
         });
         break;
 
@@ -157,6 +159,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       commandType: command.type,
       success: result.success
     });
+
+    // Convert binary screenshot data to base64 for JSON serialization
+    if (command.type === 'TAKE_SCREENSHOT' && result.screenshot_result?.image_data) {
+      const imageBuffer = Buffer.from(result.screenshot_result.image_data);
+      result.screenshot_result.image_data = imageBuffer.toString('base64');
+      hostCommandLogger.debug('📸 Screenshot image data converted to base64', {
+        originalSize: imageBuffer.length,
+        base64Size: result.screenshot_result.image_data.length
+      });
+    }
 
     return res.status(200).json({
       success: true,

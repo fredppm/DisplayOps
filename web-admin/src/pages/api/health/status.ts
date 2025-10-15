@@ -22,6 +22,15 @@ interface HealthStatus {
     online: number;
     offline: number;
   };
+  websocket: {
+    isRunning: boolean;
+    connections: number;
+    port: number;
+  };
+  sync: {
+    overall: 'healthy' | 'warning' | 'critical';
+    alerts: any[];
+  };
   data: {
     dashboards: {
       total: number;
@@ -115,11 +124,23 @@ async function getHealthStatus(): Promise<HealthStatus> {
     hasAnyUnhealthy ? 'critical' :
     hasAnyWarning ? 'warning' : 'healthy';
   
+  // Get WebSocket status
+  const websocketStatus = {
+    isRunning: webSocketServerSingleton.isRunning(),
+    connections: 0, // We don't track individual connections anymore
+    port: 3001
+  };
+
   const result = {
     hosts: {
       total: totalHosts,
       online: onlineHosts,
       offline: offlineHosts
+    },
+    websocket: websocketStatus,
+    sync: {
+      overall: overallHealth,
+      alerts: [] // No sync alerts in new architecture
     },
     data: {
       dashboards: {

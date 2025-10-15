@@ -270,7 +270,7 @@ class HostsRepository {
     if (this.usePostgres && this.db) {
       try {
         const result = await this.db.query('SELECT * FROM hosts ORDER BY created_at DESC');
-        return result.rows.map(row => this.mapRowToHost(row));
+        return result.rows.map((row: any) => this.mapRowToHost(row));
       } catch (error) {
         hostsRepoLogger.error('❌ Failed to get all hosts from PostgreSQL:', error);
         return [];

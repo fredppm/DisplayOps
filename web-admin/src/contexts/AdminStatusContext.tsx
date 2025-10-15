@@ -3,12 +3,10 @@ import React, { createContext, useContext, useState, useEffect, useRef, useCallb
 // Types for admin status
 interface AdminHealthStatus {
   overall: 'healthy' | 'warning' | 'critical';
-  controllers: {
+  hosts: {
     total: number;
     online: number;
-    syncUpToDate: number;
-    pendingDashboards: number;
-    pendingCookies: number;
+    offline: number;
   };
   data: {
     dashboards: {
@@ -25,24 +23,7 @@ interface AdminHealthStatus {
     isRunning: boolean;
     connections: number;
   };
-  controllersList: ControllerSyncStatus[];
   alerts: SyncAlert[];
-}
-
-interface ControllerSyncStatus {
-  controllerId: string;
-  name: string;
-  status: 'online' | 'offline' | 'error';
-  isConnected: boolean;
-  lastSync: string;
-  dashboardSync: {
-    pending: boolean;
-    timestamp: string | null;
-  };
-  cookieSync: {
-    pending: boolean;
-    timestamp: string | null;
-  };
 }
 
 interface SyncAlert {
@@ -51,7 +32,7 @@ interface SyncAlert {
   title: string;
   message: string;
   timestamp: string;
-  controllerId?: string;
+  hostId?: string;
 }
 
 interface HealthCheck {
@@ -61,7 +42,7 @@ interface HealthCheck {
 }
 
 // Compatibility types for useAdminEvents
-interface ControllerData {
+interface HostData {
   id: string;
   name: string;
   lastHeartbeat: string;
@@ -73,12 +54,12 @@ interface SiteData {
   id: string;
   name: string;
   status: 'healthy' | 'unhealthy' | 'unknown';
-  controllers: string[];
+  hosts: string[];
 }
 
 interface SystemHealth {
   status: 'healthy' | 'degraded' | 'critical';
-  controllers: {
+  hosts: {
     online: number;
     total: number;
     percentage: number;
@@ -117,7 +98,7 @@ interface AdminStatusContextType {
   
   // useAdminEvents compatibility
   systemHealth: SystemHealth | null;
-  controllers: ControllerData[];
+  hosts: HostData[];
   sites: SiteData[];
 }
 
@@ -160,19 +141,16 @@ export function AdminStatusProvider({ children }: { children: React.ReactNode })
       // Convert HealthStatus to AdminHealthStatus format
       const adminStatus: AdminHealthStatus = {
         overall: healthStatus.sync.overall,
-        controllers: {
-          total: healthStatus.controllers.total,
-          online: healthStatus.controllers.online,
-          syncUpToDate: healthStatus.controllers.syncUpToDate,
-          pendingDashboards: healthStatus.controllers.pendingDashboards,
-          pendingCookies: healthStatus.controllers.pendingCookies
+        hosts: {
+          total: healthStatus.hosts.total,
+          online: healthStatus.hosts.online,
+          offline: healthStatus.hosts.offline
         },
         data: healthStatus.data,
         websocket: {
           isRunning: healthStatus.websocket.isRunning,
           connections: healthStatus.websocket.connections
         },
-        controllersList: healthStatus.sync.controllers,
         alerts: healthStatus.sync.alerts
       };
       
@@ -253,51 +231,17 @@ export function AdminStatusProvider({ children }: { children: React.ReactNode })
 
     const newAlerts: SyncAlert[] = [];
 
-    // Check for newly completed syncs
-    if (prevStatus.controllers.pendingDashboards > newStatus.controllers.pendingDashboards) {
-      const completedCount = prevStatus.controllers.pendingDashboards - newStatus.controllers.pendingDashboards;
+    // Check for newly online hosts
+    if (newStatus.hosts.online > prevStatus.hosts.online) {
+      const newOnlineCount = newStatus.hosts.online - prevStatus.hosts.online;
       newAlerts.push({
-        id: `dashboard-sync-completed-${Date.now()}`,
+        id: `hosts-online-${Date.now()}`,
         type: 'info',
-        title: 'Dashboard Sync Completed',
-        message: `${completedCount} controller(s) completed dashboard sync`,
+        title: 'Hosts Reconnected',
+        message: `${newOnlineCount} host(s) came back online`,
         timestamp: new Date().toISOString()
       });
     }
-
-    if (prevStatus.controllers.pendingCookies > newStatus.controllers.pendingCookies) {
-      const completedCount = prevStatus.controllers.pendingCookies - newStatus.controllers.pendingCookies;
-      newAlerts.push({
-        id: `cookie-sync-completed-${Date.now()}`,
-        type: 'info',
-        title: 'Cookie Sync Completed',
-        message: `${completedCount} controller(s) completed cookie sync`,
-        timestamp: new Date().toISOString()
-      });
-    }
-
-    // Check for newly online controllers - DISABLED notification
-    // if (newStatus.controllers.online > prevStatus.controllers.online) {
-    //   const newOnlineCount = newStatus.controllers.online - prevStatus.controllers.online;
-    //   newAlerts.push({
-    //     id: `controllers-online-${Date.now()}`,
-    //     type: 'info',
-    //     title: 'Controllers Reconnected',
-    //     message: `${newOnlineCount} controller(s) came back online`,
-    //     timestamp: new Date().toISOString()
-    //   });
-    // }
-
-    // Check for WebSocket server status changes - DISABLED notification
-    // if (!prevStatus.websocket.isRunning && newStatus.websocket.isRunning) {
-    //   newAlerts.push({
-    //     id: `websocket-server-online-${Date.now()}`,
-    //     type: 'info',
-    //     title: 'WebSocket Server Online',
-    //     message: 'WebSocket server is back online. Automatic sync is restored.',
-    //     timestamp: new Date().toISOString()
-    //   });
-    // }
 
     // Check for health status changes
     if (prevStatus.overall !== newStatus.overall) {
@@ -443,14 +387,8 @@ export function AdminStatusProvider({ children }: { children: React.ReactNode })
     ...localAlerts
   ];
   
-  // Convert SSE data to useAdminEvents format
-  const controllers: ControllerData[] = status?.controllersList?.map(controller => ({
-    id: controller.controllerId,
-    name: controller.name,
-    lastHeartbeat: controller.lastSync,
-    status: controller.status === 'online' ? 'online' : 'offline',
-    location: undefined // Not available in sync data
-  })) || [];
+  // Empty hosts array - no longer tracking individual hosts in this context
+  const hosts: HostData[] = [];
   
   // Create fake sites data (since SSE doesn't provide site details)
   const sites: SiteData[] = [
@@ -459,7 +397,7 @@ export function AdminStatusProvider({ children }: { children: React.ReactNode })
       name: 'Default Site',
       status: status?.overall === 'healthy' ? 'healthy' : 
              status?.overall === 'warning' ? 'unknown' : 'unhealthy',
-      controllers: controllers.map(c => c.id)
+      hosts: [] // Empty - no individual host tracking
     }
   ];
   
@@ -467,11 +405,11 @@ export function AdminStatusProvider({ children }: { children: React.ReactNode })
   const systemHealth: SystemHealth | null = status ? {
     status: status.overall === 'healthy' ? 'healthy' :
             status.overall === 'warning' ? 'degraded' : 'critical',
-    controllers: {
-      online: status.controllers.online,
-      total: status.controllers.total,
-      percentage: status.controllers.total > 0 ? 
-        Math.round((status.controllers.online / status.controllers.total) * 100) : 0
+    hosts: {
+      online: status.hosts.online,
+      total: status.hosts.total,
+      percentage: status.hosts.total > 0 ? 
+        Math.round((status.hosts.online / status.hosts.total) * 100) : 0
     },
     sites: {
       healthy: sites.filter(s => s.status === 'healthy').length,
@@ -501,7 +439,7 @@ export function AdminStatusProvider({ children }: { children: React.ReactNode })
     
     // Compatibility for useAdminEvents
     systemHealth,
-    controllers,
+    hosts,
     sites
   };
   
@@ -533,7 +471,7 @@ export function useAdminEvents() {
   const result = useAdminStatus();
   return {
     systemHealth: result.systemHealth,
-    controllers: result.controllers,
+    hosts: result.hosts,
     sites: result.sites,
     isConnected: result.isConnected
   };

@@ -6,7 +6,7 @@ import Layout from '@/components/Layout';
 import { useToastContext } from '@/contexts/ToastContext';
 import { 
   ArrowLeft, Monitor, Cpu, CheckCircle, XCircle, AlertCircle, Terminal, RefreshCw,
-  Eye, Camera, RotateCw, Trash2, Bug, BugOff, Play, Settings, Activity, MemoryStick, FileText
+  Eye, Camera, RotateCw, Trash2, Bug, BugOff, Play, Activity, MemoryStick, FileText, MoreVertical
 } from 'lucide-react';
 
 interface Host {
@@ -21,6 +21,11 @@ interface Host {
     width: number;
     height: number;
     isPrimary: boolean;
+    assignedDashboard?: {
+      dashboardId: string;
+      url: string;
+    } | null;
+    isActive?: boolean;
   }>;
   systemInfo: {
     platform: string;
@@ -60,21 +65,35 @@ const HostDetailPage: NextPage = () => {
   const [selectedDashboard, setSelectedDashboard] = useState<string | null>(null);
   const [dashboards, setDashboards] = useState<any[]>([]);
   const [debugEnabled, setDebugEnabled] = useState(false);
+  const [screenshotData, setScreenshotData] = useState<{ url: string; displayId: string; } | null>(null);
+  const [showScreenshotModal, setShowScreenshotModal] = useState(false);
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+  const [logs, setLogs] = useState<any[]>([]);
+  const [logsLoading, setLogsLoading] = useState(false);
+  const [showLogs, setShowLogs] = useState(false);
 
   useEffect(() => {
     if (id) {
       fetchHost();
       fetchDashboards();
       setupSSE();
-    }
+      
+      // Polling every 30 seconds to ensure status is up-to-date
+      // This catches hosts that die without sending a final heartbeat
+      // Silent mode = no loading state, no error messages
+      const pollInterval = setInterval(() => {
+        fetchHost(true);
+      }, 30000);
 
-    // Cleanup SSE on unmount
-    return () => {
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-        eventSourceRef.current = null;
-      }
-    };
+      // Cleanup on unmount
+      return () => {
+        clearInterval(pollInterval);
+        if (eventSourceRef.current) {
+          eventSourceRef.current.close();
+          eventSourceRef.current = null;
+        }
+      };
+    }
   }, [id]);
 
   const eventSourceRef = useRef<EventSource | null>(null);
@@ -91,12 +110,15 @@ const HostDetailPage: NextPage = () => {
     eventSource.onmessage = (event) => {
       try {
         const eventData = JSON.parse(event.data);
+        console.log('[SSE] Event received:', eventData);
         
         // Only update if event is for this host
         if (eventData.host && eventData.host.id === id) {
+          console.log('[SSE] Event matches current host, updating');
           switch (eventData.type) {
             case 'host_updated':
               setHost(eventData.host);
+              console.log('[SSE] Host updated with displays:', eventData.host.displays);
               break;
             case 'host_disconnected':
               if (host) {
@@ -117,9 +139,11 @@ const HostDetailPage: NextPage = () => {
     eventSourceRef.current = eventSource;
   };
 
-  const fetchHost = async () => {
+  const fetchHost = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) {
+        setLoading(true);
+      }
       const response = await fetch('/api/hosts');
       const data = await response.json();
       
@@ -128,16 +152,24 @@ const HostDetailPage: NextPage = () => {
         if (foundHost) {
           setHost(foundHost);
         } else {
-          setError('Host not found');
+          if (!silent) {
+            setError('Host not found');
+          }
         }
       } else {
-        setError(data.error || 'Failed to fetch host');
+        if (!silent) {
+          setError(data.error || 'Failed to fetch host');
+        }
       }
     } catch (err: any) {
       console.error('Fetch error:', err);
-      setError('Network error: ' + err.message);
+      if (!silent) {
+        setError('Network error: ' + err.message);
+      }
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   };
 
@@ -154,6 +186,29 @@ const HostDetailPage: NextPage = () => {
       }
     } catch (err: any) {
       console.error('Dashboards fetch error:', err);
+    }
+  };
+
+  const fetchLogs = async () => {
+    if (!host) return;
+    
+    try {
+      setLogsLoading(true);
+      const response = await fetch(`/api/hosts/${host.id}/logs?limit=100&level=ALL`);
+      const data = await response.json();
+      
+      if (data.success && data.data) {
+        setLogs(data.data.logs || []);
+        setShowLogs(true);
+        toast.success('Logs loaded successfully');
+      } else {
+        toast.error('Failed to load logs');
+      }
+    } catch (err: any) {
+      console.error('Logs fetch error:', err);
+      toast.error('Network error loading logs');
+    } finally {
+      setLogsLoading(false);
     }
   };
 
@@ -182,59 +237,85 @@ const HostDetailPage: NextPage = () => {
         switch (commandType) {
           case 'HEALTH_CHECK':
             const healthData = data.result;
-            const statusMsg = healthData.online ? 'Host online e saudável' : 'Host com problemas';
+            const statusMsg = healthData.online ? 'Host online and healthy' : 'Host has issues';
             const cpuMsg = `CPU: ${healthData.cpu_usage_percent?.toFixed(1) || 'N/A'}%`;
-            const memMsg = `Memória: ${healthData.memory_usage_percent?.toFixed(1) || 'N/A'}%`;
-            toast.success('Health Check Completo', `${statusMsg} - ${cpuMsg}, ${memMsg}`);
+            const memMsg = `Memory: ${healthData.memory_usage_percent?.toFixed(1) || 'N/A'}%`;
+            toast.success('Health Check Complete', `${statusMsg} - ${cpuMsg}, ${memMsg}`);
             console.log('[Health Check] Full result:', healthData);
             break;
           case 'IDENTIFY_DISPLAYS':
-            toast.success('Displays Identificados', 'Os números dos displays estão sendo mostrados por 5 segundos no host');
+            toast.success('Displays Identified', 'Display numbers are being shown on the host for 5 seconds');
             break;
           case 'OPEN_DASHBOARD':
-            toast.success('Dashboard Aberto', 'O dashboard foi aberto no display selecionado');
+            toast.success('Dashboard Opened', 'Dashboard has been opened on the selected display');
+            // Refresh host data to update display state
+            setTimeout(() => fetchHost(), 1500);
             break;
           case 'REFRESH_DASHBOARD':
-            toast.success('Dashboard Atualizado', 'O dashboard foi recarregado com sucesso');
+            toast.success('Dashboard Refreshed', 'Dashboard has been successfully reloaded');
             break;
           case 'RESTART_DASHBOARD':
-            toast.success('Dashboard Reiniciado', 'O dashboard foi reiniciado com sucesso');
+            toast.success('Dashboard Restarted', 'Dashboard has been successfully restarted');
+            // Refresh host data to update display state
+            setTimeout(() => fetchHost(), 1500);
             break;
           case 'REMOVE_DASHBOARD':
-            toast.success('Dashboard Removido', 'O dashboard foi fechado e removido do display');
+            toast.success('Dashboard Removed', 'Dashboard has been closed and removed from the display');
+            // Refresh host data to update display state
+            setTimeout(() => fetchHost(), 1500);
             break;
           case 'TAKE_SCREENSHOT':
-            toast.success('Screenshot Capturado', 'A captura de tela foi tirada com sucesso');
+            console.log('[Screenshot] Full response:', data);
+            const screenshotResult = data.result.screenshot_result;
+            console.log('[Screenshot] Screenshot result:', screenshotResult);
+            
+            if (screenshotResult && screenshotResult.image_data) {
+              console.log('[Screenshot] Image data type:', typeof screenshotResult.image_data);
+              console.log('[Screenshot] Image data length:', screenshotResult.image_data.length);
+              
+              // Image data is already base64 encoded from the backend
+              const imageUrl = `data:image/${screenshotResult.format || 'png'};base64,${screenshotResult.image_data}`;
+              
+              setScreenshotData({
+                url: imageUrl,
+                displayId: screenshotResult.display_id
+              });
+              setShowScreenshotModal(true);
+              toast.success('Screenshot Captured', 'Screenshot has been taken successfully');
+            } else {
+              console.error('[Screenshot] No image data - result:', screenshotResult);
+              toast.warning('Screenshot Captured', 'Screenshot taken but no image data available');
+            }
             break;
           case 'DEBUG_ENABLE':
             setDebugEnabled(true);
-            toast.success('Debug Ativado', 'O modo debug foi ativado com sucesso');
+            toast.success('Debug Enabled', 'Debug mode has been successfully enabled');
             break;
           case 'DEBUG_DISABLE':
             setDebugEnabled(false);
-            toast.success('Debug Desativado', 'O modo debug foi desativado com sucesso');
+            toast.success('Debug Disabled', 'Debug mode has been successfully disabled');
             break;
           case 'SET_COOKIES':
           case 'SYNC_COOKIES':
-            toast.success('Cookies Sincronizados', 'Os cookies foram sincronizados com sucesso no host');
+            toast.success('Cookies Synced', 'Cookies have been successfully synced to the host');
             break;
           case 'VALIDATE_URL':
-            toast.success('URL Validada', 'A URL foi validada com sucesso');
+            toast.success('URL Validated', 'URL has been successfully validated');
             break;
           default:
-            // Fallback para comandos não mapeados - tenta humanizar o nome
+            // Fallback for unmapped commands - try to humanize the name
             const humanCommand = commandType
               .split('_')
               .map(word => word.charAt(0) + word.slice(1).toLowerCase())
               .join(' ');
-            toast.success('Comando Executado', `${humanCommand} foi executado com sucesso`);
+            toast.success('Command Executed', `${humanCommand} was executed successfully`);
         }
       } else {
-        toast.error('Erro ao Executar Comando', data.error || 'Falha ao executar comando');
+        toast.error('Command Execution Error', data.error || 'Failed to execute command');
       }
     } catch (err: any) {
       console.error('Command error:', err);
-      toast.error('Erro de Rede', 'Não foi possível conectar ao host: ' + err.message);
+      toast.error('Network Error', 'Could not connect to host: ' + err.message);
     } finally {
       setSendingCommand(false);
     }
@@ -360,56 +441,29 @@ const HostDetailPage: NextPage = () => {
                 Agent ID: {host.agentId}
               </p>
             </div>
-            <div className="flex items-center space-x-3">
-              <div className="flex flex-col items-end text-xs text-gray-500 dark:text-gray-400">
-                <span>Updated</span>
-                <span className={`font-medium ${
-                  isHostStale(host.lastSeen) 
-                    ? 'text-orange-600 dark:text-orange-400' 
-                    : 'text-green-600 dark:text-green-400'
-                }`}>
-                  {getTimeSinceLastSeen(host.lastSeen)}
-                </span>
-              </div>
-              <button
-                onClick={fetchHost}
-                className="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700"
-              >
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Refresh
-              </button>
-            </div>
+            <button
+              onClick={() => fetchHost()}
+              className="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700"
+            >
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Refresh
+            </button>
           </div>
         </div>
-
-        {/* Offline Warning Banner */}
-        {isHostStale(host.lastSeen) && (
-          <div className="bg-orange-50 dark:bg-orange-900/20 border-l-4 border-orange-400 p-4 rounded-md">
-            <div className="flex items-start">
-              <AlertCircle className="h-5 w-5 text-orange-400 mt-0.5" />
-              <div className="ml-3">
-                <h3 className="text-sm font-medium text-orange-800 dark:text-orange-200">
-                  Host disconnected or not responding
-                </h3>
-                <div className="mt-2 text-sm text-orange-700 dark:text-orange-300">
-                  <p>
-                    This host hasn't sent a heartbeat in over 2 minutes. 
-                    The displayed data (uptime, metrics, etc.) was last updated {getTimeSinceLastSeen(host.lastSeen)} and may be outdated.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Real-time Metrics */}
         {host.metrics && (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {/* CPU Usage */}
-            <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-4 border-l-4 border-blue-500">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">CPU Usage</p>
+            <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-4 border-l-4 border-blue-500 flex flex-col">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                    CPU Usage
+                    {isHostStale(host.lastSeen) && (
+                      <span className="ml-1 text-xs text-orange-600 dark:text-orange-400">(last known)</span>
+                    )}
+                  </p>
                   <p className="mt-1 text-2xl font-semibold text-gray-900 dark:text-white">
                     {host.metrics.cpuUsagePercent.toFixed(1)}%
                   </p>
@@ -417,33 +471,34 @@ const HostDetailPage: NextPage = () => {
                 <div className={`p-3 rounded-full ${
                   host.metrics.cpuUsagePercent > 80 ? 'bg-red-100 dark:bg-red-900/20' :
                   host.metrics.cpuUsagePercent > 60 ? 'bg-yellow-100 dark:bg-yellow-900/20' :
-                  'bg-green-100 dark:bg-green-900/20'
+                  'bg-blue-100 dark:bg-blue-900/20'
                 }`}>
                   <Activity className={`h-6 w-6 ${
                     host.metrics.cpuUsagePercent > 80 ? 'text-red-600 dark:text-red-400' :
                     host.metrics.cpuUsagePercent > 60 ? 'text-yellow-600 dark:text-yellow-400' :
-                    'text-green-600 dark:text-green-400'
+                    'text-blue-600 dark:text-blue-400'
                   }`} />
                 </div>
               </div>
-              {/* Progress bar */}
-              <div className="mt-3 w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+              {/* Progress bar aligned to bottom */}
+              <div className="mt-auto w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                 <div 
-                  className={`h-2 rounded-full ${
-                    host.metrics.cpuUsagePercent > 80 ? 'bg-red-600' :
-                    host.metrics.cpuUsagePercent > 60 ? 'bg-yellow-600' :
-                    'bg-green-600'
-                  }`}
+                  className="h-2 rounded-full bg-blue-600 dark:bg-blue-500"
                   style={{ width: `${Math.min(host.metrics.cpuUsagePercent, 100)}%` }}
                 />
               </div>
             </div>
 
             {/* Memory Usage */}
-            <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-4 border-l-4 border-purple-500">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Memory Usage</p>
+            <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-4 border-l-4 border-purple-500 flex flex-col">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                    Memory Usage
+                    {isHostStale(host.lastSeen) && (
+                      <span className="ml-1 text-xs text-orange-600 dark:text-orange-400">(last known)</span>
+                    )}
+                  </p>
                   <p className="mt-1 text-2xl font-semibold text-gray-900 dark:text-white">
                     {host.metrics.memoryUsagePercent.toFixed(1)}%
                   </p>
@@ -463,73 +518,73 @@ const HostDetailPage: NextPage = () => {
                   }`} />
                 </div>
               </div>
-              {/* Progress bar */}
-              <div className="mt-3 w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+              {/* Progress bar aligned to bottom */}
+              <div className="mt-auto w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                 <div 
-                  className={`h-2 rounded-full ${
-                    host.metrics.memoryUsagePercent > 80 ? 'bg-red-600' :
-                    host.metrics.memoryUsagePercent > 60 ? 'bg-yellow-600' :
-                    'bg-purple-600'
-                  }`}
+                  className="h-2 rounded-full bg-purple-600 dark:bg-purple-500"
                   style={{ width: `${Math.min(host.metrics.memoryUsagePercent, 100)}%` }}
                 />
               </div>
             </div>
 
             {/* Status Card */}
-            <div className={`bg-white dark:bg-gray-800 shadow rounded-lg p-4 border-l-4 ${
-              host.status === 'online' ? 'border-green-500' : 'border-red-500'
+            <div className={`bg-white dark:bg-gray-800 shadow rounded-lg p-4 border-l-4 flex flex-col ${
+              host.status === 'online' 
+                ? 'border-green-500' 
+                : 'border-red-500 animate-pulse'
             }`}>
               <div className="flex items-center justify-between">
-                <div>
+                <div className="flex-1">
                   <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Status</p>
-                  <p className="mt-1 text-xl font-semibold text-gray-900 dark:text-white">
+                  <p className={`mt-1 text-2xl font-semibold ${
+                    host.status === 'online'
+                      ? 'text-gray-900 dark:text-white'
+                      : 'text-red-600 dark:text-red-400'
+                  }`}>
                     {host.status === 'online' ? 'Online' : 'Offline'}
                   </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    System: {formatUptime(host.systemInfo.uptime)}
-                  </p>
-                  <div className="mt-1">
-                    <p className={`text-xs font-medium ${
-                      isHostStale(host.lastSeen) 
-                        ? 'text-orange-600 dark:text-orange-400' 
-                        : 'text-green-600 dark:text-green-400'
-                    }`}>
-                      Last seen {getTimeSinceLastSeen(host.lastSeen)}
+                  
+                  {/* Show uptime when online, last seen when offline */}
+                  {host.status === 'online' ? (
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      {formatUptime(host.systemInfo.uptime)}
                     </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      {new Date(host.lastSeen).toLocaleString()}
-                    </p>
-                  </div>
+                  ) : (
+                    <div className="mt-1">
+                      <p className="text-xs font-medium text-orange-600 dark:text-orange-400">
+                        {getTimeSinceLastSeen(host.lastSeen)}
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {new Date(host.lastSeen).toLocaleString()}
+                      </p>
+                    </div>
+                  )}
                 </div>
                 <div className={`p-3 rounded-full ${
                   host.status === 'online' 
                     ? 'bg-green-100 dark:bg-green-900/20' 
-                    : 'bg-gray-100 dark:bg-gray-900/20'
+                    : 'bg-red-100 dark:bg-red-900/20'
                 }`}>
                   {host.status === 'online' ? (
                     <CheckCircle className="h-6 w-6 text-green-600 dark:text-green-400" />
                   ) : (
-                    <XCircle className="h-6 w-6 text-gray-600 dark:text-gray-400" />
+                    <XCircle className="h-6 w-6 text-red-600 dark:text-red-400" />
                   )}
                 </div>
               </div>
             </div>
 
             {/* Displays Card */}
-            <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-4 border-l-4 border-blue-500">
+            <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-4 border-l-4 border-cyan-500 flex flex-col">
               <div className="flex items-center justify-between">
-                <div>
+                <div className="flex-1">
                   <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Displays</p>
                   <p className="mt-1 text-2xl font-semibold text-gray-900 dark:text-white">
                     {host.displays?.length || 0}
                   </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    {host.displays?.filter(d => d.isPrimary).length || 0} primary
-                  </p>
                 </div>
-                <div className="p-3 rounded-full bg-blue-100 dark:bg-blue-900/20">
-                  <Monitor className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                <div className="p-3 rounded-full bg-cyan-100 dark:bg-cyan-900/20">
+                  <Monitor className="h-6 w-6 text-cyan-600 dark:text-cyan-400" />
                 </div>
               </div>
             </div>
@@ -590,58 +645,46 @@ const HostDetailPage: NextPage = () => {
           </div>
         </div>
 
-        {/* Global Host Commands */}
-        <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4 flex items-center">
-            <Terminal className="h-5 w-5 mr-2" />
-            Global Host Commands
-          </h3>
-           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-             <button
-               onClick={() => sendCommand('HEALTH_CHECK')}
-               disabled={sendingCommand || host.status === 'offline'}
-               className="inline-flex items-center justify-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-             >
-               <Settings className="h-4 w-4 mr-2" />
-               Health Check
-             </button>
-             <button
-               onClick={() => sendCommand('IDENTIFY_DISPLAYS')}
-               disabled={sendingCommand || host.status === 'offline'}
-               className="inline-flex items-center justify-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-             >
-               <Eye className="h-4 w-4 mr-2" />
-               Identify Displays
-             </button>
-             <button
-               onClick={toggleDebug}
-               disabled={sendingCommand || host.status === 'offline'}
-               className={`inline-flex items-center justify-center px-4 py-2 border rounded-md shadow-sm text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${
-                 debugEnabled
-                   ? 'border-green-300 dark:border-green-600 text-green-700 dark:text-green-200 bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/30'
-                   : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600'
-               }`}
-             >
-               {debugEnabled ? (
-                 <>
-                   <BugOff className="h-4 w-4 mr-2" />
-                   Disable Debug
-                 </>
-               ) : (
-                 <>
-                   <Bug className="h-4 w-4 mr-2" />
-                   Enable Debug
-                 </>
-               )}
-             </button>
-           </div>
-          {host.status === 'offline' && (
-            <p className="mt-3 text-sm text-yellow-600 dark:text-yellow-400 flex items-center">
-              <AlertCircle className="h-4 w-4 mr-2" />
-              Commands are disabled while the host is offline
-            </p>
-          )}
-        </div>
+        {/* Global Host Commands - Only show when online */}
+        {host.status === 'online' && (
+          <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4 flex items-center">
+              <Terminal className="h-5 w-5 mr-2" />
+              Global Host Commands
+            </h3>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <button
+                onClick={() => sendCommand('IDENTIFY_DISPLAYS')}
+                disabled={sendingCommand}
+                className="inline-flex items-center justify-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <Eye className="h-4 w-4 mr-2" />
+                Identify Displays
+              </button>
+              <button
+                onClick={toggleDebug}
+                disabled={sendingCommand}
+                className={`inline-flex items-center justify-center px-4 py-2 border rounded-md shadow-sm text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${
+                  debugEnabled
+                    ? 'border-green-300 dark:border-green-600 text-green-700 dark:text-green-200 bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/30'
+                    : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600'
+                }`}
+              >
+                {debugEnabled ? (
+                  <>
+                    <BugOff className="h-4 w-4 mr-2" />
+                    Disable Debug
+                  </>
+                ) : (
+                  <>
+                    <Bug className="h-4 w-4 mr-2" />
+                    Enable Debug
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Displays with Per-Display Controls */}
         <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
@@ -650,7 +693,7 @@ const HostDetailPage: NextPage = () => {
             Displays & Dashboard Controls ({host.displays?.length || 0})
           </h3>
           {host.displays && host.displays.length > 0 ? (
-            <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {host.displays.map((display) => (
                 <div
                   key={display.id}
@@ -672,58 +715,99 @@ const HostDetailPage: NextPage = () => {
                     </div>
                   </div>
                   
-                  {/* Dashboard Controls for this display */}
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+                  {/* Dashboard Controls for this display - Only show when online */}
+                  {host.status === 'online' && (
+                  <div className="flex items-center gap-2">
+                    {/* Primary Action: Open/Change Dashboard */}
                     <button
                       onClick={() => handleOpenDashboard(display.id)}
-                      disabled={sendingCommand || host.status === 'offline'}
-                      className="inline-flex items-center justify-center px-3 py-2 border border-blue-300 dark:border-blue-600 rounded-md text-sm font-medium text-blue-700 dark:text-blue-200 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      disabled={sendingCommand}
+                      className="flex-1 inline-flex items-center justify-center px-4 py-2 border border-blue-300 dark:border-blue-600 rounded-md text-sm font-medium text-blue-700 dark:text-blue-200 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
-                      <Play className="h-4 w-4 mr-1" />
-                      Open
+                      <Play className="h-4 w-4 mr-2" />
+                      {display.assignedDashboard ? 'Change Dashboard' : 'Open Dashboard'}
                     </button>
-                    <button
-                      onClick={() => sendCommand('REFRESH_DASHBOARD', { 
-                        targetDisplay: display.id 
-                      })}
-                      disabled={sendingCommand || host.status === 'offline'}
-                      className="inline-flex items-center justify-center px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                      <RefreshCw className="h-4 w-4 mr-1" />
-                      Refresh
-                    </button>
-                    <button
-                      onClick={() => sendCommand('RESTART_DASHBOARD', { 
-                        targetDisplay: display.id 
-                      })}
-                      disabled={sendingCommand || host.status === 'offline'}
-                      className="inline-flex items-center justify-center px-3 py-2 border border-yellow-300 dark:border-yellow-600 rounded-md text-sm font-medium text-yellow-700 dark:text-yellow-200 bg-yellow-50 dark:bg-yellow-900/20 hover:bg-yellow-100 dark:hover:bg-yellow-900/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                      <RotateCw className="h-4 w-4 mr-1" />
-                      Restart
-                    </button>
-                    <button
-                      onClick={() => sendCommand('REMOVE_DASHBOARD', { 
-                        targetDisplay: display.id 
-                      })}
-                      disabled={sendingCommand || host.status === 'offline'}
-                      className="inline-flex items-center justify-center px-3 py-2 border border-red-300 dark:border-red-600 rounded-md text-sm font-medium text-red-700 dark:text-red-200 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                      <Trash2 className="h-4 w-4 mr-1" />
-                      Remove
-                    </button>
-                    <button
-                      onClick={() => sendCommand('TAKE_SCREENSHOT', { 
-                        targetDisplay: display.id,
-                        format: 'png'
-                      })}
-                      disabled={sendingCommand || host.status === 'offline'}
-                      className="inline-flex items-center justify-center px-3 py-2 border border-purple-300 dark:border-purple-600 rounded-md text-sm font-medium text-purple-700 dark:text-purple-200 bg-purple-50 dark:bg-purple-900/20 hover:bg-purple-100 dark:hover:bg-purple-900/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                      <Camera className="h-4 w-4 mr-1" />
-                      Screenshot
-                    </button>
-                    </div>
+
+                    {/* Screenshot - Only if has dashboard */}
+                    {display.assignedDashboard && (
+                      <button
+                        onClick={() => sendCommand('TAKE_SCREENSHOT', { 
+                          targetDisplay: display.id,
+                          format: 'png'
+                        })}
+                        disabled={sendingCommand}
+                        className="inline-flex items-center justify-center px-4 py-2 border border-purple-300 dark:border-purple-600 rounded-md text-sm font-medium text-purple-700 dark:text-purple-200 bg-purple-50 dark:bg-purple-900/20 hover:bg-purple-100 dark:hover:bg-purple-900/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        title="Take Screenshot"
+                      >
+                        <Camera className="h-4 w-4" />
+                      </button>
+                    )}
+
+                    {/* More Actions Dropdown - Only if has dashboard */}
+                    {display.assignedDashboard && (
+                      <div className="relative">
+                        <button
+                          onClick={() => setOpenDropdownId(openDropdownId === display.id ? null : display.id)}
+                          disabled={sendingCommand}
+                          className="inline-flex items-center justify-center px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          title="More actions"
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </button>
+
+                        {/* Dropdown Menu */}
+                        {openDropdownId === display.id && (
+                          <>
+                            {/* Backdrop to close dropdown */}
+                            <div 
+                              className="fixed inset-0 z-10" 
+                              onClick={() => setOpenDropdownId(null)}
+                            ></div>
+                            
+                            {/* Dropdown content */}
+                            <div className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white dark:bg-gray-800 ring-1 ring-black ring-opacity-5 z-20">
+                              <div className="py-1" role="menu">
+                                <button
+                                  onClick={() => {
+                                    sendCommand('REFRESH_DASHBOARD', { targetDisplay: display.id });
+                                    setOpenDropdownId(null);
+                                  }}
+                                  className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center"
+                                  role="menuitem"
+                                >
+                                  <RefreshCw className="h-4 w-4 mr-3" />
+                                  Refresh Dashboard
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    sendCommand('RESTART_DASHBOARD', { targetDisplay: display.id });
+                                    setOpenDropdownId(null);
+                                  }}
+                                  className="w-full text-left px-4 py-2 text-sm text-yellow-700 dark:text-yellow-200 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center"
+                                  role="menuitem"
+                                >
+                                  <RotateCw className="h-4 w-4 mr-3" />
+                                  Restart Dashboard
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    sendCommand('REMOVE_DASHBOARD', { targetDisplay: display.id });
+                                    setOpenDropdownId(null);
+                                  }}
+                                  className="w-full text-left px-4 py-2 text-sm text-red-700 dark:text-red-200 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center"
+                                  role="menuitem"
+                                >
+                                  <Trash2 className="h-4 w-4 mr-3" />
+                                  Remove Dashboard
+                                </button>
+                              </div>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -738,16 +822,109 @@ const HostDetailPage: NextPage = () => {
           )}
         </div>
 
-        {/* Command Logs - Future: Pull from host via gRPC */}
-        <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
-          <div className="text-center py-8">
-            <FileText className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" />
-            <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">Command Logs</h3>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              Logs are stored locally on the host and will be available via gRPC in a future update.
-            </p>
+        {/* Logs - Only show when online */}
+        {host.status === 'online' && (
+          <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white flex items-center">
+                <FileText className="h-5 w-5 mr-2" />
+                Host Logs
+              </h3>
+              {!showLogs && (
+                <button
+                  onClick={fetchLogs}
+                  disabled={logsLoading}
+                  className="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {logsLoading ? (
+                    <>
+                      <div className="animate-spin h-4 w-4 mr-2 border-2 border-gray-700 dark:border-gray-200 border-t-transparent rounded-full" />
+                      Loading...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Load Logs
+                    </>
+                  )}
+                </button>
+              )}
+              {showLogs && (
+                <button
+                  onClick={fetchLogs}
+                  disabled={logsLoading}
+                  className="inline-flex items-center px-3 py-1.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors disabled:opacity-50"
+                >
+                  <RefreshCw className={`h-4 w-4 mr-1 ${logsLoading ? 'animate-spin' : ''}`} />
+                  Refresh
+                </button>
+              )}
+            </div>
+            
+            {logsLoading ? (
+              <div className="text-center py-12">
+                <div className="inline-flex items-center space-x-3">
+                  <div className="animate-spin h-10 w-10 border-4 border-blue-600 border-t-transparent rounded-full" />
+                  <div className="text-left">
+                    <p className="text-base font-medium text-gray-900 dark:text-white">Loading logs...</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Fetching from host agent</p>
+                  </div>
+                </div>
+              </div>
+            ) : !showLogs ? (
+              <div className="text-center py-12">
+                <FileText className="mx-auto h-16 w-16 text-gray-300 dark:text-gray-600" />
+                <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">
+                  Click "Load Logs" to view recent logs from this host
+                </p>
+              </div>
+            ) : logs.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  No logs available
+                </p>
+              </div>
+            ) : (
+              <div className="bg-gray-900 dark:bg-black rounded-lg p-4 font-mono text-xs overflow-x-auto max-h-96 overflow-y-auto">
+                {logs.map((log, index) => {
+                  const timestamp = new Date(log.timestamp.seconds * 1000);
+                  const timeStr = timestamp.toLocaleTimeString('en-US', { hour12: false });
+                  
+                  // Color coding based on log level
+                  let levelColor = 'text-gray-300'; // DEFAULT/INFO
+                  let bgColor = '';
+                  
+                  if (log.level === 'ERROR') {
+                    levelColor = 'text-red-400';
+                    bgColor = 'bg-red-950/20';
+                  } else if (log.level === 'WARN') {
+                    levelColor = 'text-yellow-400';
+                    bgColor = 'bg-yellow-950/20';
+                  } else if (log.level === 'DEBUG') {
+                    levelColor = 'text-blue-400';
+                  }
+                  
+                  return (
+                    <div 
+                      key={log.id || index} 
+                      className={`py-1 px-2 ${bgColor} hover:bg-gray-800/50 transition-colors rounded`}
+                    >
+                      <span className="text-gray-500 dark:text-gray-600">{timeStr}</span>
+                      <span className={`ml-2 font-semibold ${levelColor}`}>[{log.level}]</span>
+                      <span className="ml-2 text-purple-400 dark:text-purple-300">[{log.category}]</span>
+                      <span className="ml-2 text-gray-200 dark:text-gray-300">{log.message}</span>
+                      {log.details && log.details !== '[]' && (
+                        <div className="ml-12 mt-1 text-gray-400 dark:text-gray-500 text-xs opacity-75">
+                          {log.details}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
-        </div>
+        )}
         </div>
       </div>
 
@@ -842,6 +1019,68 @@ const HostDetailPage: NextPage = () => {
             </div>
         </div>
       </div>
+      )}
+
+      {/* Screenshot Modal */}
+      {showScreenshotModal && screenshotData && (
+        <div className="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="screenshot-modal-title" role="dialog" aria-modal="true">
+          <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            {/* Background overlay */}
+            <div 
+              className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" 
+              aria-hidden="true"
+              onClick={() => setShowScreenshotModal(false)}
+            ></div>
+
+            {/* Center modal */}
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+
+            {/* Modal panel */}
+            <div className="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full sm:p-6">
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-white" id="screenshot-modal-title">
+                    Screenshot - Display {screenshotData.displayId}
+                  </h3>
+                  <button
+                    onClick={() => setShowScreenshotModal(false)}
+                    className="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300"
+                  >
+                    <XCircle className="h-6 w-6" />
+                  </button>
+                </div>
+
+                {/* Screenshot Image */}
+                <div className="bg-gray-100 dark:bg-gray-700 rounded-lg p-4 overflow-auto max-h-[70vh]">
+                  <img 
+                    src={screenshotData.url} 
+                    alt={`Screenshot of display ${screenshotData.displayId}`}
+                    className="max-w-full h-auto mx-auto"
+                  />
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="mt-6 flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowScreenshotModal(false)}
+                  className="inline-flex justify-center w-full sm:w-auto px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                  Close
+                </button>
+                <a
+                  href={screenshotData.url}
+                  download={`screenshot-${screenshotData.displayId}-${Date.now()}.png`}
+                  className="inline-flex justify-center items-center w-full sm:w-auto px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                  <Camera className="h-4 w-4 mr-2" />
+                  Download
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </Layout>
   );

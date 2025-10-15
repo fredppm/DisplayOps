@@ -5,7 +5,8 @@ import AdminLayout from '@/components/AdminLayout';
 import SyncStatusCard from '@/components/SyncStatusCard';
 import { useAdminStatus } from '@/contexts/AdminStatusContext';
 
-const HealthPage: NextPage = () => {
+// Componente interno que usa os hooks do AdminStatusProvider
+const HealthPageContent: React.FC = () => {
   const { status: healthStatus, isConnected, error, reconnect } = useAdminStatus();
 
   const getStatusColor = (isRunning: boolean, isConnected?: boolean) => {
@@ -19,8 +20,7 @@ const HealthPage: NextPage = () => {
   };
 
   return (
-    <AdminLayout>
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
         <div className="container mx-auto p-4">
         <div className="mb-6 flex items-center justify-between">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">System Health</h1>
@@ -199,6 +199,14 @@ const HealthPage: NextPage = () => {
         </div>
         </div>
       </div>
+  );
+};
+
+// Componente principal que envolve o conteúdo com AdminLayout e Provider
+const HealthPage: NextPage = () => {
+  return (
+    <AdminLayout>
+      <HealthPageContent />
     </AdminLayout>
   );
 };

@@ -231,7 +231,8 @@ const DownloadButton: React.FC<DownloadButtonProps> = ({ title, description, app
   );
 };
 
-const AdminPage: NextPage<AdminPageProps> = ({ dashboardData }) => {
+// Componente interno que usa os hooks do AdminStatusProvider
+const AdminPageContent: React.FC<AdminPageProps> = ({ dashboardData }) => {
   // Hook para dados dinâmicos (CSR) com refresh automático
   const { monitoringData, alertData, loading: dashboardLoading, error: dashboardError, refetch } = useDashboardData(30000);
   const { healthChecksData, loading: healthLoading, error: healthError } = useAdminStatus();
@@ -241,7 +242,7 @@ const AdminPage: NextPage<AdminPageProps> = ({ dashboardData }) => {
   const error = dashboardError || healthError;
   
   // Hook para dados em tempo real via SSE
-  const { systemHealth: realtimeHealth, controllers: realtimeControllers, sites: realtimeSites, isConnected } = useAdminEvents();
+  const { systemHealth: realtimeHealth, hosts: realtimeHosts, sites: realtimeSites, isConnected } = useAdminEvents();
   
   // Hook para status do sistema com fallback
   const systemHealth = useSystemHealth(monitoringData);
@@ -252,9 +253,9 @@ const AdminPage: NextPage<AdminPageProps> = ({ dashboardData }) => {
   // Usar dados em tempo real quando disponíveis, senão fallback para SSR
   const totalUsers = dashboardData.users.length;
   const onlineSites = realtimeSites?.filter(s => s.status === 'healthy').length || dashboardData.sites.filter(s => s.status === 'online').length;
-  const onlineControllers = realtimeControllers?.filter(c => c.status === 'online').length || dashboardData.controllers.filter(c => c.status === 'online').length;
+  const onlineHosts = realtimeHosts?.filter(h => h.status === 'online').length || dashboardData.controllers.filter(h => h.status === 'online').length;
   const totalSites = realtimeSites?.length || dashboardData.sites.length;
-  const totalControllers = realtimeControllers?.length || dashboardData.controllers.length;
+  const totalHosts = realtimeHosts?.length || dashboardData.controllers.length;
   const activeAlerts = alertData?.stats?.activeAlerts || 0;
 
   // Função para obter ícone e cor do status do sistema
@@ -292,12 +293,12 @@ const AdminPage: NextPage<AdminPageProps> = ({ dashboardData }) => {
       total: totalSites
     },
     {
-      title: 'Controllers',
-      description: 'Local site controllers',
-      href: '/controllers',
+      title: 'Hosts',
+      description: 'Host agents managing displays',
+      href: '/hosts',
       icon: ServerIcon,
-      count: onlineControllers,
-      total: totalControllers
+      count: onlineHosts,
+      total: totalHosts
     }
   ];
 
@@ -333,8 +334,7 @@ const AdminPage: NextPage<AdminPageProps> = ({ dashboardData }) => {
   ];
 
   return (
-    <AdminLayout>
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
         <div className="container mx-auto px-6 py-8">
           {/* Status de Conexão SSE */}
           <div className="mb-4">
@@ -367,9 +367,9 @@ const AdminPage: NextPage<AdminPageProps> = ({ dashboardData }) => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                    {onlineControllers}/{totalControllers}
+                    {onlineHosts}/{totalHosts}
                   </p>
-                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Controllers Online</p>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Hosts Online</p>
                 </div>
                 <div className="h-12 w-12 bg-purple-50 dark:bg-purple-900/20 rounded-lg flex items-center justify-center">
                   <ServerIcon className="h-6 w-6 text-purple-600 dark:text-purple-400" />
@@ -534,15 +534,10 @@ const AdminPage: NextPage<AdminPageProps> = ({ dashboardData }) => {
               {/* Downloads Section */}
               <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Downloads</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="max-w-md">
                   <DownloadButton 
-                    title="Controller"
-                    description="Download latest Controller app"
-                    app="controller"
-                  />
-                  <DownloadButton 
-                    title="Host"
-                    description="Download latest Host app"
+                    title="Host Agent"
+                    description="Download latest Host Agent app"
                     app="host"
                   />
                 </div>
@@ -633,6 +628,14 @@ const AdminPage: NextPage<AdminPageProps> = ({ dashboardData }) => {
           </div>
         </div>
       </div>
+  );
+};
+
+// Componente principal que envolve o conteúdo com AdminLayout e Provider
+const AdminPage: NextPage<AdminPageProps> = ({ dashboardData }) => {
+  return (
+    <AdminLayout>
+      <AdminPageContent dashboardData={dashboardData} />
     </AdminLayout>
   );
 };
@@ -655,17 +658,28 @@ export const getServerSideProps: GetServerSideProps = async () => {
       hostsRepository.getAll()
     ]);
     
-    // Preparar dados do dashboard - remover dados sensíveis
+    // Preparar dados do dashboard - remover dados sensíveis e serializar datas
     const dashboardData: AdminDashboardData = {
       users: users.map(user => ({
         id: user.id,
         name: user.name,
         email: user.email,
         role: user.role,
-        lastLogin: user.lastLogin
+        lastLogin: user.lastLogin ? (typeof user.lastLogin === 'string' ? user.lastLogin : new Date(user.lastLogin).toISOString()) : null
       })),
-      sites: sites as any,
-      controllers: hosts as any // Legacy field name, now hosts
+      sites: sites.map(site => {
+        const serialized: any = { ...site };
+        if (serialized.createdAt) serialized.createdAt = typeof serialized.createdAt === 'string' ? serialized.createdAt : new Date(serialized.createdAt).toISOString();
+        if (serialized.updatedAt) serialized.updatedAt = typeof serialized.updatedAt === 'string' ? serialized.updatedAt : new Date(serialized.updatedAt).toISOString();
+        return serialized;
+      }) as any,
+      controllers: hosts.map(host => {
+        const serialized: any = { ...host };
+        if (serialized.lastSeen) serialized.lastSeen = typeof serialized.lastSeen === 'string' ? serialized.lastSeen : new Date(serialized.lastSeen).toISOString();
+        if (serialized.createdAt) serialized.createdAt = typeof serialized.createdAt === 'string' ? serialized.createdAt : new Date(serialized.createdAt).toISOString();
+        if (serialized.updatedAt) serialized.updatedAt = typeof serialized.updatedAt === 'string' ? serialized.updatedAt : new Date(serialized.updatedAt).toISOString();
+        return serialized;
+      }) as any // Legacy field name, now hosts
     };
     
     return {

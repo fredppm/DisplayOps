@@ -1,39 +1,21 @@
 import React, { useState } from 'react';
 import { useAdminStatus } from '@/contexts/AdminStatusContext';
 
-interface ControllerSyncStatus {
-  controllerId: string;
-  name: string;
-  status: 'online' | 'offline' | 'error';
-  isConnected: boolean;
-  lastSync: string;
-  dashboardSync: {
-    pending: boolean;
-    timestamp: string | null;
-  };
-  cookieSync: {
-    pending: boolean;
-    timestamp: string | null;
-  };
-}
-
 interface SyncAlert {
   id: string;
   type: 'warning' | 'error' | 'info';
   title: string;
   message: string;
   timestamp: string;
-  controllerId?: string;
+  hostId?: string;
 }
 
 interface SyncStatusData {
   overall: 'healthy' | 'warning' | 'critical';
-  controllers: {
+  hosts: {
     total: number;
     online: number;
-    syncUpToDate: number;
-    pendingDashboards: number;
-    pendingCookies: number;
+    offline: number;
   };
   data: {
     dashboards: {
@@ -50,7 +32,6 @@ interface SyncStatusData {
     isRunning: boolean;
     connections: number;
   };
-  controllersList: ControllerSyncStatus[];
   alerts: SyncAlert[];
 }
 
@@ -100,7 +81,6 @@ const formatTimestamp = (timestamp: string): string => {
 export default function SyncStatusCard() {
   const { syncStatus, alerts: adminAlerts, loading, error, refresh } = useAdminStatus();
   const [showAlerts, setShowAlerts] = useState(false);
-  const [showControllers, setShowControllers] = useState(false);
 
   if (loading) {
     return (
@@ -137,7 +117,7 @@ export default function SyncStatusCard() {
     return null;
   }
 
-  const { overall, controllers, data, websocket, controllersList, alerts } = syncStatus;
+  const { overall, hosts, data, websocket, alerts } = syncStatus;
 
   return (
     <div className="bg-white dark:bg-gray-800 shadow rounded-lg border border-gray-200 dark:border-gray-600">
@@ -157,22 +137,22 @@ export default function SyncStatusCard() {
       {/* Overview Stats */}
       <div className="p-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          {/* Controllers */}
+          {/* Hosts */}
           <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-            <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Controllers</div>
+            <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Hosts</div>
             <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-              {controllers.online}/{controllers.total}
+              {hosts.online}/{hosts.total}
             </div>
             <div className="text-xs text-gray-500 dark:text-gray-400">Online</div>
           </div>
 
-          {/* Sync Status */}
+          {/* WebSocket Status */}
           <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-            <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Sync Status</div>
+            <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">WebSocket</div>
             <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-              {controllers.syncUpToDate}/{controllers.total}
+              {websocket.isRunning ? 'Running' : 'Offline'}
             </div>
-            <div className="text-xs text-gray-500 dark:text-gray-400">Up to Date</div>
+            <div className="text-xs text-gray-500 dark:text-gray-400">Status</div>
           </div>
 
           {/* Alerts */}
@@ -184,24 +164,6 @@ export default function SyncStatusCard() {
             <div className="text-xs text-gray-500 dark:text-gray-400">Active</div>
           </div>
         </div>
-
-        {/* Pending Syncs */}
-        {(controllers.pendingDashboards > 0 || controllers.pendingCookies > 0) && (
-          <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 mb-6">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-yellow-600 dark:text-yellow-400">⚠️</span>
-              <span className="font-medium text-yellow-800 dark:text-yellow-200">Pending Syncs</span>
-            </div>
-            <div className="text-sm text-yellow-700 dark:text-yellow-300">
-              {controllers.pendingDashboards > 0 && (
-                <div>📊 {controllers.pendingDashboards} controller(s) pending dashboard sync</div>
-              )}
-              {controllers.pendingCookies > 0 && (
-                <div>🍪 {controllers.pendingCookies} controller(s) pending cookie sync</div>
-              )}
-            </div>
-          </div>
-        )}
 
         {/* Data Summary */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
@@ -245,13 +207,6 @@ export default function SyncStatusCard() {
           )}
           
           <button
-            onClick={() => setShowControllers(!showControllers)}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm"
-          >
-            View Controllers ({controllers.total})
-          </button>
-          
-          <button
             onClick={refresh}
             className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded text-sm"
           >
@@ -277,8 +232,8 @@ export default function SyncStatusCard() {
                       </div>
                       <div className="text-xs text-gray-500 dark:text-gray-500 mt-2">
                         {formatTimestamp(alert.timestamp)}
-                        {alert.controllerId && (
-                          <span className="ml-2">Controller: {alert.controllerId}</span>
+                        {alert.hostId && (
+                          <span className="ml-2">Host: {alert.hostId}</span>
                         )}
                       </div>
                     </div>
@@ -289,52 +244,6 @@ export default function SyncStatusCard() {
           </div>
         )}
 
-        {/* Controllers Details */}
-        {showControllers && (
-          <div className="mt-6 border-t border-gray-200 dark:border-gray-600 pt-6">
-            <h3 className="font-medium text-gray-900 dark:text-gray-100 mb-4">Controllers Status</h3>
-            <div className="space-y-3">
-              {controllersList.map((controller: ControllerSyncStatus) => (
-                <div key={controller.controllerId} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <span className={`w-3 h-3 rounded-full ${
-                        controller.status === 'online' ? 'bg-green-500' : 
-                        controller.status === 'offline' ? 'bg-gray-500' : 'bg-red-500'
-                      }`}></span>
-                      <div>
-                        <div className="font-medium text-gray-900 dark:text-gray-100">
-                          {controller.name}
-                        </div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400">
-                          ID: {controller.controllerId}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-sm text-gray-900 dark:text-gray-100 capitalize">
-                        {controller.status} {controller.isConnected && '(Connected)'}
-                      </div>
-                      <div className="text-xs text-gray-500 dark:text-gray-500">
-                        Last Sync: {formatTimestamp(controller.lastSync)}
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {(controller.dashboardSync.pending || controller.cookieSync.pending) && (
-                    <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
-                      <div className="text-sm text-yellow-700 dark:text-yellow-300">
-                        Pending Syncs:
-                        {controller.dashboardSync.pending && <span className="ml-2">📊 Dashboards</span>}
-                        {controller.cookieSync.pending && <span className="ml-2">🍪 Cookies</span>}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
