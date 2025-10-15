@@ -529,10 +529,16 @@ class HostAgent {
     logger.info('Opening Web Admin from system tray request');
     
     try {
-      const webAdminUrl = this.configManager.getSettings().webAdminUrl || 'http://localhost:3000';
+      const configUrl = this.configManager.getSettings().webAdminUrl;
+      const webAdminUrl = configUrl || process.env.WEB_ADMIN_URL || process.env.DISPLAYOPS_WEB_ADMIN_URL || 'https://displayops.vtex.com';
+      
+      logger.info('🌐 Opening Web Admin', {
+        configUrl: configUrl || '(empty)',
+        finalUrl: webAdminUrl
+      });
       
       await shell.openExternal(webAdminUrl);
-      logger.info(`Opened Web Admin at ${webAdminUrl}`);
+      logger.info(`✅ Web Admin opened at ${webAdminUrl}`);
       
       // Show notification
       this.systemTrayManager.showNotification(

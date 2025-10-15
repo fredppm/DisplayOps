@@ -97,7 +97,9 @@ export class ConfigManager {
         // Only migrate if it's exactly the old default (localhost:3000)
         if (loadedConfig.settings?.webAdminUrl === 'http://localhost:3000') {
           console.log('🔄 Migrating webAdminUrl from localhost to production default');
+          console.log('  Old URL:', loadedConfig.settings.webAdminUrl);
           loadedConfig.settings.webAdminUrl = DEFAULT_CONFIG.settings.webAdminUrl;
+          console.log('  New URL:', loadedConfig.settings.webAdminUrl);
         }
         
         // Merge with defaults to ensure all properties exist
@@ -110,6 +112,12 @@ export class ConfigManager {
           },
           displays: loadedConfig.displays || DEFAULT_CONFIG.displays
         };
+        
+        console.log('✅ Config loaded and merged:', {
+          agentId: mergedConfig.agentId,
+          webAdminUrl: mergedConfig.settings.webAdminUrl,
+          configPath: this.configPath
+        });
         
         // Save the updated config with new defaults
         this.saveConfig(mergedConfig);
@@ -194,6 +202,10 @@ export class ConfigManager {
   }
 
   public getSettings(): AgentSettings {
+    console.log('📋 ConfigManager.getSettings() called:', {
+      webAdminUrl: this.config.settings.webAdminUrl,
+      fullSettings: this.config.settings
+    });
     return this.config.settings;
   }
 

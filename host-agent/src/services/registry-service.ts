@@ -25,10 +25,17 @@ export class RegistryService extends EventEmitter {
     super();
     this.configManager = configManager;
     this.stateManager = stateManager;
-    this.webAdminUrl = this.configManager.getSettings().webAdminUrl || 'http://localhost:3000';
     
-    logger.debug('🏗️ RegistryService instance created', {
-      webAdminUrl: this.webAdminUrl
+    const configUrl = this.configManager.getSettings().webAdminUrl;
+    this.webAdminUrl = configUrl || process.env.WEB_ADMIN_URL || process.env.DISPLAYOPS_WEB_ADMIN_URL || 'https://displayops.vtex.com';
+    
+    logger.info('🏗️ RegistryService initialized', {
+      configUrl: configUrl || '(empty)',
+      finalUrl: this.webAdminUrl,
+      envVars: {
+        WEB_ADMIN_URL: process.env.WEB_ADMIN_URL || '(not set)',
+        DISPLAYOPS_WEB_ADMIN_URL: process.env.DISPLAYOPS_WEB_ADMIN_URL || '(not set)'
+      }
     });
   }
 
@@ -111,13 +118,16 @@ export class RegistryService extends EventEmitter {
       status: 'online'
     };
 
-    logger.debug('📝 Registering with Web-Admin', {
+    const registerUrl = `${this.webAdminUrl}/api/hosts/register`;
+    
+    logger.info('📝 Attempting registration', {
+      url: registerUrl,
       agentId: registrationData.agentId,
       hostname: registrationData.hostname,
       ipAddress: registrationData.ipAddress
     });
 
-    const response = await fetch(`${this.webAdminUrl}/api/hosts/register`, {
+    const response = await fetch(registerUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(registrationData)
@@ -125,13 +135,23 @@ export class RegistryService extends EventEmitter {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ message: response.statusText }));
-      throw new Error(`Registration failed: ${errorData.message || response.statusText}`);
+      const errorMsg = `Registration failed: ${errorData.message || response.statusText}`;
+      
+      logger.error('❌ Registration failed', {
+        status: response.status,
+        statusText: response.statusText,
+        url: registerUrl,
+        error: errorData
+      });
+      
+      throw new Error(errorMsg);
     }
 
     const result = await response.json();
     logger.success('✅ Registration successful', {
       hostId: result.assignedHostId,
-      message: result.message
+      message: result.message,
+      url: registerUrl
     });
   }
 
@@ -237,17 +257,27 @@ export class RegistryService extends EventEmitter {
       }
     };
 
-    const response = await fetch(`${this.webAdminUrl}/api/hosts/heartbeat`, {
+    const heartbeatUrl = `${this.webAdminUrl}/api/hosts/heartbeat`;
+    
+    const response = await fetch(heartbeatUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(heartbeatData)
     });
 
     if (!response.ok) {
+      logger.error('❌ Heartbeat failed', {
+        status: response.status,
+        statusText: response.statusText,
+        url: heartbeatUrl
+      });
       throw new Error(`Heartbeat failed: ${response.statusText}`);
     }
 
-    logger.debug('💓 Heartbeat sent');
+    logger.debug('💓 Heartbeat sent successfully', {
+      url: heartbeatUrl,
+      agentId: heartbeatData.agentId
+    });
   }
 
   private handleConnectionError(): void {
