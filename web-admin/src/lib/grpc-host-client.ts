@@ -6,19 +6,51 @@ import { createContextLogger } from '@/utils/logger';
 
 const grpcClientLogger = createContextLogger('grpc-host-client');
 
-// Load protobuf definition
-const PROTO_PATH = join(process.cwd(), '..', 'shared', 'proto', 'host-agent.proto');
+// Lazy load proto to avoid build-time issues in serverless environments
+let _protoDescriptor: any = null;
 
-const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
-  keepCase: true,
-  longs: String,
-  enums: String,
-  defaults: true,
-  oneofs: true
-});
+function getProtoDescriptor() {
+  if (_protoDescriptor) {
+    return _protoDescriptor;
+  }
 
-const protoDescriptor = grpc.loadPackageDefinition(packageDefinition) as any;
-const displayops = protoDescriptor.displayops;
+  // Try multiple paths for proto file
+  const possiblePaths = [
+    join(process.cwd(), 'proto', 'host-agent.proto'),          // Development
+    join(__dirname, '..', '..', 'proto', 'host-agent.proto'),  // Production (relative to compiled file)
+    join(process.cwd(), 'web-admin', 'proto', 'host-agent.proto'), // Monorepo root
+  ];
+
+  let protoPath: string | null = null;
+  const fs = require('fs');
+  
+  for (const path of possiblePaths) {
+    if (fs.existsSync(path)) {
+      protoPath = path;
+      grpcClientLogger.debug('Found proto file at:', path);
+      break;
+    }
+  }
+
+  if (!protoPath) {
+    throw new Error(
+      `Proto file not found. Tried paths:\n${possiblePaths.join('\n')}\n\n` +
+      `Current working directory: ${process.cwd()}\n` +
+      `__dirname: ${__dirname}`
+    );
+  }
+
+  const packageDefinition = protoLoader.loadSync(protoPath, {
+    keepCase: true,
+    longs: String,
+    enums: String,
+    defaults: true,
+    oneofs: true
+  });
+
+  _protoDescriptor = grpc.loadPackageDefinition(packageDefinition);
+  return _protoDescriptor;
+}
 
 export interface GrpcHostClientConfig {
   host: string;
@@ -39,6 +71,9 @@ export class GrpcHostClient extends EventEmitter {
 
   private setupClient(): void {
     const address = `${this.config.host}:${this.config.port}`;
+    const protoDescriptor = getProtoDescriptor();
+    const displayops = (protoDescriptor as any).displayops;
+    
     this.client = new displayops.HostAgent(
       address,
       grpc.credentials.createInsecure()

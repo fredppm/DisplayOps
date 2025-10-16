@@ -35,6 +35,25 @@ const nextConfig = {
       };
     }
     
+    // Copy proto files to output directory for serverless environments
+    if (isServer) {
+      const CopyPlugin = require('copy-webpack-plugin');
+      
+      if (!config.plugins) config.plugins = [];
+      
+      config.plugins.push(
+        new CopyPlugin({
+          patterns: [
+            {
+              from: 'proto/**/*.proto',
+              to: '.', // Copies to .next/server/proto/
+              context: '.', // Relative to project root
+            },
+          ],
+        })
+      );
+    }
+    
     // Enhanced HMR configuration for better gRPC server management
     if (dev && isServer) {
       // Ensure proper cleanup of gRPC server during HMR
@@ -46,8 +65,6 @@ const nextConfig = {
       };
       
       // Add plugin to handle gRPC cleanup
-      if (!config.plugins) config.plugins = [];
-      
       config.plugins.push({
         apply: (compiler) => {
           compiler.hooks.watchRun.tap('GrpcCleanupPlugin', () => {

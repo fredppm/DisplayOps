@@ -148,12 +148,8 @@ export class CookieManager {
         });
       }
 
-      // Sort domains, putting grafana.vtex.com first if it exists
+      // Sort domains alphabetically
       const sortedDomains = Object.keys(cookiesByDomain).sort((a, b) => {
-        if (a.includes('grafana.vtex.com')) return -1;
-        if (b.includes('grafana.vtex.com')) return 1;
-        if (a.includes('vtex.com') && !b.includes('vtex.com')) return -1;
-        if (b.includes('vtex.com') && !a.includes('vtex.com')) return 1;
         return a.localeCompare(b);
       });
 

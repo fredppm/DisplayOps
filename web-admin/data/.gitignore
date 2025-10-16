@@ -1,9 +1,0 @@
-# Ignore all files in this directory (runtime data)
-*
-
-# Except this .gitignore
-!.gitignore
-
-# Data files are generated at runtime
-# hosts.json, dashboards.json, etc.
-

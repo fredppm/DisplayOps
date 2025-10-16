@@ -5,7 +5,10 @@ export abstract class BaseRepository<T> {
   protected filePath: string;
 
   constructor(fileName: string) {
-    this.filePath = path.join(process.cwd(), 'data', fileName);
+    // Use /tmp in serverless environments (Lambda/Vercel) where filesystem is read-only
+    const isServerless = process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.VERCEL;
+    const dataDir = isServerless ? '/tmp/data' : path.join(process.cwd(), 'data');
+    this.filePath = path.join(dataDir, fileName);
   }
 
   protected async readData(): Promise<{ [key: string]: T[] }> {

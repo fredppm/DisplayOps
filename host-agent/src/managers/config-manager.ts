@@ -3,6 +3,21 @@ import { join } from 'path';
 import { app } from 'electron';
 import os from 'os';
 
+// Function to get version from package.json
+function getPackageVersion(): string {
+  try {
+    const packageJsonPath = app.isPackaged
+      ? join(process.resourcesPath, 'app.asar', 'package.json')
+      : join(__dirname, '../../../package.json');
+    
+    const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
+    return packageJson.version || '1.0.0';
+  } catch (error) {
+    console.error('Failed to read version from package.json:', error);
+    return '1.0.0'; // Fallback version
+  }
+}
+
 export interface AgentConfig {
   agentId: string;
   hostname: string;
@@ -62,7 +77,7 @@ function getRealDisplaysConfig(): DisplayConfig[] {
 const DEFAULT_CONFIG: AgentConfig = {
   agentId: `agent-${os.hostname().toLowerCase()}`,
   hostname: os.hostname(),
-  version: '1.0.0',
+  version: getPackageVersion(), // Get version dynamically from package.json
   displays: getRealDisplaysConfig(),
   settings: {
     maxWindows: 4,
@@ -102,10 +117,21 @@ export class ConfigManager {
           console.log('  New URL:', loadedConfig.settings.webAdminUrl);
         }
         
+        // Always update version from package.json (important for updates)
+        const currentVersion = getPackageVersion();
+        if (loadedConfig.version !== currentVersion) {
+          console.log('🔄 Updating agent version:', {
+            oldVersion: loadedConfig.version,
+            newVersion: currentVersion
+          });
+          loadedConfig.version = currentVersion;
+        }
+        
         // Merge with defaults to ensure all properties exist
         const mergedConfig = {
           ...DEFAULT_CONFIG,
           ...loadedConfig,
+          version: currentVersion, // Ensure version is always current
           settings: {
             ...DEFAULT_CONFIG.settings,
             ...loadedConfig.settings
@@ -115,6 +141,7 @@ export class ConfigManager {
         
         console.log('✅ Config loaded and merged:', {
           agentId: mergedConfig.agentId,
+          version: mergedConfig.version,
           webAdminUrl: mergedConfig.settings.webAdminUrl,
           configPath: this.configPath
         });

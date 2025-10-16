@@ -1,14 +1,7 @@
 import { Dashboard } from '@/types/shared-types';
 import { BasePostgresRepository } from './BasePostgresRepository';
-import { db } from '@/lib/database';
 
 export class DashboardsRepository extends BasePostgresRepository<Dashboard> {
-  constructor() {
-    super();
-    // Start initialization (will be awaited by all operations)
-    this.initializationPromise = this.initialize();
-  }
-
   protected getTableName(): string {
     return 'dashboards';
   }
@@ -35,45 +28,6 @@ export class DashboardsRepository extends BasePostgresRepository<Dashboard> {
       requires_auth: entity.requiresAuth,
       category: entity.category
     };
-  }
-
-  /**
-   * Initialize default dashboards if none exist
-   */
-  protected async initialize(): Promise<void> {
-    try {
-      // Call parent getAll without ensureInitialized to avoid circular dependency
-      const result = await db.query(`SELECT * FROM ${this.getTableName()} ORDER BY created_at DESC`);
-      const existing = result.rows.map((row: any) => this.mapDbRowToEntity(row));
-      if (existing.length === 0) {
-        const defaultDashboards: Dashboard[] = [
-          {
-            id: 'common-dashboard',
-            name: 'Grafana VTEX',
-            url: 'https://grafana.vtex.com/d/d7e7051f-42a2-4798-af93-cf2023dd2e28/home?orgId=1&from=now-3h&to=now&timezone=browser&var-Origin=argocd&refresh=10s',
-            description: 'Common dashboard for all systems',
-            refreshInterval: 300,
-            requiresAuth: true,
-            category: 'Monitoring'
-          },
-          {
-            id: 'health-monitor',
-            name: 'Health Monitor',
-            url: 'https://healthmonitor.vtex.com/',
-            description: 'Health monitor for all systems',
-            refreshInterval: 600,
-            requiresAuth: true,
-            category: 'Business Intelligence'
-          }
-        ];
-        
-        for (const dashboard of defaultDashboards) {
-          await this.create(dashboard);
-        }
-      }
-    } catch (error) {
-      console.error('Error initializing default dashboards:', error);
-    }
   }
 
   // Dashboard-specific methods
