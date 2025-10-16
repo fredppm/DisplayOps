@@ -68,7 +68,8 @@
       "menuCategory": "DisplayOps",
       "uninstallDisplayName": "DisplayOps Host Agent",
       "installerIcon": "assets/icon.ico",
-      "uninstallerIcon": "assets/icon.ico"
+      "uninstallerIcon": "assets/icon.ico",
+      "differentialPackage": false
     },
     "mac": {
       "icon": "assets/icon.icns",

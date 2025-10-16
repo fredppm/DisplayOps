@@ -237,20 +237,52 @@ export async function getLatestVersionForElectronUpdater(
       return null;
     }
     
+    // Calculate SHA512 from the file
+    let sha512 = '';
+    try {
+      releasesLogger.info(`Downloading file to calculate SHA512`, {
+        url: platformInfo.downloadUrl,
+        size: platformInfo.size
+      });
+      
+      const crypto = require('crypto');
+      const fileResponse = await fetch(platformInfo.downloadUrl);
+      if (fileResponse.ok) {
+        const buffer = await fileResponse.arrayBuffer();
+        const hash = crypto.createHash('sha512');
+        hash.update(Buffer.from(buffer));
+        sha512 = hash.digest('base64');
+        
+        releasesLogger.info(`SHA512 calculated successfully`, {
+          sha512Length: sha512.length
+        });
+      } else {
+        releasesLogger.warn(`Failed to download file for SHA512 calculation`, {
+          status: fileResponse.status
+        });
+      }
+    } catch (error) {
+      releasesLogger.error(`Error calculating SHA512`, {
+        error: error instanceof Error ? error.message : String(error)
+      });
+      // Continue without SHA512 - better than failing completely
+    }
+    
     const response: ElectronUpdaterResponse = {
       version: versionInfo.version,
       releaseDate: versionInfo.releaseDate,
       url: platformInfo.downloadUrl, // Direct GitHub download URL
       releaseNotes: versionInfo.changelog,
       size: platformInfo.size,
-      sha512: '' // GitHub doesn't provide SHA512, electron-updater can work without it
+      sha512: sha512
     };
     
     releasesLogger.info(`Generated electron-updater response for ${app}`, {
       version: response.version,
       platform: normalizedPlatform,
       url: response.url,
-      tag: latestRelease.tag_name
+      tag: latestRelease.tag_name,
+      hasSha512: !!sha512
     });
     
     return response;
