@@ -1,3 +1,5 @@
+import log from 'electron-log';
+
 export enum LogLevel {
   ERROR = 0,
   WARN = 1,
@@ -24,6 +26,10 @@ class Logger {
     // Get log level from environment variable, default to INFO
     const envLevel = process.env.LOG_LEVEL?.toUpperCase();
     this.level = envLevel ? LogLevel[envLevel as keyof typeof LogLevel] || LogLevel.INFO : LogLevel.INFO;
+    
+    // Configure electron-log to write everything
+    log.transports.file.level = 'debug';
+    log.transports.console.level = 'debug';
   }
 
   private shouldLog(level: LogLevel): boolean {
@@ -81,47 +87,47 @@ class Logger {
   error(message: string, ...args: any[]): void {
     this.addLog('ERROR', 'system', message, ...args);
     if (this.shouldLog(LogLevel.ERROR)) {
-      console.error(this.formatMessage('ERROR', message), ...args);
+      log.error(message, ...args);
     }
   }
 
   warn(message: string, ...args: any[]): void {
     this.addLog('WARN', 'system', message, ...args);
     if (this.shouldLog(LogLevel.WARN)) {
-      console.warn(this.formatMessage('WARN', message), ...args);
+      log.warn(message, ...args);
     }
   }
 
   info(message: string, ...args: any[]): void {
     this.addLog('INFO', 'system', message, ...args);
     if (this.shouldLog(LogLevel.INFO)) {
-      console.log(this.formatMessage('INFO', message), ...args);
+      log.info(message, ...args);
     }
   }
 
   debug(message: string, ...args: any[]): void {
     this.addLog('DEBUG', 'system', message, ...args);
     if (this.shouldLog(LogLevel.DEBUG)) {
-      console.log(this.formatMessage('DEBUG', message), ...args);
+      log.debug(message, ...args);
     }
   }
 
   // Special method for important system messages (always shown)
   system(message: string, ...args: any[]): void {
     this.addLog('INFO', 'system', `🚀 ${message}`, ...args);
-    console.log(`🚀 ${message}`, ...args);
+    log.info(`🚀 ${message}`, ...args);
   }
 
   // Special method for success messages (always shown)
   success(message: string, ...args: any[]): void {
     this.addLog('INFO', 'system', `✅ ${message}`, ...args);
-    console.log(`✅ ${message}`, ...args);
+    log.info(`✅ ${message}`, ...args);
   }
 
   // Special method for error messages (always shown)
   critical(message: string, ...args: any[]): void {
     this.addLog('ERROR', 'system', `❌ ${message}`, ...args);
-    console.error(`❌ ${message}`, ...args);
+    log.error(`❌ ${message}`, ...args);
   }
 }
 

@@ -5,7 +5,8 @@ import { db } from '@/lib/database';
 export class DashboardsRepository extends BasePostgresRepository<Dashboard> {
   constructor() {
     super();
-    this.initializeDefaultData();
+    // Start initialization (will be awaited by all operations)
+    this.initializationPromise = this.initialize();
   }
 
   protected getTableName(): string {
@@ -36,9 +37,14 @@ export class DashboardsRepository extends BasePostgresRepository<Dashboard> {
     };
   }
 
-  private async initializeDefaultData(): Promise<void> {
+  /**
+   * Initialize default dashboards if none exist
+   */
+  protected async initialize(): Promise<void> {
     try {
-      const existing = await this.getAll();
+      // Call parent getAll without ensureInitialized to avoid circular dependency
+      const result = await db.query(`SELECT * FROM ${this.getTableName()} ORDER BY created_at DESC`);
+      const existing = result.rows.map((row: any) => this.mapDbRowToEntity(row));
       if (existing.length === 0) {
         const defaultDashboards: Dashboard[] = [
           {

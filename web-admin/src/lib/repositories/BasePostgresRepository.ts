@@ -4,8 +4,30 @@ export abstract class BasePostgresRepository<T> {
   protected abstract getTableName(): string;
   protected abstract mapDbRowToEntity(row: any): T;
   protected abstract mapEntityToDbRow(entity: T): any;
+  
+  protected initializationPromise: Promise<void> | null = null;
+
+  /**
+   * Override this method if your repository needs async initialization
+   * Call it from the constructor with: this.initializationPromise = this.initialize()
+   */
+  protected async initialize(): Promise<void> {
+    // Default: no initialization needed
+  }
+
+  /**
+   * Ensures repository is initialized before any operation
+   * This prevents race conditions during startup
+   */
+  protected async ensureInitialized(): Promise<void> {
+    if (this.initializationPromise) {
+      await this.initializationPromise;
+    }
+  }
 
   async getAll(): Promise<T[]> {
+    await this.ensureInitialized();
+    
     try {
       const result = await db.query(`SELECT * FROM ${this.getTableName()} ORDER BY created_at DESC`);
       return result.rows.map((row: any) => this.mapDbRowToEntity(row));
@@ -16,6 +38,8 @@ export abstract class BasePostgresRepository<T> {
   }
 
   async getById(id: string): Promise<T | null> {
+    await this.ensureInitialized();
+    
     try {
       const result = await db.query(`SELECT * FROM ${this.getTableName()} WHERE id = $1`, [id]);
       return result.rows.length > 0 ? this.mapDbRowToEntity(result.rows[0]) : null;
@@ -26,6 +50,8 @@ export abstract class BasePostgresRepository<T> {
   }
 
   async create(entity: T): Promise<T> {
+    await this.ensureInitialized();
+    
     try {
       const dbRow = this.mapEntityToDbRow(entity);
       const columns = Object.keys(dbRow).join(', ');
@@ -47,6 +73,8 @@ export abstract class BasePostgresRepository<T> {
   }
 
   async update(id: string, updates: Partial<T>): Promise<T | null> {
+    await this.ensureInitialized();
+    
     try {
       const existing = await this.getById(id);
       if (!existing) return null;
@@ -75,6 +103,8 @@ export abstract class BasePostgresRepository<T> {
   }
 
   async delete(id: string): Promise<boolean> {
+    await this.ensureInitialized();
+    
     try {
       const result = await db.query(`DELETE FROM ${this.getTableName()} WHERE id = $1`, [id]);
       return result.rowCount > 0;

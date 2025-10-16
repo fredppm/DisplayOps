@@ -72,6 +72,7 @@ class HostsRepository {
   private dataFile: string;
   private saveTimeout: NodeJS.Timeout | null = null;
   private isInitialized: boolean = false;
+  private initializationPromise: Promise<void> | null = null;
 
   constructor() {
     // Setup file-based storage as fallback
@@ -84,8 +85,8 @@ class HostsRepository {
 
     hostsRepoLogger.debug('🏗️ HostsRepository instance created');
 
-    // Try to initialize PostgreSQL
-    this.initializeStorage();
+    // Start initialization (will be awaited by all operations)
+    this.initializationPromise = this.initializeStorage();
   }
 
   private async initializeStorage(): Promise<void> {
@@ -94,17 +95,20 @@ class HostsRepository {
       return;
     }
 
+    hostsRepoLogger.debug('🔄 Starting HostsRepository initialization...');
+
     // Check if PostgreSQL is configured
     const hasPostgres = process.env.POSTGRES_HOST || process.env.DATABASE_URL;
     
     if (hasPostgres) {
       try {
+        hostsRepoLogger.debug('Attempting PostgreSQL connection...');
         this.db = DatabaseConnection.getInstance();
         // Test connection with a simple query
         await this.db.query('SELECT 1');
         this.usePostgres = true;
         this.isInitialized = true;
-        hostsRepoLogger.info('🐘 Using PostgreSQL for hosts storage');
+        hostsRepoLogger.info('✅ Using PostgreSQL for hosts storage (initialization complete)');
       } catch (error) {
         hostsRepoLogger.warn('⚠️ PostgreSQL not available, falling back to JSON', { 
           error: error instanceof Error ? error.message : String(error) 
@@ -118,6 +122,21 @@ class HostsRepository {
       this.usePostgres = false;
       this.loadFromFile();
       this.isInitialized = true;
+    }
+    
+    hostsRepoLogger.info('✅ HostsRepository initialization complete', { 
+      usePostgres: this.usePostgres,
+      hostsCount: this.usePostgres ? 'N/A' : this.hosts.size
+    });
+  }
+
+  /**
+   * Ensures repository is initialized before any operation
+   * This prevents race conditions during startup
+   */
+  private async ensureInitialized(): Promise<void> {
+    if (this.initializationPromise) {
+      await this.initializationPromise;
     }
   }
 
@@ -172,6 +191,8 @@ class HostsRepository {
   }
 
   async create(hostData: Omit<Host, 'id' | 'createdAt' | 'updatedAt'>): Promise<Host> {
+    await this.ensureInitialized();
+    
     // Use agentId as the primary ID
     const id = hostData.agentId;
     const now = new Date().toISOString();
@@ -222,6 +243,8 @@ class HostsRepository {
   }
 
   async getById(id: string): Promise<Host | null> {
+    await this.ensureInitialized();
+    
     if (this.usePostgres && this.db) {
       try {
         // Search by agent_id (which is the primary identifier)
@@ -244,6 +267,8 @@ class HostsRepository {
   }
 
   async getByAgentId(agentId: string): Promise<Host | null> {
+    await this.ensureInitialized();
+    
     if (this.usePostgres && this.db) {
       try {
         const result = await this.db.query('SELECT * FROM hosts WHERE agent_id = $1', [agentId]);
@@ -267,6 +292,8 @@ class HostsRepository {
   }
 
   async getAll(): Promise<Host[]> {
+    await this.ensureInitialized();
+    
     if (this.usePostgres && this.db) {
       try {
         const result = await this.db.query('SELECT * FROM hosts ORDER BY created_at DESC');
@@ -285,6 +312,8 @@ class HostsRepository {
   }
 
   async update(id: string, updateData: Partial<Host>): Promise<Host | null> {
+    await this.ensureInitialized();
+    
     if (this.usePostgres && this.db) {
       try {
         const setClauses: string[] = [];
@@ -373,6 +402,8 @@ class HostsRepository {
   }
 
   async delete(id: string): Promise<boolean> {
+    await this.ensureInitialized();
+    
     if (this.usePostgres && this.db) {
       try {
         // Delete by agent_id (the primary identifier)
@@ -397,6 +428,8 @@ class HostsRepository {
   }
 
   async markOffline(agentId: string): Promise<void> {
+    await this.ensureInitialized();
+    
     const host = await this.getByAgentId(agentId);
     if (host) {
       // Only update lastSeen - status will be calculated automatically
@@ -407,6 +440,8 @@ class HostsRepository {
   }
 
   async cleanupOfflineHosts(timeoutMinutes: number = 30): Promise<void> {
+    await this.ensureInitialized();
+    
     const cutoffTime = new Date(Date.now() - timeoutMinutes * 60 * 1000);
 
     if (this.usePostgres && this.db) {
