@@ -48,6 +48,8 @@ export class SystemTrayManager {
   private preloadAllIconStates(): void {
     logger.info('🎯 Preloading all tray icon states for offline resilience...');
     
+    const isWindows = process.platform === 'win32';
+    
     // Preload all state-specific icons
     this.iconStates.forEach(state => {
       try {
@@ -59,6 +61,13 @@ export class SystemTrayManager {
           if (fs.existsSync(iconPath)) {
             icon = nativeImage.createFromPath(iconPath);
             logger.info(`✅ Preloaded icon for state '${state}' from: ${iconPath}`);
+            
+            // On Windows with .ico files, don't resize - ICO already has multiple sizes
+            if (isWindows && iconPath.endsWith('.ico')) {
+              logger.info(`🪟 Using native ICO file for Windows (no resize needed)`);
+              this.preloadedIcons.set(state, icon);
+              return; // Skip resize
+            }
           } else {
             logger.warn(`⚠️  Icon file not found for state '${state}': ${iconPath}`);
             icon = this.createFallbackIcon(state);
@@ -69,7 +78,7 @@ export class SystemTrayManager {
           icon = this.createFallbackIcon(state);
         }
         
-        // Store the preloaded icon with 16x16 size ready for tray use
+        // Store the preloaded icon with 16x16 size ready for tray use (non-ICO files)
         const resizedIcon = icon.resize({ width: 16, height: 16 });
         this.preloadedIcons.set(state, resizedIcon);
         
@@ -204,7 +213,13 @@ export class SystemTrayManager {
           }
           
           // Resize icon for system tray (16x16 on Windows)
-          resizedIcon = icon.resize({ width: 16, height: 16 });
+          // BUT: skip resize for .ico files on Windows - they already have proper sizes
+          if (process.platform === 'win32' && iconPath && iconPath.endsWith('.ico')) {
+            logger.info('🪟 Using native ICO without resize for Windows tray');
+            resizedIcon = icon;
+          } else {
+            resizedIcon = icon.resize({ width: 16, height: 16 });
+          }
         }
       }
     }
@@ -258,13 +273,30 @@ export class SystemTrayManager {
   }
 
   private getIconPath(state: 'idle' | 'ready' | 'error' | 'synced' = 'idle'): string {
-    // Try multiple path strategies for different build contexts
-    const iconPaths = [
-      // For compiled/built version
+    const isWindows = process.platform === 'win32';
+    
+    // On Windows, prefer .ico files for better system tray rendering
+    const iconPaths = isWindows ? [
+      // Windows: Try .ico first (better for tray icons)
+      path.join(__dirname, '../../assets/icon.ico'),
+      path.join(__dirname, '../assets/icon.ico'),
+      path.join(__dirname, '../../../assets/icon.ico'),
+      path.join(process.cwd(), 'host-agent/assets/icon.ico'),
+      path.join(process.cwd(), 'assets/icon.ico'),
+      path.join(process.resourcesPath, 'assets/icon.ico'),
+      
+      // Then PNG fallbacks
       path.join(__dirname, `../../assets/vtex-tray-icon-${state}.png`),
       path.join(__dirname, `../assets/vtex-tray-icon-${state}.png`),
-      
-      // For development version
+      path.join(__dirname, '../../../assets/vtex-tray-icon.png'),
+      path.join(process.cwd(), 'host-agent/assets/vtex-tray-icon.png'),
+      path.join(process.cwd(), 'assets/vtex-tray-icon.png'),
+      path.join(process.resourcesPath, 'assets/vtex-tray-icon.png'),
+      path.join(__dirname, '../../assets/icon.png')
+    ] : [
+      // macOS/Linux: PNG with state support
+      path.join(__dirname, `../../assets/vtex-tray-icon-${state}.png`),
+      path.join(__dirname, `../assets/vtex-tray-icon-${state}.png`),
       path.join(__dirname, `../../../assets/vtex-tray-icon-${state}.png`),
       path.join(process.cwd(), `host-agent/assets/vtex-tray-icon-${state}.png`),
       path.join(process.cwd(), `assets/vtex-tray-icon-${state}.png`),
@@ -275,23 +307,28 @@ export class SystemTrayManager {
       path.join(__dirname, '../../../assets/vtex-tray-icon.png'),
       path.join(process.cwd(), 'host-agent/assets/vtex-tray-icon.png'),
       path.join(process.cwd(), 'assets/vtex-tray-icon.png'),
-      
-      // SVG fallbacks
-      path.join(__dirname, '../../assets/vtex-icon.svg'),
       path.join(__dirname, '../../assets/icon.png')
     ];
 
     // Check if any icon exists and return the first found
     const fs = require('fs');
+    logger.info(`🔍 Searching for tray icon (platform: ${process.platform}, state: ${state})`);
+    logger.debug(`🔍 Trying ${iconPaths.length} possible icon paths...`);
+    
     for (const iconPath of iconPaths) {
       if (fs.existsSync(iconPath)) {
-        logger.info(`✅ Found icon at: ${iconPath}`);
+        logger.info(`✅ Found tray icon at: ${iconPath}`);
         return iconPath;
+      } else {
+        logger.debug(`❌ Not found: ${iconPath}`);
       }
     }
 
     // Fallback to empty string (Electron default)
     logger.warn('🚨 No icon files found in expected locations');
+    logger.info(`📂 Current working directory: ${process.cwd()}`);
+    logger.info(`📂 __dirname: ${__dirname}`);
+    logger.info(`📂 process.resourcesPath: ${process.resourcesPath || '(not set)'}`);
     return '';
   }
 
