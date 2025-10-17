@@ -156,6 +156,12 @@ class HostAgent {
         onOpenAdmin: () => this.handleOpenAdmin()
       });
       
+      // Connect auto-updater status to system tray
+      this.autoUpdaterService.setStatusChangeCallback((status) => {
+        logger.debug(`Update status changed: ${status.state}`, status);
+        this.systemTrayManager.updateUpdateStatus(status);
+      });
+      
       // Update display configuration from system
       this.configManager.updateDisplaysFromSystem();
       

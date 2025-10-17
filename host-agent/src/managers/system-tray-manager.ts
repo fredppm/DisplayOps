@@ -2,6 +2,7 @@ import { Tray, Menu, nativeImage, app } from 'electron';
 import path from 'path';
 import { logger } from '../utils/logger';
 import { ConfigManager } from './config-manager';
+import { UpdateStatus } from '../auto-updater';
 
 export class SystemTrayManager {
   private tray: Tray | null = null;
@@ -10,6 +11,7 @@ export class SystemTrayManager {
   private totalDisplays: number = 0;
   private activeWindows: number = 0;
   private currentState: 'idle' | 'ready' | 'error' | 'synced' = 'idle';
+  private updateStatus: UpdateStatus = { state: 'idle' };
   private onRefreshDisplaysCallback?: () => void;
   private onShowDebugOverlayCallback?: () => void;
   private onOpenCookieEditorCallback?: () => void;
@@ -412,6 +414,18 @@ export class SystemTrayManager {
     return icon;
   }
 
+  public updateUpdateStatus(status: UpdateStatus): void {
+    this.updateStatus = status;
+    
+    // Update context menu to show update info
+    this.updateContextMenu();
+    
+    // Update tooltip if update is in progress
+    if (this.tray && (status.state === 'downloading' || status.state === 'downloaded')) {
+      this.updateTooltip();
+    }
+  }
+
   public updateStatus(status: {
     connected: boolean;
     totalDisplays: number;
@@ -440,19 +454,63 @@ export class SystemTrayManager {
     }
 
     // Update tooltip
-    const statusText = status.connected ? 'Online' : 'Offline';
-    const tooltip = `DisplayOps Host Agent - ${statusText}\n${status.totalDisplays} displays, ${status.activeWindows} active windows`;
+    this.updateTooltip();
     
     if (this.tray) {
-      this.tray.setToolTip(tooltip);
-      
       // Update context menu to reflect new status
       this.updateContextMenu();
     }
   }
 
+  private updateTooltip(): void {
+    if (!this.tray) return;
+
+    const statusText = this.isConnected ? 'Online' : 'Offline';
+    let tooltip = `DisplayOps Host Agent - ${statusText}\n${this.totalDisplays} displays, ${this.activeWindows} active windows`;
+    
+    // Add update status to tooltip
+    if (this.updateStatus.state === 'downloading') {
+      tooltip += `\n⬇️ Downloading update: ${this.updateStatus.progress || 0}%`;
+    } else if (this.updateStatus.state === 'downloaded') {
+      tooltip += `\n✅ Update ready: v${this.updateStatus.version}`;
+    } else if (this.updateStatus.state === 'available') {
+      tooltip += `\n🔄 Update available: v${this.updateStatus.version}`;
+    }
+    
+    this.tray.setToolTip(tooltip);
+  }
+
   private updateContextMenu(): void {
     if (!this.tray) return;
+
+    // Build update menu items based on status
+    const updateMenuItems: Electron.MenuItemConstructorOptions[] = [];
+    
+    if (this.updateStatus.state === 'downloading') {
+      updateMenuItems.push({
+        label: `⬇️ Downloading Update: ${this.updateStatus.progress || 0}%`,
+        enabled: false
+      });
+    } else if (this.updateStatus.state === 'downloaded') {
+      updateMenuItems.push({
+        label: `✅ Update Ready: v${this.updateStatus.version}`,
+        enabled: false
+      });
+      updateMenuItems.push({
+        label: 'Install Update Now',
+        click: () => this.checkForUpdates() // Will trigger install dialog
+      });
+    } else if (this.updateStatus.state === 'available') {
+      updateMenuItems.push({
+        label: `🔄 Update Available: v${this.updateStatus.version}`,
+        enabled: false
+      });
+    } else {
+      updateMenuItems.push({
+        label: 'Check for Updates',
+        click: () => this.checkForUpdates()
+      });
+    }
 
     const contextMenu = Menu.buildFromTemplate([
       {
@@ -503,10 +561,7 @@ export class SystemTrayManager {
         label: 'Cookie Editor (Debug)',
         click: () => this.openCookieEditor()
       },
-      {
-        label: 'Check for Updates',
-        click: () => this.checkForUpdates()
-      },
+      ...updateMenuItems,
       {
         type: 'separator'
       },

@@ -60,16 +60,16 @@
       ]
     },
     "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
+      "oneClick": true,
+      "perMachine": true,
+      "allowElevation": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "runAfterFinish": true,
       "menuCategory": "DisplayOps",
       "uninstallDisplayName": "DisplayOps Host Agent",
       "installerIcon": "assets/icon.ico",
-      "uninstallerIcon": "assets/icon.ico",
-      "differentialPackage": false
+      "uninstallerIcon": "assets/icon.ico"
     },
     "mac": {
       "icon": "assets/icon.icns",
