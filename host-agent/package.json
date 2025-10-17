@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "npm run copy-assets && concurrently --names \"TSC,ELECTRON\" --prefix-colors \"magenta,cyan\" \"npm run dev:tsc\" \"npm run dev:electron\"",
     "dev:tsc": "tsc --watch --preserveWatchOutput",
-    "dev:electron": "wait-on dist/host-agent/src/main.js && set NODE_ENV=development && electron .",
+    "dev:electron": "wait-on dist/host-agent/src/main.js && set NODE_ENV=development&& set WEB_ADMIN_URL=http://localhost:3000&& electron .",
+    "dev:local": "set WEB_ADMIN_URL=http://localhost:3000&& npm start",
+    "dev:stable": "set WEB_ADMIN_URL=https://displayops.vtex.com&& npm start",
     "build": "tsc && npm run copy-assets",
     "copy-assets": "copyfiles -u 1 \"src/preload/*.js\" \"src/renderer/*.html\" dist/host-agent/src/",
     "start": "electron .",

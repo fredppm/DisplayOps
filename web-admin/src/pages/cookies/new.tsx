@@ -47,7 +47,7 @@ const NewCookiePage: NextPage = () => {
   const fetchHosts = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/discovery/hosts');
+      const response = await fetch('/api/hosts');
       
       if (response.ok) {
         const result = await response.json();

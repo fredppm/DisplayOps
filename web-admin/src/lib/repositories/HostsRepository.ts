@@ -15,6 +15,13 @@ export interface Host {
     width: number;
     height: number;
     isPrimary: boolean;
+    assignedDashboard?: {
+      id: string;
+      url: string;
+      refreshInterval?: number;
+      lastNavigation?: string;
+      isResponsive?: boolean;
+    } | null;
   }>;
   systemInfo: {
     platform: string;

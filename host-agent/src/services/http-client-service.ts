@@ -148,7 +148,28 @@ export class HttpClientService extends EventEmitter {
 
   private async sendHeartbeat(): Promise<void> {
     try {
-      const displays = await this.displayIdentifier.getDisplayInfo();
+      // Get base display info from system
+      const baseDisplays = await this.displayIdentifier.getDisplayInfo();
+      const activeWindows = this.windowManager.getAllWindows();
+      
+      // Enrich displays with active dashboard information
+      const displays = baseDisplays.map(display => {
+        // Find window for this display
+        const activeWindow = activeWindows.find(w => w.config.displayId === display.id);
+        
+        return {
+          ...display,
+          assignedDashboard: activeWindow ? {
+            dashboardId: activeWindow.config.id,
+            url: activeWindow.config.url,
+            refreshInterval: activeWindow.config.refreshInterval,
+            lastNavigation: activeWindow.lastNavigation.toISOString(),
+            isResponsive: activeWindow.isResponsive
+          } : null,
+          isActive: !!activeWindow
+        };
+      });
+      
       const totalMemory = os.totalmem();
       const freeMemory = os.freemem();
       const usedMemory = totalMemory - freeMemory;

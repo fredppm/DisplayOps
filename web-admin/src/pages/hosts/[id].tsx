@@ -716,6 +716,26 @@ const HostDetailPage: NextPage = () => {
                       <p className="mt-1 text-sm text-gray-500 dark:text-gray-400 font-mono">
                         {display.width} × {display.height} • ID: {display.id}
                       </p>
+                      {/* Show active dashboard if any */}
+                      {display.assignedDashboard && (
+                        <div className="mt-2 p-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded">
+                          <p className="text-xs font-medium text-green-800 dark:text-green-200 flex items-center">
+                            <Play className="h-3 w-3 mr-1" />
+                            Active Dashboard
+                          </p>
+                          <p className="text-xs text-green-700 dark:text-green-300 mt-1 break-all">
+                            {display.assignedDashboard.url}
+                          </p>
+                          <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+                            Refresh: {Math.round((display.assignedDashboard.refreshInterval || 0) / 1000 / 60)} min
+                            {display.assignedDashboard.isResponsive !== undefined && (
+                              <span className={`ml-2 ${display.assignedDashboard.isResponsive ? 'text-green-600' : 'text-red-600'}`}>
+                                • {display.assignedDashboard.isResponsive ? 'Responsive' : 'Unresponsive'}
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
                   

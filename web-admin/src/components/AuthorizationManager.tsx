@@ -476,7 +476,7 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
 
       // Now sync cookies to all discovered hosts
       try {
-        const hostsResponse = await fetch('/api/discovery/hosts');
+        const hostsResponse = await fetch('/api/hosts');
         if (hostsResponse.ok) {
           const hostsData = await hostsResponse.json();
           if (hostsData.success && hostsData.data && hostsData.data.length > 0) {
@@ -699,20 +699,20 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
           {notifications.map((notification) => (
             <div
               key={notification.id}
-              className={`rounded-lg shadow-lg p-4 border-l-4 bg-white ${
-                notification.type === 'success' ? 'border-green-500' :
-                notification.type === 'error' ? 'border-red-500' :
-                notification.type === 'warning' ? 'border-yellow-500' :
-                'border-blue-500'
+              className={`rounded-lg shadow-lg p-4 border-l-4 ${
+                notification.type === 'success' ? 'bg-green-50 dark:bg-green-900/30 border-green-500 dark:border-green-400' :
+                notification.type === 'error' ? 'bg-red-50 dark:bg-red-900/30 border-red-500 dark:border-red-400' :
+                notification.type === 'warning' ? 'bg-yellow-50 dark:bg-yellow-900/30 border-yellow-500 dark:border-yellow-400' :
+                'bg-blue-50 dark:bg-blue-900/30 border-blue-500 dark:border-blue-400'
               }`}
             >
               <div className="flex items-start justify-between">
                 <div className="flex items-start space-x-3">
                   <div className={`mt-0.5 ${
-                    notification.type === 'success' ? 'text-green-500' :
-                    notification.type === 'error' ? 'text-red-500' :
-                    notification.type === 'warning' ? 'text-yellow-500' :
-                    'text-blue-500'
+                    notification.type === 'success' ? 'text-green-600 dark:text-green-400' :
+                    notification.type === 'error' ? 'text-red-600 dark:text-red-400' :
+                    notification.type === 'warning' ? 'text-yellow-600 dark:text-yellow-400' :
+                    'text-blue-600 dark:text-blue-400'
                   }`}>
                     {notification.type === 'success' && <CheckCircle className="w-5 h-5" />}
                     {notification.type === 'error' && <AlertCircle className="w-5 h-5" />}
@@ -720,17 +720,32 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
                     {notification.type === 'info' && <Info className="w-5 h-5" />}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                    <h4 className={`text-sm font-medium ${
+                      notification.type === 'success' ? 'text-green-900 dark:text-green-100' :
+                      notification.type === 'error' ? 'text-red-900 dark:text-red-100' :
+                      notification.type === 'warning' ? 'text-yellow-900 dark:text-yellow-100' :
+                      'text-blue-900 dark:text-blue-100'
+                    }`}>
                       {notification.title}
                     </h4>
-                    <p className="text-sm text-gray-600 mt-1">
+                    <p className={`text-sm mt-1 ${
+                      notification.type === 'success' ? 'text-green-700 dark:text-green-200' :
+                      notification.type === 'error' ? 'text-red-700 dark:text-red-200' :
+                      notification.type === 'warning' ? 'text-yellow-700 dark:text-yellow-200' :
+                      'text-blue-700 dark:text-blue-200'
+                    }`}>
                       {notification.message}
                     </p>
                   </div>
                 </div>
                 <button
                   onClick={() => removeNotification(notification.id)}
-                  className="text-gray-400 hover:text-gray-600 ml-2"
+                  className={`ml-2 ${
+                    notification.type === 'success' ? 'text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-300' :
+                    notification.type === 'error' ? 'text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300' :
+                    notification.type === 'warning' ? 'text-yellow-600 dark:text-yellow-400 hover:text-yellow-800 dark:hover:text-yellow-300' :
+                    'text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300'
+                  }`}
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -862,7 +877,7 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
                       {domain.lastSync && (
                         <span className="flex items-center">
                           <Calendar className="w-4 h-4 mr-1" />
-                          Last sync: {domain.lastSync.toLocaleDateString()}
+                          Last sync: {domain.lastSync.toLocaleString()}
                         </span>
                       )}
                     </>
