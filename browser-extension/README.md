@@ -31,7 +31,7 @@ Eliminates the need to manually extract cookies via DevTools, automating the ent
 The extension is distributed via GitHub Releases:
 
 1. **Go to**: https://github.com/fredppm/DisplayOps/releases
-2. **Find**: Tag `extension-v*` (e.g., `extension-v1.0`)
+2. **Find**: Tag `ext-v*` (e.g., `ext-v1.0`)
 3. **Download**: `displayops-extension-{version}.zip`
 4. **Extract** the ZIP file
 
@@ -284,26 +284,23 @@ For issues or suggestions:
 
 #### **Create a new release:**
 
-```powershell
-# Windows
-cd browser-extension
-.\release.ps1 1.0.1
-```
-
 ```bash
-# Linux/Mac
-cd browser-extension
-./release.sh 1.0.1
+# 1. Update manifest.json to the new version
+# 2. Commit the changes
+git add browser-extension/manifest.json
+git commit -m "chore: bump extension to 1.0.1"
+git push
+
+# 3. Create and push the tag
+git tag -a ext-v1.0.1 -m "Release 1.0.1"
+git push origin ext-v1.0.1
 ```
 
-The script will:
-1. ✅ Check that the version in `manifest.json` is correct
-2. ✅ Create tag `extension-v1.0.1` on Git
-3. ✅ Push the tag to GitHub
-4. 🚀 GitHub Actions automatically:
-   - Packages the extension
-   - Creates a release on GitHub
-   - Publishes the ZIP for download
+GitHub Actions will automatically:
+1. 📦 Package the extension
+2. 🔐 Generate SHA256 checksum
+3. 📝 Create release on GitHub
+4. ⬆️ Publish the ZIP for download
 
 #### **Update version in manifest.json:**
 
@@ -319,10 +316,10 @@ The script will:
 #### **GitHub Actions Workflow:**
 
 Located at `.github/workflows/release-extension.yml`:
-- Triggered by tags `extension-v*`
+- Triggered by tags `ext-v*`
 - Packages all files automatically
 - Generates SHA256 checksum
-- Creates release with changelog
+- Creates release on GitHub
 - Provides public download
 
 ---

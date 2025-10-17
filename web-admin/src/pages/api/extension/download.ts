@@ -48,9 +48,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
     const releases = await response.json();
 
-    // Find the latest extension release (tag starts with 'extension-v')
+    // Find the latest extension release (tag starts with 'ext-v')
     const extensionRelease = releases.find((release: any) => 
-      release.tag_name.startsWith('extension-v') && !release.prerelease
+      release.tag_name.startsWith('ext-v') && !release.prerelease
     );
 
     if (!extensionRelease) {

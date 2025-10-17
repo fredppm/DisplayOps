@@ -1,5 +1,8 @@
 name: Release Browser Extension
 
+permissions:
+  contents: write
+
 on:
   push:
     tags:
@@ -10,74 +13,68 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Get version from tag
-        id: get_version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/ext-v}" >> $GITHUB_OUTPUT
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/ext-v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag_name=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
 
       - name: Read manifest version
         id: manifest
         run: |
           MANIFEST_VERSION=$(grep -o '"version": "[^"]*"' browser-extension/manifest.json | grep -o '[0-9.]*')
-          echo "MANIFEST_VERSION=$MANIFEST_VERSION" >> $GITHUB_OUTPUT
+          echo "manifest_version=$MANIFEST_VERSION" >> $GITHUB_OUTPUT
 
       - name: Package extension
         run: |
           cd browser-extension
-          zip -r ../displayops-extension-${{ steps.get_version.outputs.VERSION }}.zip ./*
+          zip -r ../displayops-extension-${{ steps.version.outputs.version }}.zip ./*
           cd ..
           ls -lh displayops-extension-*.zip
 
       - name: Generate checksum
         run: |
-          sha256sum displayops-extension-${{ steps.get_version.outputs.VERSION }}.zip > displayops-extension-${{ steps.get_version.outputs.VERSION }}.zip.sha256
-          cat displayops-extension-${{ steps.get_version.outputs.VERSION }}.zip.sha256
+          sha256sum displayops-extension-${{ steps.version.outputs.version }}.zip > displayops-extension-${{ steps.version.outputs.version }}.zip.sha256
+          cat displayops-extension-${{ steps.version.outputs.version }}.zip.sha256
 
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
+      - name: Create Release with GitHub CLI
+        run: |
+          echo "Creating release for ${{ steps.version.outputs.tag_name }}..."
+          
+          # Create release
+          gh release create ${{ steps.version.outputs.tag_name }} \
+            --title "Browser Extension v${{ steps.version.outputs.version }}" \
+            --notes "## DisplayOps Browser Extension v${{ steps.version.outputs.version }}
+          
+          ### Installation
+          1. Download \`displayops-extension-${{ steps.version.outputs.version }}.zip\`
+          2. Unzip the file
+          3. Open Chrome/Edge and go to \`chrome://extensions\`
+          4. Enable \"Developer mode\"
+          5. Click \"Load unpacked\" and select the unzipped folder
+          
+          ### Info
+          - Manifest version: ${{ steps.manifest.outputs.manifest_version }}
+          
+          ### Checksums
+          See attached \`.sha256\` file for verification" || echo "Release might already exist"
+          
+          # Upload artifacts
+          gh release upload ${{ steps.version.outputs.tag_name }} \
+            displayops-extension-${{ steps.version.outputs.version }}.zip \
+            displayops-extension-${{ steps.version.outputs.version }}.zip.sha256 \
+            --clobber
+          
+          echo "✅ Release created successfully!"
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref_name }}
-          release_name: Browser Extension v${{ steps.get_version.outputs.VERSION }}
-          body: |
-            ## DisplayOps Browser Extension v${{ steps.get_version.outputs.VERSION }}
-            
-            ### Installation
-            1. Download `displayops-extension-${{ steps.get_version.outputs.VERSION }}.zip`
-            2. Unzip the file
-            3. Open Chrome/Edge and go to `chrome://extensions`
-            4. Enable "Developer mode"
-            5. Click "Load unpacked" and select the unzipped folder
-            
-            ### Changes
-            - Manifest version: ${{ steps.manifest.outputs.MANIFEST_VERSION }}
-            
-            ### Checksums
-            See attached `.sha256` file for verification
-          draft: false
-          prerelease: false
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload Extension ZIP
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./displayops-extension-${{ steps.get_version.outputs.VERSION }}.zip
-          asset_name: displayops-extension-${{ steps.get_version.outputs.VERSION }}.zip
-          asset_content_type: application/zip
-
-      - name: Upload Checksum
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./displayops-extension-${{ steps.get_version.outputs.VERSION }}.zip.sha256
-          asset_name: displayops-extension-${{ steps.get_version.outputs.VERSION }}.zip.sha256
-          asset_content_type: text/plain
+      - name: Release completed
+        run: |
+          echo "Browser Extension release created successfully!"
+          echo "Download at: https://github.com/${{ github.repository }}/releases/tag/${{ steps.version.outputs.tag_name }}"
 
