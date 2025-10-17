@@ -9,18 +9,38 @@ const clients = new Set<NextApiResponse>();
 // Function to broadcast events to all connected clients
 export function broadcastHostEvent(event: { type: string; host?: any; hostId?: string }) {
   const data = JSON.stringify(event);
-  logger.debug('Broadcasting host event to clients', { 
-    type: event.type, 
-    clientCount: clients.size 
+  
+  logger.info('📣 Broadcasting SSE event', { 
+    type: event.type,
+    hostId: event.host?.id || event.hostId,
+    clientCount: clients.size,
+    hasDisplays: event.host?.displays?.length || 0
   });
+  
+  if (clients.size === 0) {
+    logger.warn('⚠️ No SSE clients connected to receive broadcast');
+    return;
+  }
+  
+  let successCount = 0;
+  let errorCount = 0;
   
   clients.forEach((client) => {
     try {
       client.write(`data: ${data}\n\n`);
+      successCount++;
     } catch (error) {
-      logger.error('Error sending SSE to client:', error);
+      logger.error('❌ Error sending SSE to client:', error);
       clients.delete(client);
+      errorCount++;
     }
+  });
+  
+  logger.info('✅ SSE broadcast complete', { 
+    type: event.type,
+    successCount,
+    errorCount,
+    remainingClients: clients.size
   });
 }
 

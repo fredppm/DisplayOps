@@ -4,7 +4,7 @@ import Link from 'next/link';
 import Layout from '@/components/Layout';
 import { useToastContext } from '@/contexts/ToastContext';
 import { usePendingToasts } from '@/hooks/usePendingToasts';
-import { CheckCircle, XCircle, AlertCircle, Monitor, Cpu, HardDrive, RefreshCw } from 'lucide-react';
+import { CheckCircle, XCircle, AlertCircle, Monitor, Cpu, HardDrive, RefreshCw, Clock } from 'lucide-react';
 
 interface Host {
   id: string;
@@ -27,7 +27,10 @@ interface Host {
     totalMemoryGB: number;
     cpuCores: number;
     cpuModel: string;
-    uptime: number;
+    systemUptimeSeconds?: number;
+    processUptimeSeconds?: number;
+    systemUptimeFormatted?: string;
+    processUptimeFormatted?: string;
   };
   version: string;
   status: 'online' | 'offline';
@@ -352,6 +355,12 @@ const HostsPage: NextPage = () => {
                               <Monitor className="h-4 w-4 mr-1" />
                               {host.displays?.length || 0} displays
                             </div>
+                            {host.systemInfo?.processUptimeFormatted && (
+                              <div className="flex items-center">
+                                <Clock className="h-4 w-4 mr-1" />
+                                {host.systemInfo.processUptimeFormatted}
+                              </div>
+                            )}
                             <div className="flex items-center">
                               <Cpu className="h-4 w-4 mr-1" />
                               {host.systemInfo?.cpuCores || 0} cores

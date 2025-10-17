@@ -2,6 +2,7 @@ import { NextApiRequest } from 'next';
 import { NextApiResponseServerIO } from '@/types/socket';
 import { Server as SocketIOServer } from 'socket.io';
 import { createContextLogger } from '@/utils/logger';
+import { socketHostManager } from '@/lib/socket-host-manager';
 
 const wsLogger = createContextLogger('websocket-api');
 
@@ -25,7 +26,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponseS
     // Attach to response
     res.socket.server.io = io;
     
-    wsLogger.info('Socket.IO server initialized (legacy WebSocket functionality disabled)');
+    // Initialize host manager
+    socketHostManager.initialize(io);
+    
+    wsLogger.info('✅ Socket.IO server initialized with host manager');
   } else {
     wsLogger.debug('Socket.IO server already initialized');
   }

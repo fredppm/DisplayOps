@@ -35,7 +35,10 @@ interface Host {
     totalMemoryGB: number;
     cpuCores: number;
     cpuModel: string;
-    uptime: number;
+    systemUptimeSeconds?: number;
+    processUptimeSeconds?: number;
+    systemUptimeFormatted?: string;
+    processUptimeFormatted?: string;
   };
   metrics?: {
     cpuUsagePercent: number;
@@ -110,15 +113,21 @@ const HostDetailPage: NextPage = () => {
     eventSource.onmessage = (event) => {
       try {
         const eventData = JSON.parse(event.data);
-        console.log('[SSE] Event received:', eventData);
+        console.log('🔔 [SSE] Event received:', {
+          type: eventData.type,
+          hostId: eventData.host?.id,
+          currentId: id,
+          match: eventData.host?.id === id,
+          displays: eventData.host?.displays?.length
+        });
         
         // Only update if event is for this host
         if (eventData.host && eventData.host.id === id) {
-          console.log('[SSE] Event matches current host, updating');
+          console.log('✅ [SSE] Event matches! Updating state');
           switch (eventData.type) {
             case 'host_updated':
               setHost(eventData.host);
-              console.log('[SSE] Host updated with displays:', eventData.host.displays);
+              console.log('✅ [SSE] Host state updated with', eventData.host.displays?.length, 'displays');
               break;
             case 'host_disconnected':
               if (host) {
@@ -126,9 +135,11 @@ const HostDetailPage: NextPage = () => {
               }
               break;
           }
+        } else {
+          console.log('⏭️ [SSE] Event for different host, ignoring');
         }
       } catch (err) {
-        console.error('Error parsing SSE event:', err);
+        console.error('❌ [SSE] Error parsing:', err);
       }
     };
 
@@ -248,21 +259,15 @@ const HostDetailPage: NextPage = () => {
             break;
           case 'OPEN_DASHBOARD':
             toast.success('Dashboard Opened', 'Dashboard has been opened on the selected display');
-            // Refresh host data to update display state
-            setTimeout(() => fetchHost(), 1500);
             break;
           case 'REFRESH_DASHBOARD':
             toast.success('Dashboard Refreshed', 'Dashboard has been successfully reloaded');
             break;
           case 'RESTART_DASHBOARD':
             toast.success('Dashboard Restarted', 'Dashboard has been successfully restarted');
-            // Refresh host data to update display state
-            setTimeout(() => fetchHost(), 1500);
             break;
           case 'REMOVE_DASHBOARD':
             toast.success('Dashboard Removed', 'Dashboard has been closed and removed from the display');
-            // Refresh host data to update display state
-            setTimeout(() => fetchHost(), 1500);
             break;
           case 'TAKE_SCREENSHOT':
             console.log('[Screenshot] Full response:', data);
@@ -349,19 +354,6 @@ const HostDetailPage: NextPage = () => {
     setShowOpenDashboardModal(false);
     setSelectedDashboard(null);
     setSelectedDisplayId(null);
-  };
-
-  const formatUptime = (uptimeSeconds: number): string => {
-    const days = Math.floor(uptimeSeconds / 86400);
-    const hours = Math.floor((uptimeSeconds % 86400) / 3600);
-    const minutes = Math.floor((uptimeSeconds % 3600) / 60);
-    
-    const parts: string[] = [];
-    if (days > 0) parts.push(`${days}d`);
-    if (hours > 0) parts.push(`${hours}h`);
-    if (minutes > 0 || parts.length === 0) parts.push(`${minutes}m`);
-    
-    return parts.join(' ');
   };
 
   const getTimeSinceLastSeen = (lastSeen: string): string => {
@@ -547,7 +539,7 @@ const HostDetailPage: NextPage = () => {
                   {/* Show uptime when online, last seen when offline */}
                   {host.status === 'online' ? (
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      {formatUptime(host.systemInfo.uptime)}
+                      Uptime: {host.systemInfo.processUptimeFormatted || 'Unknown'}
                     </p>
                   ) : (
                     <div className="mt-1">
@@ -654,7 +646,11 @@ const HostDetailPage: NextPage = () => {
             </h3>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <button
-                onClick={() => sendCommand('IDENTIFY_DISPLAYS')}
+                onClick={() => sendCommand('IDENTIFY_DISPLAYS', {
+                  duration: 5,
+                  fontSize: 200,
+                  backgroundColor: 'rgba(0, 180, 255, 0.95)'
+                })}
                 disabled={sendingCommand}
                 className="inline-flex items-center justify-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >

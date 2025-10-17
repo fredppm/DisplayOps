@@ -4,11 +4,12 @@ import Layout from '@/components/Layout';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import Link from 'next/link';
 import { MiniPC } from '@/types/shared-types';
-import { Plus } from 'lucide-react';
+import { Plus, Download } from 'lucide-react';
 
 export default function CookiesPage() {
   const [hosts, setHosts] = useState<MiniPC[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isDownloading, setIsDownloading] = useState(false);
   const hasInitializedRef = useRef(false);
 
   useEffect(() => {
@@ -36,6 +37,36 @@ export default function CookiesPage() {
     }
   };
 
+  const handleDownloadExtension = async () => {
+    try {
+      setIsDownloading(true);
+      
+      const response = await fetch('/api/extension/download', {
+        method: 'GET',
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to download extension');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'displayops-extension.zip';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error: any) {
+      console.error('Download error:', error);
+      alert('Failed to download extension: ' + (error.message || 'Unknown error'));
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   return (
     <ProtectedRoute>
       <Layout>
@@ -56,14 +87,22 @@ export default function CookiesPage() {
                   Import and manage authentication cookies for automatic login on display devices
                 </p>
               </div>
-              <div className="ml-6 flex flex-shrink-0">
+              <div className="ml-6 flex flex-shrink-0 space-x-3">
                 <Link
                   href="/cookies/new"
-                  className="inline-flex items-center rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 transition-colors"
+                  className="inline-flex items-center rounded-md bg-white dark:bg-gray-800 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                 >
                   <Plus className="-ml-0.5 mr-1.5 h-4 w-4" />
                   Import Cookies
                 </Link>
+                <button
+                  onClick={handleDownloadExtension}
+                  disabled={isDownloading}
+                  className="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Download className="-ml-0.5 mr-1.5 h-5 w-5" />
+                  {isDownloading ? 'Downloading...' : 'Download Extension'}
+                </button>
               </div>
             </div>
           </div>
@@ -74,4 +113,5 @@ export default function CookiesPage() {
     </ProtectedRoute>
   );
 }
+
 

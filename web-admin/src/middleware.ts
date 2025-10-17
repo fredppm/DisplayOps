@@ -23,11 +23,10 @@ const ADMIN_ROUTES = [
 const PUBLIC_ROUTES = [
   '/login',
   '/api/auth/login',
-  '/api/auth/logout', 
+  '/api/auth/logout',
   '/api/auth/me',
-  '/api/hosts/register',  // Host agents need to register without auth
-  '/api/hosts/heartbeat', // Host agents need to send heartbeats without auth
-  '/api/hosts/events'     // SSE endpoint for real-time updates
+  '/api/hosts/events',       // SSE endpoint for real-time updates
+  '/api/hosts/connections'   // Debug endpoint to check socket connections
 ];
 
 export function middleware(request: NextRequest) {

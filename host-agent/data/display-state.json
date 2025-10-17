@@ -1,14 +1,7 @@
 {
   "version": "1.0.0",
-  "lastUpdated": "2025-10-15T11:57:49.214Z",
+  "lastUpdated": "2025-10-16T18:44:37.719Z",
   "displays": {
-    "display-1": {
-      "displayId": "display-1",
-      "isActive": false,
-      "lastRefresh": "2025-10-15T11:57:49.174Z",
-      "isResponsive": true,
-      "windowId": "dashboard_display-1_1760478179145"
-    },
     "display-3": {
       "displayId": "display-3",
       "isActive": false,

@@ -8,15 +8,12 @@ import {
   AlertCircle, 
   ExternalLink,
   RefreshCw,
-  Upload,
   Download,
   Eye,
   EyeOff,
   X,
   CheckCircle,
   Info,
-  Edit,
-  Plus,
   Shield,
   ShieldCheck,
   Lock,
@@ -27,247 +24,6 @@ interface AuthorizationManagerProps {
   hosts: MiniPC[];
   hideHeader?: boolean;
 }
-
-// Import Form Component
-const ImportForm: React.FC<{
-  domain: string;
-  onSuccess: () => void;
-  onCancel: () => void;
-}> = ({ domain, onSuccess, onCancel }) => {
-  const [importData, setImportData] = useState('');
-  const [isImporting, setIsImporting] = useState(false);
-
-  const handleImport = async (replaceAll: boolean) => {
-    if (!importData.trim()) return;
-    if (!domain || domain.trim() === '') {
-      console.error('Domain is empty, cannot import cookies');
-      return;
-    }
-
-    setIsImporting(true);
-    try {
-      const response = await fetch('/api/cookies/import-devtools', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          domain: domain,
-          cookies: importData.trim(),
-          replaceAll: replaceAll,
-          timestamp: new Date()
-        })
-      });
-
-      const result = await response.json();
-      if (result.success) {
-        onSuccess(); // This will trigger loadSavedCookieData in the parent
-      }
-    } catch (error) {
-      console.error('Import failed:', error);
-    } finally {
-      setIsImporting(false);
-    }
-  };
-
-  return (
-    <div className="space-y-4">
-      <textarea
-        value={importData}
-        onChange={(e) => setImportData(e.target.value)}
-        placeholder="Paste DevTools cookie table data here..."
-        className="w-full h-40 p-3 border rounded-lg font-mono text-sm"
-      />
-      
-      <div className="flex justify-end space-x-3">
-        <button onClick={onCancel} className="px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 dark:text-gray-300 rounded flex items-center transition-colors">
-          Cancel
-        </button>
-        <button 
-          onClick={() => handleImport(false)}
-          disabled={!importData.trim() || !domain || domain.trim() === '' || isImporting}
-          className="px-3 py-1.5 text-xs bg-green-600 hover:bg-green-700 text-white rounded flex items-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {isImporting ? 'Adding...' : 'Add/Merge'}
-        </button>
-        <button 
-          onClick={() => handleImport(true)}
-          disabled={!importData.trim() || !domain || domain.trim() === '' || isImporting}
-          className="px-3 py-1.5 text-xs bg-red-600 hover:bg-red-700 text-white rounded flex items-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {isImporting ? 'Replacing...' : 'Replace All'}
-        </button>
-      </div>
-    </div>
-  );
-};
-
-// Cookie Form Component
-const CookieForm: React.FC<{
-  domain: string;
-  cookie?: any;
-  onSuccess: () => void;
-  onCancel: () => void;
-}> = ({ domain, cookie, onSuccess, onCancel }) => {
-  const [formData, setFormData] = useState({
-    name: cookie?.name || '',
-    value: cookie?.value || '',
-    domain: cookie?.domain || domain, // Pre-fill with the domain from context
-    path: cookie?.path || '/',
-    secure: cookie?.secure || false,
-    httpOnly: cookie?.httpOnly || false,
-    sameSite: cookie?.sameSite || 'Lax',
-    expirationDate: cookie?.expirationDate || ''
-  });
-
-  const [isSaving, setIsSaving] = useState(false);
-
-  const handleSave = async () => {
-    if (!formData.name || !formData.value) return;
-
-    setIsSaving(true);
-    try {
-      // Use dedicated add cookie API instead of import
-      const cookieData = {
-        name: formData.name,
-        value: formData.value,
-        domain: formData.domain,
-        path: formData.path,
-        secure: formData.secure,
-        httpOnly: formData.httpOnly,
-        sameSite: formData.sameSite,
-        expirationDate: formData.expirationDate ? parseInt(formData.expirationDate) : undefined
-      };
-
-      const response = await fetch('/api/cookies/add', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          domain: domain,
-          cookie: cookieData
-        })
-      });
-
-      const result = await response.json();
-      if (result.success) {
-        onSuccess();
-      } else {
-        console.error('Save failed:', result.error);
-      }
-    } catch (error) {
-      console.error('Save failed:', error);
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name *</label>
-          <input
-            type="text"
-            value={formData.name}
-            onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-            className="w-full p-2 border rounded font-mono"
-            placeholder="cookie_name"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Value *</label>
-          <input
-            type="text"
-            value={formData.value}
-            onChange={(e) => setFormData(prev => ({ ...prev, value: e.target.value }))}
-            className="w-full p-2 border rounded font-mono"
-            placeholder="cookie_value"
-          />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Domain</label>
-          <input
-            type="text"
-            value={formData.domain}
-            onChange={(e) => setFormData(prev => ({ ...prev, domain: e.target.value }))}
-            className="w-full p-2 border rounded font-mono"
-            placeholder=".example.com"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Path</label>
-          <input
-            type="text"
-            value={formData.path}
-            onChange={(e) => setFormData(prev => ({ ...prev, path: e.target.value }))}
-            className="w-full p-2 border rounded font-mono"
-            placeholder="/"
-          />
-        </div>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">SameSite</label>
-        <select
-          value={formData.sameSite}
-          onChange={(e) => setFormData(prev => ({ ...prev, sameSite: e.target.value }))}
-          className="w-full p-2 border rounded"
-        >
-          <option value="Lax">Lax (recommended)</option>
-          <option value="Strict">Strict</option>
-          <option value="None">None (requires Secure)</option>
-        </select>
-      </div>
-
-      <div className="space-y-3">
-        <label className="flex items-center p-2 border rounded hover:bg-gray-50">
-          <input
-            type="checkbox"
-            checked={formData.secure}
-            onChange={(e) => setFormData(prev => ({ ...prev, secure: e.target.checked }))}
-            className="mr-3"
-          />
-          <div>
-            <div className="font-medium text-gray-900 dark:text-gray-100 flex items-center">
-              <Lock className="w-4 h-4 mr-2 text-green-600" />
-              Secure Cookie
-            </div>
-            <div className="text-xs text-gray-600">Only sent over HTTPS connections</div>
-          </div>
-        </label>
-        <label className="flex items-center p-2 border rounded hover:bg-gray-50">
-          <input
-            type="checkbox"
-            checked={formData.httpOnly}
-            onChange={(e) => setFormData(prev => ({ ...prev, httpOnly: e.target.checked }))}
-            className="mr-3"
-          />
-          <div>
-            <div className="font-medium text-gray-900 dark:text-gray-100 flex items-center">
-              <Shield className="w-4 h-4 mr-2 text-blue-600" />
-              HttpOnly Cookie
-            </div>
-            <div className="text-xs text-gray-600">Not accessible via JavaScript (XSS protection)</div>
-          </div>
-        </label>
-      </div>
-
-      <div className="flex justify-end space-x-3 pt-4 border-t">
-        <button onClick={onCancel} className="px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 dark:text-gray-300 rounded flex items-center transition-colors">
-          Cancel
-        </button>
-        <button 
-          onClick={handleSave}
-          disabled={!formData.name || !formData.value || isSaving}
-          className="px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded flex items-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {isSaving ? 'Saving...' : (cookie ? 'Update Cookie' : 'Add Cookie')}
-        </button>
-      </div>
-    </div>
-  );
-};
 
 interface AuthDomain {
   id: string;
@@ -297,10 +53,6 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
   const [selectedDomain, setSelectedDomain] = useState<string | null>(null);
   
   // Modal states
-  const [showImportModal, setShowImportModal] = useState(false);
-  const [showCookieModal, setShowCookieModal] = useState(false);
-  const [editingCookie, setEditingCookie] = useState<any>(null);
-  const [currentDomainId, setCurrentDomainId] = useState<string>('');
   const [showRemoveConfirm, setShowRemoveConfirm] = useState<string>('');
   const [removingDomains, setRemovingDomains] = useState<Set<string>>(new Set());
   const [deletingCookies, setDeletingCookies] = useState<Set<string>>(new Set());
@@ -901,27 +653,6 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
   };
 
   // Helper to get domain from domainId
-  const getDomainFromId = (domainId: string): string => {
-    const domain = authDomains.find(d => d.id === domainId);
-    return domain?.domain || '';
-  };
-
-  // Open import modal for DevTools table format
-  const openImportModal = (domainId: string) => {
-    const domainObj = authDomains.find(d => d.id === domainId);
-    setCurrentDomainId(domainId);
-    setShowImportModal(true);
-    // Cookies will be loaded automatically from storage
-  };
-
-  // Open cookie creation/editing modal
-  const openAddCookieModal = (domainId: string, cookie?: any) => {
-    setCurrentDomainId(domainId);
-    setEditingCookie(cookie || null);
-    setShowCookieModal(true);
-    // Cookies will be loaded automatically from storage
-  };
-
   // Delete a specific cookie
   const deleteCookie = async (domainId: string, cookieName: string) => {
     const domain = authDomains.find(d => d.id === domainId);
@@ -931,8 +662,8 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
     setDeletingCookies(prev => new Set([...prev, cookieKey]));
 
     try {
-      const response = await fetch('/api/cookies/remove', {
-        method: 'POST',
+      const response = await fetch('/api/cookies/domain', {
+        method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           domain: domain.domain,
@@ -1031,7 +762,7 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
                   href="/cookies/new"
                   className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
                 >
-                  <Plus className="w-4 h-4 mr-1.5" />
+                  <Download className="w-4 h-4 mr-1.5" />
                   Import Cookies
                 </Link>
               </div>
@@ -1151,12 +882,12 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
                     syncToAllDisplays(domain.id);
                   }}
                   className="inline-flex items-center px-2 py-1 text-xs font-medium text-white bg-indigo-600 border border-transparent rounded hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                  disabled={storedCookies.length === 0 || hosts.filter(h => h.metrics.online).length === 0 || syncingDomains.has(domain.id)}
+                  disabled={storedCookies.length === 0 || syncingDomains.has(domain.id)}
                 >
                   {syncingDomains.has(domain.id) ? (
-                    <RefreshCw className="w-3 h-3 mr-1" />
+                    <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
                   ) : (
-                    <Upload className="w-3 h-3 mr-1" />
+                    <CheckCircle className="w-3 h-3 mr-1" />
                   )}
                   Sync to All
                 </button>
@@ -1166,7 +897,7 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
                     e.stopPropagation();
                     confirmRemoveDomain(domain.id);
                   }}
-                  className="inline-flex items-center px-2 py-1 text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded hover:bg-red-100 dark:hover:bg-red-900/30 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="inline-flex items-center px-2 py-1 text-xs font-medium text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-900/40 border border-red-300 dark:border-red-600 rounded hover:bg-red-100 dark:hover:bg-red-900/60 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
                   disabled={removingDomains.has(domain.id)}
                   title="Remove domain"
                 >
@@ -1186,34 +917,10 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
                 {/* Stored Cookies Display */}
                 {getStoredCookiesForDomain(domain.id).length > 0 && (
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100 flex items-center">
-                      <Cookie className="w-4 h-4 mr-2 text-indigo-600" />
-                      Stored Cookies ({getStoredCookiesForDomain(domain.id).length})
-                    </h4>
-                    <div className="flex items-center space-x-2">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openImportModal(domain.id);
-                        }}
-                        className="inline-flex items-center px-2 py-1 text-xs font-medium text-gray-700 dark:text-gray-300 bg-gray-100 border border-gray-300 rounded hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                      >
-                        <Upload className="w-3 h-3 mr-1" />
-                        Import
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openAddCookieModal(domain.id);
-                        }}
-                        className="inline-flex items-center px-2 py-1 text-xs font-medium text-gray-700 dark:text-gray-300 bg-gray-100 border border-gray-300 rounded hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                      >
-                        <Plus className="w-3 h-3 mr-1" />
-                        Add
-                      </button>
-                    </div>
-                  </div>
+                  <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100 flex items-center mb-3">
+                    <Cookie className="w-4 h-4 mr-2 text-indigo-600" />
+                    Stored Cookies ({getStoredCookiesForDomain(domain.id).length})
+                  </h4>
                   
                   <div className="space-y-3 max-h-64 overflow-y-auto">
                     {getStoredCookiesForDomain(domain.id).map((cookie, index) => (
@@ -1232,57 +939,51 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
                             
                             {/* Cookie Attributes */}
                             <div className="flex flex-wrap items-center gap-2">
-                              <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-800">
+                              <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300">
                                 Path: {cookie.path || '/'}
                               </span>
                               
                               {cookie.secure && (
-                                <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-green-100 text-green-800">
+                                <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300">
                                   <Lock className="w-3 h-3 mr-1" />
                                   Secure
                                 </span>
                               )}
                               
                               {cookie.httpOnly && (
-                                <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-blue-100 text-blue-800">
+                                <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300">
                                   <Shield className="w-3 h-3 mr-1" />
                                   HttpOnly
                                 </span>
                               )}
                               
                               {cookie.sameSite && (
-                                <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-purple-100 text-purple-800">
+                                <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300">
                                   SameSite: {cookie.sameSite}
                                 </span>
                               )}
                               
-                              {cookie.expirationDate && (
-                                <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-yellow-100 text-yellow-800">
+                              {cookie.expirationDate && cookie.expirationDate !== 0 ? (
+                                <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200">
                                   <Calendar className="w-3 h-3 mr-1" />
                                   {new Date(cookie.expirationDate * 1000).toLocaleDateString()}
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
+                                  Session
                                 </span>
                               )}
                             </div>
                           </div>
                           
                           {/* Cookie Actions */}
-                          <div className="flex items-center space-x-2 ml-4">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                openAddCookieModal(domain.id, cookie);
-                              }}
-                              className="inline-flex items-center p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors"
-                              title="Edit cookie"
-                            >
-                              <Edit className="w-4 h-4" />
-                            </button>
+                          <div className="flex items-center ml-4">
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
                                 deleteCookie(domain.id, cookie.name);
                               }}
-                              className="inline-flex items-center p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              className="inline-flex items-center p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                               disabled={deletingCookies.has(`${domain.id}-${cookie.name}`)}
                               title="Delete cookie"
                             >
@@ -1302,40 +1003,10 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
 
               {/* Empty State */}
               {getStoredCookiesForDomain(domain.id).length === 0 && (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100 flex items-center">
-                      <Cookie className="w-4 h-4 mr-2 text-indigo-600" />
-                      Stored Cookies (0)
-                    </h4>
-                    <div className="flex items-center space-x-2">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openImportModal(domain.id);
-                        }}
-                        className="inline-flex items-center px-2 py-1 text-xs font-medium text-gray-700 dark:text-gray-300 bg-gray-100 border border-gray-300 rounded hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                      >
-                        <Upload className="w-3 h-3 mr-1" />
-                        Import
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openAddCookieModal(domain.id);
-                        }}
-                        className="inline-flex items-center px-2 py-1 text-xs font-medium text-gray-700 dark:text-gray-300 bg-gray-100 border border-gray-300 rounded hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                      >
-                        <Plus className="w-3 h-3 mr-1" />
-                        Add
-                      </button>
-                    </div>
-                  </div>
-                  <div className="bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
-                    <Cookie className="w-10 h-10 text-gray-400 mx-auto mb-3" />
-                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-1">No cookies imported yet</p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Import cookies from DevTools or add them manually using the buttons above</p>
-                  </div>
+                <div className="bg-gray-50 dark:bg-gray-800/50 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-8 text-center">
+                  <Cookie className="w-10 h-10 text-gray-400 dark:text-gray-500 mx-auto mb-3" />
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-1">No cookies imported yet</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Use "Import Cookies" or "Download Extension" buttons at the top to get started</p>
                 </div>
               )}
               </div>
@@ -1347,85 +1018,24 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
         </div>
       </div>
 
-
-      {/* Import Modal */}
-      {showImportModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" style={{margin: 0, top: 0}}>
-          <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <h3 className="text-lg font-semibold mb-2 text-gray-600">Import from DevTools</h3>
-            <div className="mb-4 p-2 bg-blue-50 border border-blue-200 rounded text-sm">
-              <strong>Domain:</strong> {getDomainFromId(currentDomainId) || 'No domain selected'}
-            </div>
-            
-            <details className="mb-4">
-              <summary className="text-sm text-gray-600 cursor-pointer hover:text-gray-800">📋 Show instructions</summary>
-              <div className="mt-2 p-3 bg-gray-50 border border-gray-200 rounded text-sm">
-                <ol className="text-gray-700 dark:text-gray-300 space-y-1">
-                  <li><strong>1.</strong> Open DevTools (F12) → <strong>Application</strong> tab</li>
-                  <li><strong>2.</strong> Click <strong>Cookies</strong> in sidebar → Select your domain</li>
-                  <li><strong>3.</strong> Select all cookies (<code>Ctrl+A</code>) → Copy (<code>Ctrl+C</code>)</li>
-                  <li><strong>4.</strong> Paste the table data below</li>
-                </ol>
-              </div>
-            </details>
-
-            <ImportForm 
-              domain={getDomainFromId(currentDomainId)}
-              onSuccess={() => {
-                setShowImportModal(false);
-                // Reload data to show imported cookies
-                loadSavedCookieData(true);
-              }}
-              onCancel={() => setShowImportModal(false)}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Cookie Form Modal */}
-      {showCookieModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" style={{margin: 0, top: 0}}>
-          <div className="bg-white rounded-lg p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <h3 className="text-lg font-semibold mb-4">
-              {editingCookie ? 'Edit Cookie' : 'Add New Cookie'}
-            </h3>
-            
-            <CookieForm 
-              domain={getDomainFromId(currentDomainId)}
-              cookie={editingCookie}
-              onSuccess={() => {
-                setShowCookieModal(false);
-                setEditingCookie(null);
-                // Reload data to show updated cookies
-                loadSavedCookieData(true);
-              }}
-              onCancel={() => {
-                setShowCookieModal(false);
-                setEditingCookie(null);
-              }}
-            />
-          </div>
-        </div>
-      )}
-
       {/* Remove Domain Confirmation Modal */}
       {showRemoveConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" style={{margin: 0, top: 0}}>
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-lg font-semibold mb-4 text-red-600">⚠️ Remove Domain</h3>
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold mb-4 text-red-600 dark:text-red-400">⚠️ Remove Domain</h3>
             
             <p className="text-gray-700 dark:text-gray-300 mb-4">
               Are you sure you want to remove <strong>{authDomains.find(d => d.id === showRemoveConfirm)?.domain}</strong>?
             </p>
             
-            <p className="text-sm text-gray-600 mb-6">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
               This will permanently delete all stored cookies for this domain. This action cannot be undone.
             </p>
             
             <div className="flex justify-end space-x-3">
               <button 
                 onClick={() => setShowRemoveConfirm('')}
-                className="px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 dark:text-gray-300 rounded flex items-center transition-colors"
+                className="px-3 py-1.5 text-xs bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded flex items-center transition-colors"
               >
                 Cancel
               </button>

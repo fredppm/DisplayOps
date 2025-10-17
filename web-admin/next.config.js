@@ -22,7 +22,7 @@ const nextConfig = {
       },
     ];
   },
-  webpack: (config, { isServer, dev }) => {
+  webpack: (config, { isServer }) => {
     // Removed bonjour-service dependency
     if (!isServer) {
       config.resolve.fallback = {
@@ -33,52 +33,6 @@ const nextConfig = {
         fs: false,
         dgram: false,
       };
-    }
-    
-    // Copy proto files to output directory for serverless environments
-    if (isServer) {
-      const CopyPlugin = require('copy-webpack-plugin');
-      
-      if (!config.plugins) config.plugins = [];
-      
-      config.plugins.push(
-        new CopyPlugin({
-          patterns: [
-            {
-              from: 'proto/**/*.proto',
-              to: '.', // Copies to .next/server/proto/
-              context: '.', // Relative to project root
-            },
-          ],
-        })
-      );
-    }
-    
-    // Enhanced HMR configuration for better gRPC server management
-    if (dev && isServer) {
-      // Ensure proper cleanup of gRPC server during HMR
-      config.optimization = {
-        ...config.optimization,
-        removeAvailableModules: false,
-        removeEmptyChunks: false,
-        splitChunks: false,
-      };
-      
-      // Add plugin to handle gRPC cleanup
-      config.plugins.push({
-        apply: (compiler) => {
-          compiler.hooks.watchRun.tap('GrpcCleanupPlugin', () => {
-            // Signal that a rebuild is starting
-            if (global.__grpcServerSingletonInstance) {
-              try {
-                global.__grpcServerSingletonInstance.forceStop();
-              } catch (error) {
-                console.warn('Failed to cleanup gRPC server during HMR:', error);
-              }
-            }
-          });
-        }
-      });
     }
     
     return config;

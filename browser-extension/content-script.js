@@ -11,17 +11,42 @@
   let loginCheckTimeout = null;
   let extensionContextValid = true;
   
-  // Dashboard detection patterns
+  // Dashboard detection patterns (MUST match background.js exactly)
   const DASHBOARD_PATTERNS = [
-    /grafana\./i,
-    /tableau\./i,
-    /healthmonitor\./i,
-    /dashboard\./i,
-    /monitoring\./i,
-    /metrics\./i,
-    /kibana\./i,
-    /sentry\./i,
-    /datadog\./i
+    // Production dashboard services (domain patterns)
+    /grafana/i,
+    /tableau/i,
+    /healthmonitor/i,
+    /kibana/i,
+    /sentry/i,
+    /datadog/i,
+    /elastic/i,
+    /newrelic/i,
+    /splunk/i,
+    /prometheus/i,
+    /observability/i,
+    /analytics/i,
+    
+    // Generic dashboard/monitoring keywords
+    /dashboard/i,
+    /monitoring/i,
+    /metrics/i,
+    
+    // Local development and testing
+    /localhost/i,
+    /127\.0\.0\.1/i,
+    /0\.0\.0\.0/i,
+    /\[::1\]/i,
+    
+    // Common URL path patterns
+    /\/dashboard/i,
+    /\/monitoring/i,
+    /\/metrics/i,
+    /\/grafana/i,
+    
+    // Domain suffixes
+    /\.local/i,
+    /\.vtex\.com/i
   ];
   
   // Login success indicators

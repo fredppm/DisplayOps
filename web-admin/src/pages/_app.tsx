@@ -12,6 +12,12 @@ const inter = Inter({ subsets: ['latin'] });
 // WebSocket server will be initialized on-demand via middleware in API routes
 
 export default function App({ Component, pageProps }: AppProps) {
+  // Initialize Socket.IO server on app startup
+  useEffect(() => {
+    fetch('/api/websocket', { method: 'POST' }).catch(() => {
+      // Ignore errors - Socket.IO might already be initialized
+    });
+  }, []);
 
   return (
     <ThemeProvider>

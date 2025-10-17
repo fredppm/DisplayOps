@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { createContextLogger} from '@/utils/logger';
 import { hostsRepository } from '@/lib/repositories/HostsRepository';
-import { GrpcHostClient } from '@/lib/grpc-host-client';
+import { socketHostManager } from '@/lib/socket-host-manager';
 
 const hostLoggerEndpoint = createContextLogger('host-logs-api');
 
@@ -38,22 +38,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     hostLoggerEndpoint.info(`📋 Fetching logs for host ${host.agentId}`);
 
-    // Create gRPC client
-    const grpcClient = new GrpcHostClient({
-      host: host.ipAddress,
-      port: host.grpcPort,
-      timeout: 30000
-    });
+    // Check if host is connected
+    if (!socketHostManager.isHostConnected(host.agentId)) {
+      return res.status(503).json({
+        success: false,
+        error: 'Host is not connected',
+        timestamp: new Date().toISOString()
+      });
+    }
 
     try {
-      // Execute GET_LOGS command
-      const result = await grpcClient.executeCommand({
-        command_id: `cmd_${Date.now()}`,
+      // Execute GET_LOGS command via Socket.IO
+      const result = await socketHostManager.sendCommand(host.agentId, {
+        commandId: `cmd_${Date.now()}`,
         type: 'GET_LOGS',
-        get_logs: {
+        payload: {
           limit: limit ? parseInt(limit as string) : 100,
           level: (level as string) || 'ALL'
-        }
+        },
+        timeout: 30000
       });
 
       if (!result.success) {
@@ -65,9 +68,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         });
       }
 
-      const logsResult = result.get_logs_result;
+      const logsData = result.data;
 
-      if (!logsResult || !logsResult.logs) {
+      if (!logsData || !logsData.logs) {
         hostLoggerEndpoint.warn('⚠️ No logs returned from host');
         return res.status(200).json({
           success: true,
@@ -81,21 +84,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         });
       }
 
-      hostLoggerEndpoint.info(`✅ Retrieved ${logsResult.logs.length} logs from host`);
+      hostLoggerEndpoint.info(`✅ Retrieved ${logsData.logs.length} logs from host`);
 
       return res.status(200).json({
         success: true,
-        data: {
-          logs: logsResult.logs,
-          total_count: logsResult.total_count,
-          oldest_log_time: logsResult.oldest_log_time,
-          newest_log_time: logsResult.newest_log_time
-        },
+        data: logsData,
         timestamp: new Date().toISOString()
       });
 
     } catch (commandError) {
-      hostLoggerEndpoint.error('❌ gRPC command failed:', commandError);
+      hostLoggerEndpoint.error('❌ Socket command failed:', commandError);
       throw commandError;
     }
 

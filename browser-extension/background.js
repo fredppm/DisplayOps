@@ -113,15 +113,40 @@ const RECONNECTION_CONFIG = {
 
 // Dashboard patterns for auto-detection
 const DASHBOARD_PATTERNS = [
-  /grafana\./i,
-  /tableau\./i,
-  /healthmonitor\./i,
-  /dashboard\./i,
-  /monitoring\./i,
-  /metrics\./i,
-  /kibana\./i,
-  /sentry\./i,
-  /datadog\./i
+  // Production dashboard services (domain patterns)
+  /grafana/i,
+  /tableau/i,
+  /healthmonitor/i,     // Matches healthmonitor.vtex.com
+  /kibana/i,
+  /sentry/i,
+  /datadog/i,
+  /elastic/i,
+  /newrelic/i,
+  /splunk/i,
+  /prometheus/i,
+  /observability/i,
+  /analytics/i,
+  
+  // Generic dashboard/monitoring keywords in domain
+  /dashboard/i,
+  /monitoring/i,
+  /metrics/i,
+  
+  // Local development and testing
+  /localhost/i,        // Any localhost
+  /127\.0\.0\.1/i,     // Loopback IP
+  /0\.0\.0\.0/i,       // All interfaces
+  /\[::1\]/i,          // IPv6 loopback
+  
+  // Common URL path patterns
+  /\/dashboard/i,      // URL path contains /dashboard
+  /\/monitoring/i,     // URL path contains /monitoring
+  /\/metrics/i,        // URL path contains /metrics
+  /\/grafana/i,        // URL path contains /grafana
+  
+  // Domain suffixes
+  /\.local/i,          // Local domains (.local)
+  /\.vtex\.com/i       // VTEX domains
 ];
 
 let currentState = {
@@ -415,20 +440,43 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 
 // Handle tab changes
 async function handleTabChange(tab) {
-  if (!tab.url) return;
-  
+  if (!tab.url) {
+    Logger.debug('TAB_CHANGE', 'No URL in tab, skipping');
+    return;
+  }
+
   try {
     const url = new URL(tab.url);
     const domain = url.hostname;
-    
+
+    Logger.info('TAB_CHANGE', `Checking URL: ${tab.url}`);
+    Logger.info('TAB_CHANGE', `Extracted domain: ${domain}`);
+
     // Skip non-HTTP(S) URLs
-    if (!url.protocol.startsWith('http')) return;
-    
+    if (!url.protocol.startsWith('http')) {
+      Logger.debug('TAB_CHANGE', 'Skipping non-HTTP URL');
+      return;
+    }
+
     currentState.currentDomain = domain;
-    
+    Logger.debug('TAB_CHANGE', `Current domain set to: ${domain}`);
+
     // Check if this is a dashboard domain
-    const isDashboard = DASHBOARD_PATTERNS.some(pattern => pattern.test(domain));
-    
+    let matchedPattern = null;
+    const isDashboard = DASHBOARD_PATTERNS.some(pattern => {
+      const matches = pattern.test(domain) || pattern.test(url.href);
+      if (matches && !matchedPattern) {
+        matchedPattern = pattern.source;
+      }
+      return matches;
+    });
+
+    if (isDashboard) {
+      Logger.info('TAB_CHANGE', `Dashboard detected: ${domain} (pattern: ${matchedPattern})`);
+    } else {
+      Logger.debug('TAB_CHANGE', `Not a dashboard: ${domain}`);
+    }
+
     if (isDashboard) {
       // Add to monitored domains if not already there
       if (!currentState.domains.has(domain)) {
@@ -438,17 +486,24 @@ async function handleTabChange(tab) {
           status: 'detected'
         });
         await saveDomains();
+        Logger.info('TAB_CHANGE', `New domain added: ${domain}`);
       }
-      
+
       // Check for credentials
       await checkCredentials(domain);
+      
+      // Ensure state is persisted
+      await saveDomains();
     } else {
-      updateIcon(ICON_STATES.IDLE);
+      // Only update to IDLE if we're connected (don't override ERROR state)
+      if (currentState.connectionState === CONNECTION_STATES.CONNECTED) {
+        updateIcon(ICON_STATES.IDLE);
+      }
       currentState.hasCredentials = false;
     }
-    
+
   } catch (error) {
-    console.error('Error handling tab change:', error);
+    Logger.error('TAB_CHANGE', 'Error handling tab change', error);
   }
 }
 
@@ -470,30 +525,37 @@ async function checkCredentials(domain) {
     const cookies = await chrome.cookies.getAll({ domain });
     
     // Filter for authentication-related cookies
-    const authCookies = cookies.filter(cookie => 
+    const authCookies = cookies.filter(cookie =>
       isAuthenticationCookie(cookie.name, cookie.value)
     );
-    
+
     const hasValidAuth = authCookies.length > 0;
     currentState.hasCredentials = hasValidAuth;
     
-    if (hasValidAuth) {
-      updateIcon(ICON_STATES.READY);
-      
-      // Update domain status
-      if (currentState.domains.has(domain)) {
-        const domainInfo = currentState.domains.get(domain);
-        domainInfo.status = 'ready';
-        domainInfo.cookieCount = authCookies.length;
-        await saveDomains();
+    Logger.info('CREDENTIALS', `${domain}: ${authCookies.length} auth cookies found`);
+
+    // Update icon based on connection state and credentials
+    if (currentState.connectionState === CONNECTION_STATES.CONNECTED) {
+      if (hasValidAuth) {
+        updateIcon(ICON_STATES.READY);
+      } else {
+        updateIcon(ICON_STATES.IDLE);
       }
-    } else {
-      updateIcon(ICON_STATES.IDLE);
     }
-    
+
+    // Always update domain status, even if no credentials
+    if (currentState.domains.has(domain)) {
+      const domainInfo = currentState.domains.get(domain);
+      domainInfo.status = hasValidAuth ? 'ready' : 'detected';
+      domainInfo.cookieCount = authCookies.length;
+      await saveDomains();
+    }
+
   } catch (error) {
-    console.error('Error checking credentials:', error);
-    updateIcon(ICON_STATES.ERROR);
+    Logger.error('CREDENTIALS', 'Error checking credentials', error);
+    if (currentState.connectionState === CONNECTION_STATES.CONNECTED) {
+      updateIcon(ICON_STATES.ERROR);
+    }
   }
 }
 
@@ -501,7 +563,7 @@ async function checkCredentials(domain) {
 function isAuthenticationCookie(name, value) {
   const authPatterns = [
     /session/i,
-    /auth/i, 
+    /auth/i,
     /token/i,
     /login/i,
     /user/i,
@@ -511,11 +573,16 @@ function isAuthenticationCookie(name, value) {
     /grafana/i,
     /tableau/i
   ];
-  
+
   // Skip empty or very short values
-  if (!value || value.length < 10) return false;
-  
-  return authPatterns.some(pattern => pattern.test(name)) || value.length > 50;
+  if (!value || value.length < 10) {
+    return false;
+  }
+
+  const patternMatch = authPatterns.some(pattern => pattern.test(name));
+  const longValue = value.length > 50;
+
+  return patternMatch || longValue;
 }
 
 // Update extension icon
@@ -531,11 +598,22 @@ function updateIcon(state) {
     [ICON_STATES.IDLE]: 'DisplayOps - Waiting for credentials',
     [ICON_STATES.READY]: 'DisplayOps - Credentials ready for sync',
     [ICON_STATES.SYNCED]: 'DisplayOps - Recently synced', 
-    [ICON_STATES.ERROR]: 'DisplayOps - Sync error'
+    [ICON_STATES.ERROR]: 'DisplayOps - Connection error'
   };
   
-  chrome.action.setIcon({ path: iconPath });
-  chrome.action.setTitle({ title: titles[state] });
+  Logger.info('ICON', `Updating icon to: ${state} - ${titles[state]}`);
+  
+  chrome.action.setIcon({ path: iconPath }, () => {
+    if (chrome.runtime.lastError) {
+      Logger.error('ICON', 'Failed to set icon', chrome.runtime.lastError);
+    }
+  });
+  
+  chrome.action.setTitle({ title: titles[state] }, () => {
+    if (chrome.runtime.lastError) {
+      Logger.error('ICON', 'Failed to set title', chrome.runtime.lastError);
+    }
+  });
 }
 
 // Sync credentials to Office Display
@@ -772,7 +850,63 @@ async function handleMessage(message, sender, sendResponse) {
         await attemptReconnection();
         sendResponse({ success: true });
         break;
-        
+
+      case 'CHECK_CURRENT_TAB':
+        try {
+          const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+          if (activeTab && activeTab.url) {
+            // Wait for handleTabChange to complete fully
+            await handleTabChange(activeTab);
+            
+            // Give it a moment to save state
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
+            sendResponse({ 
+              success: true, 
+              data: { 
+                url: activeTab.url, 
+                domain: currentState.currentDomain,
+                hasCredentials: currentState.hasCredentials,
+                isDashboard: currentState.domains.has(currentState.currentDomain)
+              } 
+            });
+          } else {
+            sendResponse({ success: false, error: 'No active tab found' });
+          }
+        } catch (error) {
+          Logger.error('CHECK_TAB', 'Error checking tab', error);
+          sendResponse({ success: false, error: error.message });
+        }
+        break;
+
+      case 'ADD_CURRENT_DOMAIN':
+        console.log('➕ [DEBUG] Manual domain addition requested');
+        try {
+          const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+          if (activeTab && activeTab.url) {
+            const url = new URL(activeTab.url);
+            const domain = url.hostname;
+
+            // Force add to dashboard domains
+            currentState.domains.set(domain, {
+              name: detectDashboardName(domain) || 'Manual Dashboard',
+              lastSync: null,
+              status: 'detected'
+            });
+            await saveDomains();
+
+            // Check credentials
+            await checkCredentials(domain);
+
+            sendResponse({ success: true, data: { domain, hasCredentials: currentState.hasCredentials } });
+          } else {
+            sendResponse({ success: false, error: 'No active tab found' });
+          }
+        } catch (error) {
+          sendResponse({ success: false, error: error.message });
+        }
+        break;
+
       default:
         throw new Error(`Unknown message type: ${message.type}`);
     }

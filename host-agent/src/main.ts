@@ -19,11 +19,10 @@ if (process.env.NODE_ENV === 'development') {
 }
 
 import { HostService } from './services/host-service';
-import { RegistryService } from './services/registry-service';
+import { SocketClientService } from './services/socket-client-service';
 import { DebugService } from './services/debug-service';
 import { DisplayIdentifier } from './services/display-identifier';
 import { DisplayMonitor } from './services/display-monitor';
-import { GrpcService } from './services/grpc-service';
 import { StateManager } from './services/state-manager';
 import { AutoRestoreService } from './services/auto-restore-service';
 import { WindowManager } from './managers/window-manager';
@@ -67,11 +66,10 @@ async function ensurePortAvailable(port: number): Promise<boolean> {
 
 class HostAgent {
   private hostService: HostService;
-  private registryService: RegistryService;
+  private socketClientService: SocketClientService;
   private debugService: DebugService;
   private displayIdentifier: DisplayIdentifier;
   private displayMonitor: DisplayMonitor;
-  private grpcService: GrpcService;
   private stateManager: StateManager;
   private autoRestoreService: AutoRestoreService;
   private windowManager: WindowManager;
@@ -85,24 +83,23 @@ class HostAgent {
     this.configManager = new ConfigManager();
     this.stateManager = new StateManager();
     this.hostService = new HostService(this.configManager, this.stateManager);
-    this.registryService = new RegistryService(this.configManager, this.stateManager);
     this.debugService = new DebugService(this.configManager);
     this.displayIdentifier = new DisplayIdentifier();
     this.displayMonitor = new DisplayMonitor();
     this.windowManager = new WindowManager(this.stateManager);
     
-    // Set window manager reference for display identifier
-    this.displayIdentifier.setWindowManager(this.windowManager);
-    this.grpcService = new GrpcService(
-      8082,
+    // Initialize socket client after dependencies
+    this.socketClientService = new SocketClientService(
+      this.configManager,
+      this.stateManager,
       this.hostService,
       this.windowManager,
       this.debugService,
-      this.displayIdentifier,
-      this.displayMonitor,
-      this.configManager,
-      this.stateManager
+      this.displayIdentifier
     );
+    
+    // Set window manager reference for display identifier
+    this.displayIdentifier.setWindowManager(this.windowManager);
     this.autoRestoreService = new AutoRestoreService(this.stateManager, this.windowManager);
     this.debugOverlayManager = new DebugOverlayManager(
       this.debugService,
@@ -125,15 +122,6 @@ class HostAgent {
     return;
   }
 
-  // 🚀 NEW: Start gRPC service independently 
-  private async startGrpcService(): Promise<void> {
-    try {
-      await this.grpcService.start();
-      logger.success('✅ gRPC service started - no REST API needed');
-    } catch (error) {
-      logger.error('❌ Failed to start gRPC service:', error);
-    }
-  }
 
   private setupElectron(): void {
     // Configure app settings for system tray behavior
@@ -171,13 +159,10 @@ class HostAgent {
       // Update display configuration from system
       this.configManager.updateDisplaysFromSystem();
       
-      // 🚀 Start gRPC service first
-      this.startGrpcService();
-      
-      // 🌐 Connect to Web-Admin (direct connection only)
-      this.registryService.start().catch((error) => {
-        logger.error('Registry service failed to start', { error });
-        logger.error('⚠️ Cannot connect to Web-Admin - Host will not be discoverable');
+      // 🔌 Connect to Web-Admin via Socket.IO
+      this.socketClientService.start().catch((error) => {
+        logger.error('Socket client service failed to start', { error });
+        logger.error('⚠️ Cannot connect to Web-Admin - Host will not receive commands');
       });
       
       // Initialize window manager
@@ -394,53 +379,15 @@ class HostAgent {
     });
   }
 
-  // 🚀 NEW: Broadcast display changes via gRPC streaming
+  // Handle display changes
   private broadcastDisplaysChangedEvent(displayChangeEvent: any): void {
     try {
-      const grpcEvent = {
-        event_id: `displays_changed_${Date.now()}`,
-        type: 'DISPLAYS_CHANGED',
-        timestamp: { 
-          seconds: Math.floor(displayChangeEvent.timestamp.getTime() / 1000), 
-          nanos: (displayChangeEvent.timestamp.getTime() % 1000) * 1000000
-        },
-        displays_changed: {
-          displays: displayChangeEvent.displays.map(this.convertDisplayToGrpc.bind(this)),
-          change_type: displayChangeEvent.type,
-          changed_display: displayChangeEvent.changedDisplay ? 
-            this.convertDisplayToGrpc(displayChangeEvent.changedDisplay) : undefined
-        }
-      };
-
-      // Broadcast to all gRPC stream clients
-      this.grpcService.broadcastEvent(grpcEvent);
-      
-      logger.info(`📡 gRPC: Broadcasted DISPLAYS_CHANGED event (${displayChangeEvent.type})`);
+      logger.info(`Display configuration changed (${displayChangeEvent.type})`);
+      // Display change events are now handled automatically by Socket.IO heartbeat
+      // which includes the current display configuration
     } catch (error) {
-      logger.error('Failed to broadcast display change event via gRPC:', error);
+      logger.error('Failed to handle display change event:', error);
     }
-  }
-
-  private convertDisplayToGrpc(displayInfo: any): any {
-    return {
-      display_id: `display-${displayInfo.id}`,
-      electron_id: displayInfo.id,
-      bounds: {
-        x: displayInfo.bounds.x,
-        y: displayInfo.bounds.y,
-        width: displayInfo.bounds.width,
-        height: displayInfo.bounds.height
-      },
-      work_area: {
-        x: displayInfo.workArea.x,
-        y: displayInfo.workArea.y,
-        width: displayInfo.workArea.width,
-        height: displayInfo.workArea.height
-      },
-      primary: displayInfo.isPrimary,
-      scale_factor: displayInfo.scaleFactor,
-      name: displayInfo.name || `Display ${displayInfo.id}`
-    };
   }
 
   private setupWindowManagerEvents(): void {
@@ -585,8 +532,8 @@ class HostAgent {
     }
     
     // Disconnect from Web-Admin
-    if (this.registryService) {
-      this.registryService.stop();
+    if (this.socketClientService) {
+      this.socketClientService.stop();
     }
     
     // Close all managed windows
@@ -595,10 +542,6 @@ class HostAgent {
     }
     
 
-    // Stop gRPC service
-    if (this.grpcService) {
-      this.grpcService.stop();
-    }
     
     // Cleanup state manager
     if (this.stateManager) {

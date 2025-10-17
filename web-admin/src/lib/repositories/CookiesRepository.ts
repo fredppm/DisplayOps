@@ -18,7 +18,8 @@ export interface CookieDomain {
   domain: string;
   description: string;
   cookies: Cookie[];
-  lastUpdated: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export class CookiesRepository extends BasePostgresRepository<CookieDomain> {
@@ -31,12 +32,31 @@ export class CookiesRepository extends BasePostgresRepository<CookieDomain> {
   }
 
   protected mapDbRowToEntity(row: any): CookieDomain {
+    let cookies: Cookie[] = [];
+    
+    try {
+      // Handle different cookie formats from database
+      if (row.cookies) {
+        if (typeof row.cookies === 'string') {
+          // Parse JSON string
+          cookies = JSON.parse(row.cookies);
+        } else if (Array.isArray(row.cookies)) {
+          // Already parsed (JSONB from postgres)
+          cookies = row.cookies;
+        }
+      }
+    } catch (error) {
+      console.warn(`Failed to parse cookies for domain ${row.domain}:`, error);
+      cookies = [];
+    }
+    
     return {
       id: row.id,
       domain: row.domain,
-      description: row.description,
-      cookies: row.cookies ? JSON.parse(row.cookies) : [],
-      lastUpdated: row.last_updated
+      description: row.description || '',
+      cookies: Array.isArray(cookies) ? cookies : [],
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
     };
   }
 
@@ -45,8 +65,8 @@ export class CookiesRepository extends BasePostgresRepository<CookieDomain> {
       id: entity.id,
       domain: entity.domain,
       description: entity.description,
-      cookies: JSON.stringify(entity.cookies),
-      last_updated: entity.lastUpdated
+      cookies: JSON.stringify(entity.cookies)
+      // Note: created_at and updated_at are handled automatically by BasePostgresRepository
     };
   }
 
@@ -67,7 +87,8 @@ export class CookiesRepository extends BasePostgresRepository<CookieDomain> {
       domain,
       description: description || `Cookies for ${domain}`,
       cookies: [],
-      lastUpdated: new Date().toISOString()
+      createdAt: '', // Will be set by BasePostgresRepository
+      updatedAt: ''  // Will be set by BasePostgresRepository
     };
 
     return this.create(newDomain);
@@ -97,7 +118,7 @@ export class CookiesRepository extends BasePostgresRepository<CookieDomain> {
       domain.cookies.push(newCookie);
     }
 
-    domain.lastUpdated = new Date().toISOString();
+    // updated_at is handled automatically by BasePostgresRepository
     await this.update(domain.id, domain);
     
     return newCookie;
@@ -112,7 +133,7 @@ export class CookiesRepository extends BasePostgresRepository<CookieDomain> {
     
     if (domain.cookies.length === initialLength) return false;
 
-    domain.lastUpdated = new Date().toISOString();
+    domain.updatedAt = new Date().toISOString();
     
     // If no more cookies, remove domain
     if (domain.cookies.length === 0) {
@@ -134,7 +155,7 @@ export class CookiesRepository extends BasePostgresRepository<CookieDomain> {
       description: c.description || `Cookie ${c.name} for ${domainName}`
     }));
     
-    domain.lastUpdated = new Date().toISOString();
+    // updated_at is handled automatically by BasePostgresRepository
     return this.update(domain.id, domain);
   }
 
@@ -144,11 +165,13 @@ export class CookiesRepository extends BasePostgresRepository<CookieDomain> {
   }
 
   generateId(): string {
-    return `domain-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    // Generate a UUID v4
+    return crypto.randomUUID();
   }
 
   generateCookieId(): string {
-    return `cookie-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    // Generate a UUID v4 for cookie ID
+    return crypto.randomUUID();
   }
 
   // Convert to the format expected by the existing API
@@ -164,7 +187,8 @@ export class CookiesRepository extends BasePostgresRepository<CookieDomain> {
         domain: domain.domain,
         description: domain.description,
         cookies: domain.cookies,
-        lastUpdated: domain.lastUpdated
+        createdAt: domain.createdAt,
+        updatedAt: domain.updatedAt
       };
     });
 
