@@ -436,10 +436,26 @@ export class DisplayIdentifier {
     return this.identifierWindows.filter(w => !w.isDestroyed()).length;
   }
 
-  public getDisplayInfo(): Array<{displayId: number, bounds: Electron.Rectangle}> {
-    return screen.getAllDisplays().map((display, index) => ({
+  public getDisplayInfo(): Array<{
+    id: string;
+    name: string;
+    displayId: number;
+    bounds: Electron.Rectangle;
+    width: number;
+    height: number;
+    isPrimary: boolean;
+  }> {
+    const displays = screen.getAllDisplays();
+    const primaryDisplay = screen.getPrimaryDisplay();
+    
+    return displays.map((display, index) => ({
+      id: display.id.toString(),
+      name: `Display ${index + 1}`,
       displayId: index + 1,
-      bounds: display.bounds
+      bounds: display.bounds,
+      width: display.bounds.width,
+      height: display.bounds.height,
+      isPrimary: display.id === primaryDisplay.id
     }));
   }
 

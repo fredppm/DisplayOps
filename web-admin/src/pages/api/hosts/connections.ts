@@ -1,6 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { createContextLogger } from '@/utils/logger';
-import { socketHostManager } from '@/lib/socket-host-manager';
+import { httpHostManager } from '@/lib/http-host-manager';
+import { hostsRepository } from '@/lib/repositories/HostsRepository';
 
 const logger = createContextLogger('connections-api');
 
@@ -14,26 +15,31 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const connectedHosts = socketHostManager.getConnectedHosts();
+    const connectedHosts = await httpHostManager.getConnectedHosts();
     
     logger.info('📊 Retrieved connection status', {
       totalConnected: connectedHosts.length,
       hosts: connectedHosts
     });
 
+    // Get detailed host info
+    const hostsDetails = await Promise.all(
+      connectedHosts.map(async (agentId) => {
+        const host = await hostsRepository.getByAgentId(agentId);
+        return {
+          agentId,
+          hostname: host?.hostname,
+          lastSeen: host?.lastSeen,
+          status: host?.status
+        };
+      })
+    );
+
     return res.status(200).json({
       success: true,
       data: {
         totalConnected: connectedHosts.length,
-        connectedHosts: connectedHosts.map(agentId => {
-          const connection = socketHostManager.getHostConnection(agentId);
-          return {
-            agentId,
-            connectedAt: connection?.connectedAt,
-            lastSeen: connection?.lastSeen,
-            socketId: connection?.socket.id
-          };
-        })
+        connectedHosts: hostsDetails
       },
       timestamp: new Date().toISOString()
     });

@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { io, Socket } from 'socket.io-client';
 
 interface HostMetrics {
   agentId: string;
@@ -37,52 +36,62 @@ interface HostMetricsStreamProps {
 
 export function HostMetricsStream({ agentId, className = '' }: HostMetricsStreamProps) {
   const [metrics, setMetrics] = useState<Record<string, HostMetrics>>({});
-  const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
-    // Connect to Socket.IO
-    const newSocket = io({
-      path: '/api/websocket',
-    });
+    // Connect to SSE stream
+    const eventSource = new EventSource('/api/hosts/events');
 
-    newSocket.on('connect', () => {
+    eventSource.onopen = () => {
       console.log('✅ Connected to metrics stream');
       setIsConnected(true);
-    });
+    };
 
-    newSocket.on('disconnect', () => {
+    eventSource.onerror = () => {
       console.log('❌ Disconnected from metrics stream');
       setIsConnected(false);
-    });
+    };
 
-    // Listen for metrics updates
-    newSocket.on('host:metrics', (data: { agentId: string; metrics: HostMetrics; timestamp: string }) => {
-      setMetrics(prev => ({
-        ...prev,
-        [data.agentId]: {
-          ...data.metrics,
-          agentId: data.agentId,
-          timestamp: data.timestamp
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+
+        // Handle different event types
+        switch (data.type) {
+          case 'host_metrics':
+            if (data.host) {
+              setMetrics(prev => ({
+                ...prev,
+                [data.host.agentId]: {
+                  ...data.host.metrics,
+                  agentId: data.host.agentId,
+                  timestamp: data.host.timestamp
+                }
+              }));
+            }
+            break;
+
+          case 'host_disconnected':
+            if (data.host) {
+              setMetrics(prev => {
+                const newMetrics = { ...prev };
+                delete newMetrics[data.host.agentId];
+                return newMetrics;
+              });
+            }
+            break;
+
+          case 'connected':
+            console.log('SSE connection established');
+            break;
         }
-      }));
-    });
-
-    // Listen for host status changes
-    newSocket.on('host:status', (data: { agentId: string; status: string }) => {
-      if (data.status === 'offline') {
-        setMetrics(prev => {
-          const newMetrics = { ...prev };
-          delete newMetrics[data.agentId];
-          return newMetrics;
-        });
+      } catch (error) {
+        console.error('Failed to parse SSE message:', error);
       }
-    });
-
-    setSocket(newSocket);
+    };
 
     return () => {
-      newSocket.close();
+      eventSource.close();
     };
   }, []);
 

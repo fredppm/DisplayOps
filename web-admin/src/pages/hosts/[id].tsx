@@ -41,10 +41,18 @@ interface Host {
     processUptimeFormatted?: string;
   };
   metrics?: {
-    cpuUsagePercent: number;
-    memoryUsagePercent: number;
-    memoryUsedGB: number;
-    memoryTotalGB: number;
+    cpu?: {
+      usage: number;
+      count: number;
+    };
+    memory?: {
+      total: number;
+      used: number;
+      free: number;
+      usagePercent: number;
+    };
+    uptime?: number;
+    timestamp?: string;
   };
   version: string;
   status: 'online' | 'offline';
@@ -457,17 +465,17 @@ const HostDetailPage: NextPage = () => {
                     )}
                   </p>
                   <p className="mt-1 text-2xl font-semibold text-gray-900 dark:text-white">
-                    {host.metrics.cpuUsagePercent.toFixed(1)}%
+                    {host.metrics?.cpu?.usage?.toFixed(1) || 0}%
                   </p>
                 </div>
                 <div className={`p-3 rounded-full ${
-                  host.metrics.cpuUsagePercent > 80 ? 'bg-red-100 dark:bg-red-900/20' :
-                  host.metrics.cpuUsagePercent > 60 ? 'bg-yellow-100 dark:bg-yellow-900/20' :
+                  (host.metrics?.cpu?.usage || 0) > 80 ? 'bg-red-100 dark:bg-red-900/20' :
+                  (host.metrics?.cpu?.usage || 0) > 60 ? 'bg-yellow-100 dark:bg-yellow-900/20' :
                   'bg-blue-100 dark:bg-blue-900/20'
                 }`}>
                   <Activity className={`h-6 w-6 ${
-                    host.metrics.cpuUsagePercent > 80 ? 'text-red-600 dark:text-red-400' :
-                    host.metrics.cpuUsagePercent > 60 ? 'text-yellow-600 dark:text-yellow-400' :
+                    (host.metrics?.cpu?.usage || 0) > 80 ? 'text-red-600 dark:text-red-400' :
+                    (host.metrics?.cpu?.usage || 0) > 60 ? 'text-yellow-600 dark:text-yellow-400' :
                     'text-blue-600 dark:text-blue-400'
                   }`} />
                 </div>
@@ -476,7 +484,7 @@ const HostDetailPage: NextPage = () => {
               <div className="mt-auto w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                 <div 
                   className="h-2 rounded-full bg-blue-600 dark:bg-blue-500"
-                  style={{ width: `${Math.min(host.metrics.cpuUsagePercent, 100)}%` }}
+                  style={{ width: `${Math.min(host.metrics?.cpu?.usage || 0, 100)}%` }}
                 />
               </div>
             </div>
@@ -492,20 +500,20 @@ const HostDetailPage: NextPage = () => {
                     )}
                   </p>
                   <p className="mt-1 text-2xl font-semibold text-gray-900 dark:text-white">
-                    {host.metrics.memoryUsagePercent.toFixed(1)}%
+                    {host.metrics?.memory?.usagePercent?.toFixed(1) || 0}%
                   </p>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    {host.metrics.memoryUsedGB.toFixed(1)}GB / {host.metrics.memoryTotalGB.toFixed(1)}GB
+                    {((host.metrics?.memory?.used || 0) / 1024 / 1024 / 1024).toFixed(1)}GB / {((host.metrics?.memory?.total || 0) / 1024 / 1024 / 1024).toFixed(1)}GB
                   </p>
                 </div>
                 <div className={`p-3 rounded-full ${
-                  host.metrics.memoryUsagePercent > 80 ? 'bg-red-100 dark:bg-red-900/20' :
-                  host.metrics.memoryUsagePercent > 60 ? 'bg-yellow-100 dark:bg-yellow-900/20' :
+                  (host.metrics?.memory?.usagePercent || 0) > 80 ? 'bg-red-100 dark:bg-red-900/20' :
+                  (host.metrics?.memory?.usagePercent || 0) > 60 ? 'bg-yellow-100 dark:bg-yellow-900/20' :
                   'bg-purple-100 dark:bg-purple-900/20'
                 }`}>
                   <MemoryStick className={`h-6 w-6 ${
-                    host.metrics.memoryUsagePercent > 80 ? 'text-red-600 dark:text-red-400' :
-                    host.metrics.memoryUsagePercent > 60 ? 'text-yellow-600 dark:text-yellow-400' :
+                    (host.metrics?.memory?.usagePercent || 0) > 80 ? 'text-red-600 dark:text-red-400' :
+                    (host.metrics?.memory?.usagePercent || 0) > 60 ? 'text-yellow-600 dark:text-yellow-400' :
                     'text-purple-600 dark:text-purple-400'
                   }`} />
                 </div>
@@ -514,7 +522,7 @@ const HostDetailPage: NextPage = () => {
               <div className="mt-auto w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                 <div 
                   className="h-2 rounded-full bg-purple-600 dark:bg-purple-500"
-                  style={{ width: `${Math.min(host.metrics.memoryUsagePercent, 100)}%` }}
+                  style={{ width: `${Math.min(host.metrics?.memory?.usagePercent || 0, 100)}%` }}
                 />
               </div>
             </div>

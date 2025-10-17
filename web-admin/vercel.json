@@ -9,6 +9,12 @@
   },
   "functions": {
     "pages/api/**/*.js": {
+      "maxDuration": 60
+    },
+    "pages/api/hosts/events.js": {
+      "maxDuration": 300
+    },
+    "pages/api/hosts/commands/pending.js": {
       "maxDuration": 30
     }
   },
@@ -18,7 +24,17 @@
       "headers": [
         { "key": "Access-Control-Allow-Origin", "value": "*" },
         { "key": "Access-Control-Allow-Methods", "value": "GET, POST, PUT, DELETE, OPTIONS" },
-        { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Authorization, Cache-Control" }
+        { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Authorization, Cache-Control" },
+        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+      ]
+    },
+    {
+      "source": "/api/hosts/events",
+      "headers": [
+        { "key": "Content-Type", "value": "text/event-stream" },
+        { "key": "Cache-Control", "value": "no-cache, no-transform" },
+        { "key": "Connection", "value": "keep-alive" },
+        { "key": "X-Accel-Buffering", "value": "no" }
       ]
     }
   ],

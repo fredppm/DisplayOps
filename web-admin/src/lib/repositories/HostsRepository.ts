@@ -27,10 +27,18 @@ export interface Host {
     uptime: number;
   };
   metrics?: {
-    cpuUsagePercent: number;
-    memoryUsagePercent: number;
-    memoryUsedGB: number;
-    memoryTotalGB: number;
+    cpu?: {
+      usage: number;
+      count: number;
+    };
+    memory?: {
+      total: number;
+      used: number;
+      free: number;
+      usagePercent: number;
+    };
+    uptime?: number;
+    timestamp?: string;
   };
   version: string;
   status: 'online' | 'offline' | 'error'; // Computed property (not stored in DB)

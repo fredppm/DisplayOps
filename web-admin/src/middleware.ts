@@ -26,7 +26,12 @@ const PUBLIC_ROUTES = [
   '/api/auth/logout',
   '/api/auth/me',
   '/api/hosts/events',       // SSE endpoint for real-time updates
-  '/api/hosts/connections'   // Debug endpoint to check socket connections
+  '/api/hosts/connections',  // Debug endpoint to check socket connections
+  '/api/hosts/heartbeat',    // Host agents send heartbeat (no auth)
+  '/api/hosts/metrics',      // Host agents send metrics (no auth)
+  '/api/hosts/logs',         // Host agents send logs (no auth)
+  '/api/hosts/commands/pending',   // Host agents poll for commands (no auth)
+  '/api/hosts/commands/response'   // Host agents send command responses (no auth)
 ];
 
 export function middleware(request: NextRequest) {

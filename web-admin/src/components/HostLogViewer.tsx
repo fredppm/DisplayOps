@@ -1,5 +1,4 @@
 import { useEffect, useState, useRef } from 'react';
-import { io, Socket } from 'socket.io-client';
 
 interface LogEntry {
   id: string;
@@ -26,7 +25,6 @@ export function HostLogViewer({
   className = '' 
 }: HostLogViewerProps) {
   const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const logsEndRef = useRef<HTMLDivElement>(null);
@@ -39,54 +37,64 @@ export function HostLogViewer({
   }, [logs, autoScroll, isPaused]);
 
   useEffect(() => {
-    // Connect to Socket.IO
-    const newSocket = io({
-      path: '/api/websocket',
-    });
+    // Connect to SSE stream
+    const eventSource = new EventSource('/api/hosts/events');
 
-    newSocket.on('connect', () => {
+    eventSource.onopen = () => {
       console.log('✅ Connected to log stream');
       setIsConnected(true);
-    });
+    };
 
-    newSocket.on('disconnect', () => {
+    eventSource.onerror = () => {
       console.log('❌ Disconnected from log stream');
       setIsConnected(false);
-    });
+    };
 
-    // Listen for new logs
-    newSocket.on('host:logs', (data: { agentId: string; logs: LogEntry[]; timestamp: string }) => {
-      // Filter by agentId if specified
-      if (agentId && data.agentId !== agentId) {
-        return;
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+
+        // Handle different event types
+        switch (data.type) {
+          case 'host_logs':
+            if (data.host && data.host.logs) {
+              // Filter by agentId if specified
+              if (agentId && data.host.agentId !== agentId) {
+                return;
+              }
+
+              setLogs(prevLogs => {
+                const newLogs = [...prevLogs, ...data.host.logs];
+                // Keep only last N logs
+                return newLogs.slice(-maxLogs);
+              });
+            }
+            break;
+
+          case 'host_disconnected':
+            if (data.host && (!agentId || data.host.agentId === agentId)) {
+              setLogs(prev => [...prev, {
+                id: `disconnect_${Date.now()}`,
+                timestamp: new Date().toISOString(),
+                level: 'WARN',
+                category: 'system',
+                message: `Host ${data.host.agentId} disconnected`,
+                details: undefined
+              }]);
+            }
+            break;
+
+          case 'connected':
+            console.log('SSE connection established');
+            break;
+        }
+      } catch (error) {
+        console.error('Failed to parse SSE message:', error);
       }
-
-      setLogs(prevLogs => {
-        const newLogs = [...prevLogs, ...data.logs];
-        // Keep only last N logs
-        return newLogs.slice(-maxLogs);
-      });
-    });
-
-    // Listen for host status changes
-    newSocket.on('host:status', (data: { agentId: string; status: string }) => {
-      if (data.status === 'offline' && (!agentId || data.agentId === agentId)) {
-        // Optionally clear logs or add disconnection log
-        setLogs(prev => [...prev, {
-          id: `disconnect_${Date.now()}`,
-          timestamp: new Date().toISOString(),
-          level: 'WARN',
-          category: 'system',
-          message: `Host ${data.agentId} disconnected`,
-          details: undefined
-        }]);
-      }
-    });
-
-    setSocket(newSocket);
+    };
 
     return () => {
-      newSocket.close();
+      eventSource.close();
     };
   }, [agentId, maxLogs]);
 

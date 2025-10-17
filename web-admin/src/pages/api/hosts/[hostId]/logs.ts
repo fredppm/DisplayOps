@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { createContextLogger} from '@/utils/logger';
 import { hostsRepository } from '@/lib/repositories/HostsRepository';
-import { socketHostManager } from '@/lib/socket-host-manager';
+import { httpHostManager } from '@/lib/http-host-manager';
 
 const hostLoggerEndpoint = createContextLogger('host-logs-api');
 
@@ -38,8 +38,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     hostLoggerEndpoint.info(`📋 Fetching logs for host ${host.agentId}`);
 
-    // Check if host is connected
-    if (!socketHostManager.isHostConnected(host.agentId)) {
+    // Check if host is connected (based on recent heartbeat)
+    const isConnected = await httpHostManager.isHostConnected(host.agentId);
+    if (!isConnected) {
       return res.status(503).json({
         success: false,
         error: 'Host is not connected',
@@ -48,8 +49,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     try {
-      // Execute GET_LOGS command via Socket.IO
-      const result = await socketHostManager.sendCommand(host.agentId, {
+      // Execute GET_LOGS command via HTTP
+      const result = await httpHostManager.sendCommand(host.agentId, {
         commandId: `cmd_${Date.now()}`,
         type: 'GET_LOGS',
         payload: {
@@ -93,7 +94,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
 
     } catch (commandError) {
-      hostLoggerEndpoint.error('❌ Socket command failed:', commandError);
+      hostLoggerEndpoint.error('❌ HTTP command failed:', commandError);
       throw commandError;
     }
 

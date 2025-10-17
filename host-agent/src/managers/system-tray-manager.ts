@@ -11,7 +11,7 @@ export class SystemTrayManager {
   private totalDisplays: number = 0;
   private activeWindows: number = 0;
   private currentState: 'idle' | 'ready' | 'error' | 'synced' = 'idle';
-  private updateStatus: UpdateStatus = { state: 'idle' };
+  private autoUpdaterStatus: UpdateStatus = { state: 'idle' };
   private onRefreshDisplaysCallback?: () => void;
   private onShowDebugOverlayCallback?: () => void;
   private onOpenCookieEditorCallback?: () => void;
@@ -415,7 +415,7 @@ export class SystemTrayManager {
   }
 
   public updateUpdateStatus(status: UpdateStatus): void {
-    this.updateStatus = status;
+    this.autoUpdaterStatus = status;
     
     // Update context menu to show update info
     this.updateContextMenu();
@@ -469,12 +469,12 @@ export class SystemTrayManager {
     let tooltip = `DisplayOps Host Agent - ${statusText}\n${this.totalDisplays} displays, ${this.activeWindows} active windows`;
     
     // Add update status to tooltip
-    if (this.updateStatus.state === 'downloading') {
-      tooltip += `\n⬇️ Downloading update: ${this.updateStatus.progress || 0}%`;
-    } else if (this.updateStatus.state === 'downloaded') {
-      tooltip += `\n✅ Update ready: v${this.updateStatus.version}`;
-    } else if (this.updateStatus.state === 'available') {
-      tooltip += `\n🔄 Update available: v${this.updateStatus.version}`;
+    if (this.autoUpdaterStatus.state === 'downloading') {
+      tooltip += `\n⬇️ Downloading update: ${this.autoUpdaterStatus.progress || 0}%`;
+    } else if (this.autoUpdaterStatus.state === 'downloaded') {
+      tooltip += `\n✅ Update ready: v${this.autoUpdaterStatus.version}`;
+    } else if (this.autoUpdaterStatus.state === 'available') {
+      tooltip += `\n🔄 Update available: v${this.autoUpdaterStatus.version}`;
     }
     
     this.tray.setToolTip(tooltip);
@@ -486,23 +486,23 @@ export class SystemTrayManager {
     // Build update menu items based on status
     const updateMenuItems: Electron.MenuItemConstructorOptions[] = [];
     
-    if (this.updateStatus.state === 'downloading') {
+    if (this.autoUpdaterStatus.state === 'downloading') {
       updateMenuItems.push({
-        label: `⬇️ Downloading Update: ${this.updateStatus.progress || 0}%`,
+        label: `⬇️ Downloading Update: ${this.autoUpdaterStatus.progress || 0}%`,
         enabled: false
       });
-    } else if (this.updateStatus.state === 'downloaded') {
+    } else if (this.autoUpdaterStatus.state === 'downloaded') {
       updateMenuItems.push({
-        label: `✅ Update Ready: v${this.updateStatus.version}`,
+        label: `✅ Update Ready: v${this.autoUpdaterStatus.version}`,
         enabled: false
       });
       updateMenuItems.push({
         label: 'Install Update Now',
         click: () => this.checkForUpdates() // Will trigger install dialog
       });
-    } else if (this.updateStatus.state === 'available') {
+    } else if (this.autoUpdaterStatus.state === 'available') {
       updateMenuItems.push({
-        label: `🔄 Update Available: v${this.updateStatus.version}`,
+        label: `🔄 Update Available: v${this.autoUpdaterStatus.version}`,
         enabled: false
       });
     } else {

@@ -19,7 +19,7 @@ if (process.env.NODE_ENV === 'development') {
 }
 
 import { HostService } from './services/host-service';
-import { SocketClientService } from './services/socket-client-service';
+import { HttpClientService } from './services/http-client-service';
 import { DebugService } from './services/debug-service';
 import { DisplayIdentifier } from './services/display-identifier';
 import { DisplayMonitor } from './services/display-monitor';
@@ -66,7 +66,7 @@ async function ensurePortAvailable(port: number): Promise<boolean> {
 
 class HostAgent {
   private hostService: HostService;
-  private socketClientService: SocketClientService;
+  private httpClientService: HttpClientService;
   private debugService: DebugService;
   private displayIdentifier: DisplayIdentifier;
   private displayMonitor: DisplayMonitor;
@@ -88,8 +88,8 @@ class HostAgent {
     this.displayMonitor = new DisplayMonitor();
     this.windowManager = new WindowManager(this.stateManager);
     
-    // Initialize socket client after dependencies
-    this.socketClientService = new SocketClientService(
+    // Initialize HTTP client after dependencies
+    this.httpClientService = new HttpClientService(
       this.configManager,
       this.stateManager,
       this.hostService,
@@ -165,9 +165,9 @@ class HostAgent {
       // Update display configuration from system
       this.configManager.updateDisplaysFromSystem();
       
-      // 🔌 Connect to Web-Admin via Socket.IO
-      this.socketClientService.start().catch((error) => {
-        logger.error('Socket client service failed to start', { error });
+      // 🔌 Connect to Web-Admin via HTTP
+      this.httpClientService.start().catch((error) => {
+        logger.error('HTTP client service failed to start', { error });
         logger.error('⚠️ Cannot connect to Web-Admin - Host will not receive commands');
       });
       
@@ -389,7 +389,7 @@ class HostAgent {
   private broadcastDisplaysChangedEvent(displayChangeEvent: any): void {
     try {
       logger.info(`Display configuration changed (${displayChangeEvent.type})`);
-      // Display change events are now handled automatically by Socket.IO heartbeat
+      // Display change events are now handled automatically by HTTP heartbeat
       // which includes the current display configuration
     } catch (error) {
       logger.error('Failed to handle display change event:', error);
@@ -538,8 +538,8 @@ class HostAgent {
     }
     
     // Disconnect from Web-Admin
-    if (this.socketClientService) {
-      this.socketClientService.stop();
+    if (this.httpClientService) {
+      this.httpClientService.stop();
     }
     
     // Close all managed windows

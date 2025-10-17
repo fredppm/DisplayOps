@@ -1,12 +1,11 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { NextApiResponseServerIO } from '@/types/socket';
 import { createContextLogger } from '@/utils/logger';
 import { hostsRepository } from '@/lib/repositories/HostsRepository';
-import { socketHostManager } from '@/lib/socket-host-manager';
+import { httpHostManager } from '@/lib/http-host-manager';
 
 const hostCommandLogger = createContextLogger('host-command');
 
-export default async function handler(req: NextApiRequest, res: NextApiResponseServerIO) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { hostId } = req.query;
   
   if (req.method !== 'POST') {
@@ -14,18 +13,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponseS
     return res.status(405).json({
       success: false,
       error: `Method ${req.method} Not Allowed`,
-      timestamp: new Date().toISOString()
-    });
-  }
-
-  const startTime = Date.now(); // Define before try for catch block access
-  
-  // Ensure Socket.IO is initialized
-  if (!res.socket.server.io) {
-    hostCommandLogger.error('❌ Socket.IO server not initialized');
-    return res.status(500).json({
-      success: false,
-      error: 'WebSocket server not initialized. Please refresh the page.',
       timestamp: new Date().toISOString()
     });
   }
@@ -49,8 +36,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponseS
       targetDisplay: command.targetDisplay
     });
 
-    // Check if host is connected via Socket.IO
-    if (!socketHostManager.isHostConnected(host.agentId)) {
+    // Check if host is connected (based on recent heartbeat)
+    const isConnected = await httpHostManager.isHostConnected(host.agentId);
+    if (!isConnected) {
       return res.status(503).json({
         success: false,
         error: 'Host is not connected. Please ensure the host agent is running and connected to the admin.',
@@ -58,8 +46,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponseS
       });
     }
 
-    // Send command via Socket.IO
-    const result = await socketHostManager.sendCommand(host.agentId, {
+    // Send command via HTTP (enqueued for host to poll)
+    const result = await httpHostManager.sendCommand(host.agentId, {
       commandId: `cmd_${Date.now()}`,
       type: command.type,
       payload: command.payload,

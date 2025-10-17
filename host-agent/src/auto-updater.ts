@@ -295,7 +295,7 @@ export class AutoUpdaterService {
       
       // If update already downloaded, show install dialog
       if (this.updateDownloaded && this.updateInfo) {
-        await this.showUpdateReadyDialog(this.updateInfo);
+        await this.showUpdateDialog(this.updateInfo);
         return;
       }
       
