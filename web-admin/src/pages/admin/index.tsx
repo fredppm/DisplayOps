@@ -527,12 +527,40 @@ const AdminPageContent: React.FC<AdminPageProps> = ({ dashboardData }) => {
               {/* Downloads Section */}
               <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Downloads</h2>
-                <div className="max-w-md">
+                <div className="max-w-md space-y-3">
                   <DownloadButton 
                     title="Host Agent"
                     description="Download latest Host Agent app"
                     app="host"
                   />
+                  
+                  {/* Browser Extension Download */}
+                  <a
+                    href="/api/extension/download"
+                    className="group block w-full text-left border border-gray-200 dark:border-gray-600 rounded-lg p-4 hover:border-gray-300 dark:hover:border-gray-500 hover:shadow-md transition-all duration-200 bg-white dark:bg-gray-800"
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center space-x-3">
+                        <div className="h-10 w-10 bg-purple-50 dark:bg-purple-900/20 rounded-lg flex items-center justify-center">
+                          <svg className="h-6 w-6 text-purple-600 dark:text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                          </svg>
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Browser Extension</h3>
+                          <p className="text-xs text-gray-600 dark:text-gray-400">Cookie sync for Chrome/Edge</p>
+                        </div>
+                      </div>
+                      <svg className="h-5 w-5 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                        Latest from GitHub
+                      </span>
+                    </div>
+                  </a>
                 </div>
               </div>
             </div>
