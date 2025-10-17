@@ -1,9 +1,12 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { createContextLogger } from '@/utils/logger';
-import fs from 'fs';
-import path from 'path';
 
 const logger = createContextLogger('api-extension-download');
+
+// GitHub API configuration
+const GITHUB_OWNER = process.env.GITHUB_OWNER || 'fredppm';
+const GITHUB_REPO = process.env.GITHUB_REPO || 'DisplayOps';
+const GITHUB_API_BASE = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}`;
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
@@ -15,55 +18,76 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 
   try {
-    // Path to pre-built extension ZIP in public/downloads
-    const zipPath = path.join(process.cwd(), 'public', 'downloads', 'displayops-extension.zip');
+    logger.info('Fetching latest extension release from GitHub');
 
-    logger.info('Serving extension ZIP', { path: zipPath });
+    // Fetch releases from GitHub
+    const releasesUrl = `${GITHUB_API_BASE}/releases`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
 
-    // Check if ZIP exists
-    if (!fs.existsSync(zipPath)) {
-      logger.error('Extension ZIP not found', { 
-        path: zipPath,
-        hint: 'Run "npm run package-extension" to generate the ZIP file'
+    const response = await fetch(releasesUrl, {
+      headers: {
+        'Accept': 'application/vnd.github.v3+json',
+        'User-Agent': 'DisplayOps-Admin'
+      },
+      signal: controller.signal
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      logger.error('GitHub API request failed', {
+        status: response.status,
+        statusText: response.statusText
       });
-      return res.status(404).json({
+      return res.status(502).json({
         success: false,
-        error: 'Extension package not found. Please run the build process first.'
+        error: 'Failed to fetch extension releases from GitHub'
       });
     }
 
-    // Get file stats
-    const stats = fs.statSync(zipPath);
-    const fileSize = stats.size;
+    const releases = await response.json();
 
-    // Set response headers
-    res.setHeader('Content-Type', 'application/zip');
-    res.setHeader('Content-Disposition', 'attachment; filename=displayops-extension.zip');
-    res.setHeader('Content-Length', fileSize);
+    // Find the latest extension release (tag starts with 'extension-v')
+    const extensionRelease = releases.find((release: any) => 
+      release.tag_name.startsWith('extension-v') && !release.prerelease
+    );
 
-    // Stream the file
-    const fileStream = fs.createReadStream(zipPath);
-    fileStream.pipe(res);
-
-    fileStream.on('end', () => {
-      logger.info('Extension ZIP served successfully', { 
-        bytes: fileSize,
-        mb: (fileSize / 1024 / 1024).toFixed(2)
+    if (!extensionRelease) {
+      logger.error('No extension releases found on GitHub');
+      return res.status(404).json({
+        success: false,
+        error: 'No extension releases available'
       });
+    }
+
+    // Find the ZIP asset
+    const zipAsset = extensionRelease.assets.find((asset: any) => 
+      asset.name.endsWith('.zip')
+    );
+
+    if (!zipAsset) {
+      logger.error('No ZIP file found in release', {
+        tag: extensionRelease.tag_name,
+        assets: extensionRelease.assets.map((a: any) => a.name)
+      });
+      return res.status(404).json({
+        success: false,
+        error: 'Extension package not found in release'
+      });
+    }
+
+    logger.info('Redirecting to GitHub download', {
+      tag: extensionRelease.tag_name,
+      asset: zipAsset.name,
+      url: zipAsset.browser_download_url
     });
 
-    fileStream.on('error', (err) => {
-      logger.error('Error streaming extension ZIP', { error: err.message });
-      if (!res.headersSent) {
-        res.status(500).json({
-          success: false,
-          error: 'Failed to download extension'
-        });
-      }
-    });
+    // Redirect to GitHub download URL
+    return res.redirect(302, zipAsset.browser_download_url);
 
   } catch (error: any) {
-    logger.error('Error serving extension ZIP', {
+    logger.error('Error fetching extension from GitHub', {
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined
     });
@@ -71,7 +95,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     if (!res.headersSent) {
       return res.status(500).json({
         success: false,
-        error: error.message || 'Internal server error while serving extension'
+        error: 'Failed to download extension'
       });
     }
   }

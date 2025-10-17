@@ -1,102 +1,104 @@
 # 🔐 Office Display Credentials Sync Extension
 
-> **Extensão de navegador que automatiza a captura e sincronização de credenciais de autenticação para sistemas Office Display**
+> **Browser extension that automates the capture and synchronization of authentication credentials for Office Display systems**
 
-Elimina a necessidade de extrair cookies manualmente via DevTools, automatizando todo o processo de sincronização de credenciais para múltiplos displays.
+Eliminates the need to manually extract cookies via DevTools, automating the entire credential sync process for multiple displays.
 
 ---
 
-## 🎯 **FUNCIONALIDADES**
+## 🎯 **FEATURES**
 
 ### ✅ **Core Features**
-- 🔍 **Auto-detecção** de dashboards conhecidos (Grafana, Tableau, Sentry, etc.)
-- 🍪 **Captura automática** de credenciais após login
-- 🚀 **Sincronização one-click** com DisplayOps Admin
-- 🔧 **Auto-configuração** do endpoint (localhost:3000)
-- 🔔 **Indicadores visuais** no ícone da extensão (sem notificações invasivas)
-- 📊 **Status em tempo real** dos domínios monitorados
+- 🔍 **Auto-detection** of known dashboards (Grafana, Tableau, Sentry, etc.)
+- 🍪 **Automatic capture** of credentials after login
+- 🚀 **One-click sync** with DisplayOps Admin
+- 🔧 **Auto-configuration** of the endpoint (localhost:3000)
+- 🔔 **Visual indicators** on the extension icon (no intrusive notifications)
+- 📊 **Real-time status** of monitored domains
 
-### 🎨 **Estados Visuais da Extensão**
-- 🔴 **Cinza**: Nenhuma credencial detectada
-- 🟡 **Amarelo**: Credenciais prontas para sync
-- 🟢 **Verde**: Sincronizado recentemente  
-- 🔴 **Vermelho**: Erro na sincronização
-
----
-
-## 📦 **INSTALAÇÃO**
-
-### **1. Preparar Extensão**
-```bash
-# No diretório do projeto Office Display
-cd office-display-extension
-
-# Instalar dependências para gerar ícones (opcional)
-pip install Pillow
-
-# Gerar ícones (se necessário)
-python icons/create-icons.py
-```
-
-### **2. Instalar no Chrome/Edge**
-1. **Abra Chrome/Edge**
-2. **Vá para** `chrome://extensions/` (ou `edge://extensions/`)
-3. **Ative "Modo do desenvolvedor"** (canto superior direito)
-4. **Clique "Carregar sem compactação"**
-5. **Selecione pasta** `office-display-extension`
-6. **✅ Extensão instalada!**
-
-### **3. Configuração Inicial**
-A extensão se auto-configura automaticamente:
-- 🔍 **Detecta Office Display** em `localhost:3000`
-- ⚙️ **Configuração editável** se necessário
-- 🔗 **Testa conexão** automaticamente
+### 🎨 **Extension Icon States**
+- ⚪️ **Grey**: No credentials detected
+- 🟡 **Yellow**: Credentials ready to sync
+- 🟢 **Green**: Synced recently
+- 🔴 **Red**: Sync error
 
 ---
 
-## 🚀 **COMO USAR**
+## 📦 **INSTALLATION**
 
-### **Fluxo Típico:**
+### **1. Download the Extension**
+
+The extension is distributed via GitHub Releases:
+
+1. **Go to**: https://github.com/fredppm/DisplayOps/releases
+2. **Find**: Tag `extension-v*` (e.g., `extension-v1.0`)
+3. **Download**: `displayops-extension-{version}.zip`
+4. **Extract** the ZIP file
+
+### **2. Install on Chrome/Edge**
+1. **Open Chrome/Edge**
+2. **Go to** `chrome://extensions/` (or `edge://extensions/`)
+3. **Enable "Developer mode"** (top right corner)
+4. **Click "Load unpacked"**
+5. **Select** the folder extracted from the ZIP
+6. **✅ Extension installed!**
+
+**Or download directly from the Web Admin interface:**
+- Go to `http://localhost:3000/cookies`
+- Click "Download Extension"
+- Extract and install as above
+
+### **3. Initial Configuration**
+The extension auto-configures itself:
+- 🔍 **Detects Office Display** at `localhost:3000`
+- ⚙️ **Editable configuration** if needed
+- 🔗 **Automatically tests connection**
+
+---
+
+## 🚀 **HOW TO USE**
+
+### **Typical Workflow:**
 ```
-1. 🌐 Navegue para dashboard (ex: grafana.company.com)
-2. 🔐 Faça login normalmente  
-3. 🟡 Ícone da extensão fica amarelo (credenciais prontas)
-4. 📱 Clique no ícone da extensão
-5. 🚀 Clique "Sync Credenciais"
-6. ✅ Todas as displays ficam logadas automaticamente!
-7. 🟢 Ícone fica verde (sincronizado)
+1. 🌐 Navigate to a dashboard (e.g.: grafana.company.com)
+2. 🔐 Log in as usual  
+3. 🟡 Extension icon turns yellow (credentials ready)
+4. 📱 Click the extension icon
+5. 🚀 Click "Sync Credentials"
+6. ✅ All displays are logged in automatically!
+7. 🟢 Icon turns green (synced)
 ```
 
-### **Interface da Extensão:**
+### **Extension Popup Interface:**
 ```
-📱 [Popup da Extensão]
+📱 [Extension Popup]
 ┌─────────────────────────────────┐
 │ 🔐 Office Display Sync          │
 ├─────────────────────────────────┤
-│ 🟢 Conectado: localhost:3000    │
+│ 🟢 Connected: localhost:3000    │
 │                                 │
-│ 📍 Domínio Atual                │
+│ 📍 Current Domain               │
 │ grafana.company.com             │
-│ 🟡 Credenciais prontas          │
-│ [🚀 Sync Credenciais]           │
+│ 🟡 Credentials ready            │
+│ [🚀 Sync Credentials]           │
 │                                 │
-│ 📊 Domínios Monitorados:        │
+│ 📊 Monitored Domains:           │
 │ 🟢 grafana.company.com (2m)     │
 │ 🟢 tableau.company.com (5m)     │
-│ 🔴 sentry.io (expirado)         │
+│ 🔴 sentry.io (expired)          │
 │                                 │
 │ ⚙️ Office Display: localhost:3000│
-│ [Test] [Salvar]                 │
+│ [Test] [Save]                   │
 └─────────────────────────────────┘
 ```
 
 ---
 
-## 🔧 **CONFIGURAÇÃO AVANÇADA**
+## 🔧 **ADVANCED CONFIGURATION**
 
-### **Domínios Suportados Automaticamente:**
+### **Automatically Supported Domains:**
 - 🔶 **Grafana**: `grafana.*`
-- 📊 **Tableau**: `tableau.*` 
+- 📊 **Tableau**: `tableau.*`
 - 🏥 **Health Monitor**: `healthmonitor.*`
 - 📈 **Generic Dashboard**: `dashboard.*`
 - 📊 **Monitoring**: `monitoring.*`, `metrics.*`
@@ -104,50 +106,50 @@ A extensão se auto-configura automaticamente:
 - 🚨 **Sentry**: `sentry.*`
 - 🐕 **DataDog**: `datadog.*`
 
-### **Endpoint Office Display:**
+### **Office Display Endpoint:**
 ```javascript
-// Auto-detecta nesta ordem:
+// Auto-detects in this order:
 const DEFAULT_ENDPOINTS = [
   'http://localhost:3000',
-  'http://localhost:3002', 
+  'http://localhost:3002',
   'http://127.0.0.1:3000'
 ];
 ```
 
-### **Configuração Manual:**
-1. **Clique no ícone da extensão**
-2. **Seção "⚙️ Configuração"**
-3. **Digite endpoint**: `http://localhost:3000`
-4. **Clique "Test"** para validar
-5. **Clique "Salvar"**
+### **Manual Configuration:**
+1. **Click the extension icon**
+2. **Go to the "⚙️ Configuration" section**
+3. **Enter endpoint**: `http://localhost:3000`
+4. **Click "Test"** to validate
+5. **Click "Save"**
 
 ---
 
-## 🔍 **DETECÇÃO DE LOGIN**
+## 🔍 **LOGIN DETECTION**
 
-A extensão detecta login automaticamente usando:
+The extension detects logins automatically using:
 
-### **🌐 Padrões de URL:**
+### **🌐 URL patterns:**
 - `/dashboard`, `/home`, `/main`, `/overview`, `/app`
 
-### **🎯 Elementos DOM:**
-- Menus de usuário, sidebars, navigation
-- Botões de logout (indica que está logado)
-- Elementos específicos do Grafana, Tableau, etc.
+### **🎯 DOM Elements:**
+- User menus, sidebars, navigation
+- Logout buttons (indicates logged in)
+- Elements specific to Grafana, Tableau, etc.
 
-### **📝 Conteúdo Textual:**
+### **📝 Text Content:**
 - "welcome", "dashboard", "logout", "profile"
 
-### **🍪 Cookies de Autenticação:**
-- Filtros para cookies relevantes (session, auth, token, jwt, etc.)
-- Ignora cookies muito pequenos (< 10 chars)
-- Prioriza cookies longos (> 50 chars)
+### **🍪 Authentication Cookies:**
+- Filters for relevant cookies (session, auth, token, jwt, etc.)
+- Ignores cookies that are too short (< 10 chars)
+- Prioritizes long cookies (> 50 chars)
 
 ---
 
-## 🔗 **INTEGRAÇÃO COM OFFICE DISPLAY**
+## 🔗 **INTEGRATION WITH OFFICE DISPLAY**
 
-### **API Utilizada:**
+### **API Used:**
 ```javascript
 POST /api/cookies/import
 {
@@ -160,12 +162,12 @@ POST /api/cookies/import
 ### **Status API:**
 ```javascript
 GET /api/cookies/status
-// Verifica se Office Display está online
+// Checks if Office Display is online
 ```
 
-### **Formato de Credenciais:**
+### **Credential Format:**
 ```
-# Formato enviado para API:
+# Format sent to API:
 session_id=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 auth_token=MTIzNDU2Nzg5MC4xMjM0NTY3ODkw...
 grafana_sess=abcd1234567890xyz...
@@ -175,105 +177,154 @@ grafana_sess=abcd1234567890xyz...
 
 ## 🐛 **TROUBLESHOOTING**
 
-### **❌ Extensão não detecta login:**
-- ✅ Verifique se o domínio está na lista suportada
-- ✅ Aguarde 2-5 segundos após login para detecção
-- ✅ Certifique-se que login foi bem-sucedido (não há redirecionamento para tela de erro)
+### **❌ Extension doesn't detect login:**
+- ✅ Make sure the domain is in the supported list
+- ✅ Wait 2-5 seconds after login for detection
+- ✅ Make sure the login was successful (not redirected to an error page)
 
-### **❌ Sync falha:**
-- ✅ Verifique se Office Display está rodando (`localhost:3000`)
-- ✅ Teste conexão na configuração da extensão
-- ✅ Confirme que há credenciais válidas no domínio atual
+### **❌ Sync fails:**
+- ✅ Make sure Office Display is running (`localhost:3000`)
+- ✅ Test connection in the extension settings
+- ✅ Confirm there are valid credentials for the current domain
 
-### **❌ Ícone sempre cinza:**
-- ✅ Navegue para um domínio de dashboard suportado
-- ✅ Faça login completo no dashboard  
-- ✅ Aguarde alguns segundos para detecção automática
+### **❌ Icon always grey:**
+- ✅ Go to a supported dashboard domain
+- ✅ Complete login in the dashboard
+- ✅ Wait a few seconds for automatic detection
 
-### **❌ Office Display não responde:**
+### **❌ Office Display not responding:**
 ```bash
-# Verificar se Office Display está rodando:
+# Check if Office Display is running:
 curl http://localhost:3000/api/cookies/status
 
-# Iniciar Office Display se necessário:
+# Start Office Display if needed:
 cd web-admin && npm run dev
 ```
 
 ---
 
-## 🔒 **SEGURANÇA E PRIVACIDADE**
+## 🔒 **SECURITY & PRIVACY**
 
-### **✅ Dados Locais:**
-- 🔐 **Credenciais não são armazenadas** permanentemente na extensão
-- 📊 **Apenas metadados** são salvos (domínio, timestamp, contadores)
-- 🌐 **Comunicação local** apenas com Office Display (localhost)
+### **✅ Local Data:**
+- 🔐 **Credentials are NOT stored** permanently in the extension
+- 📊 **Only metadata** is saved (domain, timestamp, counters)
+- 🌐 **Local communication only** with Office Display (localhost)
 
-### **✅ Permissões Mínimas:**
-- 🍪 `cookies`: Apenas para leitura de credenciais de autenticação
-- 📱 `activeTab`: Apenas da aba atual quando extensão é usada
-- 💾 `storage`: Configurações locais da extensão
+### **✅ Minimum Permissions:**
+- 🍪 `cookies`: For authentication credential read only
+- 📱 `activeTab`: Only for tab in use when the extension is used
+- 💾 `storage`: Local extension settings
 
-### **✅ Sem Telemetria:**
-- ❌ **Não envia dados** para servidores externos
-- ❌ **Não coleta informações** pessoais
-- ✅ **100% local** entre navegador e Office Display
+### **✅ No Telemetry:**
+- ❌ **No data sent** to external servers
+- ❌ **No personal information collected**
+- ✅ **100% local** between browser and Office Display
 
 ---
 
-## 📁 **ESTRUTURA DO PROJETO**
+## 📁 **PROJECT STRUCTURE**
 
 ```
 office-display-extension/
-├── manifest.json              # Manifest V3 da extensão
-├── background.js              # Service Worker principal
-├── content-script.js          # Script de detecção de login
+├── manifest.json              # Extension Manifest V3
+├── background.js              # Main Service Worker
+├── content-script.js          # Login detection script
 ├── popup/
-│   ├── popup.html            # Interface da extensão
-│   ├── popup.css             # Estilos da interface
-│   └── popup.js              # Lógica da interface
+│   ├── popup.html            # Extension UI
+│   ├── popup.css             # Extension styles
+│   └── popup.js              # Extension UI logic
 ├── icons/
-│   ├── create-icons.py       # Script para gerar ícones
-│   ├── icon-idle-*.png       # Ícones estado inativo
-│   ├── icon-ready-*.png      # Ícones estado pronto
-│   ├── icon-synced-*.png     # Ícones estado sincronizado
-│   └── icon-error-*.png      # Ícones estado erro
-└── README.md                 # Esta documentação
+│   ├── create-icons.py       # Script to generate icons
+│   ├── icon-idle-*.png       # Idle state icons
+│   ├── icon-ready-*.png      # Ready state icons
+│   ├── icon-synced-*.png     # Synced state icons
+│   └── icon-error-*.png      # Error state icons
+└── README.md                 # This documentation
 ```
 
 ---
 
-## 🎯 **RESULTADOS**
+## 🎯 **RESULTS**
 
-### **ANTES:** 😞
+### **BEFORE:** 😞
 1. F12 → DevTools → Application → Cookies
-2. Selecionar domínio → Copiar cookies
-3. Abrir Office Display → Aba Cookies  
-4. Colar cookies → Validar → Sync
-5. **Total: ~2-3 minutos por dashboard**
+2. Select domain → Copy cookies
+3. Open Office Display → Cookies tab  
+4. Paste cookies → Validate → Sync
+5. **Total: ~2-3 minutes per dashboard**
 
-### **DEPOIS:** 😍  
-1. 🔐 Fazer login no dashboard normalmente
-2. 🟡 Ver ícone amarelo (credenciais prontas)
-3. 📱 Clicar na extensão → "Sync Credenciais"
-4. ✅ Todas as displays logadas automaticamente!
-5. **Total: ~10 segundos por dashboard**
+### **AFTER:** 😍
+1. 🔐 Login to the dashboard as usual
+2. 🟡 See icon turn yellow (credentials ready)
+3. 📱 Click the extension → "Sync Credentials"
+4. ✅ All displays logged in automatically!
+5. **Total: ~10 seconds per dashboard**
 
-### **🚀 Benefícios:**
-- ⚡ **20x mais rápido** que processo manual
-- 🔒 **Mais seguro** - não precisa abrir DevTools
-- 🤖 **Automático** - detecta login sem intervenção  
-- 📊 **Visibilidade** - status em tempo real
-- 🔄 **Escalável** - funciona com múltiplos domínios simultaneamente
-
----
-
-## 📞 **SUPORTE**
-
-Para problemas ou sugestões:
-1. **Verifique troubleshooting** acima
-2. **Console do navegador**: F12 → Console (para logs da extensão)  
-3. **Logs do Office Display**: Terminal onde roda `npm run dev`
+### **🚀 Benefits:**
+- ⚡ **20x faster** than the manual process
+- 🔒 **More secure** – no need to open DevTools
+- 🤖 **Automatic** – detects login with no intervention  
+- 📊 **Visibility** – real-time status
+- 🔄 **Scalable** – works with multiple domains simultaneously
 
 ---
 
-**✅ EXTENSÃO OFFICE DISPLAY CREDENTIALS SYNC - PRONTA PARA USO!** 🚀🔐
+## 📞 **SUPPORT**
+
+For issues or suggestions:
+1. **Check troubleshooting** above
+2. **Browser console**: F12 → Console (for extension logs)
+3. **Office Display logs**: Terminal running `npm run dev`
+
+---
+
+## 🚀 **RELEASE / DEVELOPMENT**
+
+### **For Developers:**
+
+#### **Create a new release:**
+
+```powershell
+# Windows
+cd browser-extension
+.\release.ps1 1.0.1
+```
+
+```bash
+# Linux/Mac
+cd browser-extension
+./release.sh 1.0.1
+```
+
+The script will:
+1. ✅ Check that the version in `manifest.json` is correct
+2. ✅ Create tag `extension-v1.0.1` on Git
+3. ✅ Push the tag to GitHub
+4. 🚀 GitHub Actions automatically:
+   - Packages the extension
+   - Creates a release on GitHub
+   - Publishes the ZIP for download
+
+#### **Update version in manifest.json:**
+
+```json
+{
+  "manifest_version": 3,
+  "name": "DisplayOps Credentials Sync",
+  "version": "1.0.1",   // ← Update here before releasing
+  ...
+}
+```
+
+#### **GitHub Actions Workflow:**
+
+Located at `.github/workflows/release-extension.yml`:
+- Triggered by tags `extension-v*`
+- Packages all files automatically
+- Generates SHA256 checksum
+- Creates release with changelog
+- Provides public download
+
+---
+
+**✅ OFFICE DISPLAY CREDENTIALS SYNC EXTENSION – READY TO USE!** 🚀🔐
