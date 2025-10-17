@@ -15,7 +15,7 @@ jobs:
 
       - name: Get version from tag
         id: get_version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/extension-v}" >> $GITHUB_OUTPUT
+        run: echo "VERSION=${GITHUB_REF#refs/tags/ext-v}" >> $GITHUB_OUTPUT
 
       - name: Read manifest version
         id: manifest
