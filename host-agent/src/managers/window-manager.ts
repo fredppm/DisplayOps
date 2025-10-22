@@ -719,6 +719,19 @@ export class WindowManager extends EventEmitter {
         isPrimary: targetDisplay === screen.getPrimaryDisplay()
       });
 
+      // 🔄 CLOSE EXISTING DASHBOARD: Close any existing dashboard on this display first
+      const existingWindow = Array.from(this.windows.values()).find(w => w.config.displayId === config.displayId);
+      if (existingWindow) {
+        console.log(`🔄 Closing existing dashboard on ${config.displayId} (window: ${existingWindow.id})`);
+        await this.closeWindow(existingWindow.id);
+        
+        // Clear the assigned dashboard state
+        if (this.stateManager) {
+          this.stateManager.clearAssignedDashboard(config.displayId);
+          logger.debug(`Cleared previous dashboard assignment for ${config.displayId}`);
+        }
+      }
+
       const windowConfig: WindowConfig = {
         id: `dashboard_${config.displayId}_${Date.now()}`,
         url: config.url,

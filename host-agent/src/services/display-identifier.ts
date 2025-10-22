@@ -449,7 +449,7 @@ export class DisplayIdentifier {
     const primaryDisplay = screen.getPrimaryDisplay();
     
     return displays.map((display, index) => ({
-      id: display.id.toString(),
+      id: `display-${index + 1}`, // Use consistent display-X format
       name: `Display ${index + 1}`,
       displayId: index + 1,
       bounds: display.bounds,

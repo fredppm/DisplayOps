@@ -1,34 +1,27 @@
 {
   "version": "1.0.0",
-  "lastUpdated": "2025-10-22T14:39:01.861Z",
+  "lastUpdated": "2025-10-22T17:45:02.614Z",
   "displays": {
-    "2528732444": {
-      "displayId": "2528732444",
+    "display-1": {
+      "displayId": "display-1",
       "isActive": false,
-      "lastRefresh": "2025-10-17T21:27:39.692Z",
+      "lastRefresh": "2025-10-22T17:40:31.715Z",
       "isResponsive": true,
-      "windowId": "dashboard_2528732444_1760736446620"
-    },
-    "2779098405": {
-      "displayId": "2779098405",
-      "isActive": false,
-      "lastRefresh": "2025-10-22T14:39:00.842Z",
-      "isResponsive": true,
-      "windowId": "dashboard_2779098405_1761143936472"
-    },
-    "display-3": {
-      "displayId": "display-3",
-      "isActive": false,
-      "lastRefresh": "2025-09-04T23:43:15.718Z",
-      "isResponsive": true,
-      "windowId": "dashboard_display-3_1757029357711"
+      "windowId": "dashboard_display-1_1761154812297"
     },
     "display-2": {
       "displayId": "display-2",
       "isActive": false,
-      "lastRefresh": "2025-10-14T21:47:25.224Z",
+      "lastRefresh": "2025-10-22T17:37:50.889Z",
       "isResponsive": true,
-      "windowId": "dashboard_display-2_1760478439394"
+      "windowId": "dashboard_display-2_1761154667167"
+    },
+    "display-3": {
+      "displayId": "display-3",
+      "isActive": false,
+      "lastRefresh": "2025-10-22T17:45:01.605Z",
+      "isResponsive": true,
+      "windowId": "dashboard_display-3_1761155006942"
     }
   }
 }
