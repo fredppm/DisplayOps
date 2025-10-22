@@ -115,6 +115,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           host: updatedHost
         });
       } else {
+        // Only broadcast routine updates if there are significant changes
+        // This reduces unnecessary SSE broadcasts when no clients are connected
         broadcastHostEvent({
           type: 'host_updated',
           host: updatedHost

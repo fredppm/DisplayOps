@@ -24,6 +24,9 @@ interface Host {
     assignedDashboard?: {
       dashboardId: string;
       url: string;
+      refreshInterval?: number;
+      lastNavigation?: string;
+      isResponsive?: boolean;
     } | null;
     isActive?: boolean;
   }>;

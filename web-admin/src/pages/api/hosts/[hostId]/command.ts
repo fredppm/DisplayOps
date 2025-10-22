@@ -52,7 +52,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       type: command.type,
       payload: command.payload,
       targetDisplay: command.targetDisplay,
-      timeout: 30000
+      timeout: 10000 // Reduced from 30s to 10s for faster response
     });
 
     hostCommandLogger.info('✅ Command executed successfully', {

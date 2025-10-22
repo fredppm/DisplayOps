@@ -301,6 +301,12 @@ export class HostService {
 
   // gRPC compatibility methods
   public async setCookie(cookieData: any): Promise<boolean> {
+    // If cookieData contains an array of cookies, use the optimized method
+    if (cookieData.cookies && Array.isArray(cookieData.cookies)) {
+      return await this.setMultipleCookies(cookieData);
+    }
+    
+    // Single cookie processing (original method)
     try {
       logger.debug(`Setting cookie: ${cookieData.name} for domain ${cookieData.domain}`);
 
@@ -527,5 +533,81 @@ export class HostService {
       ...status,
       id: displayId
     }));
+  }
+
+  /**
+   * 🚀 OPTIMIZED: Set multiple cookies at once for better performance
+   * This method processes all cookies in parallel instead of sequentially
+   */
+  private async setMultipleCookies(cookieData: any): Promise<boolean> {
+    try {
+      const { domain, cookies } = cookieData;
+      logger.info(`🍪 Setting ${cookies.length} cookies for domain ${domain}`);
+      
+      const { session } = require('electron');
+      const defaultSession = session.defaultSession;
+      
+      if (!defaultSession) {
+        throw new Error('No default Electron session available');
+      }
+
+      // Prepare all cookies in parallel
+      const cookiePromises = cookies.map(async (cookie: any) => {
+        try {
+          // Prepare cookie for Electron
+          let cookieUrl = `https://${domain}${cookie.path || '/'}`;
+          
+          // If domain starts with a dot, remove it for the URL
+          const cleanDomain = domain?.startsWith('.') ? domain.substring(1) : domain;
+          if (cleanDomain !== domain) {
+            cookieUrl = `https://${cleanDomain}${cookie.path || '/'}`;
+          }
+          
+          const electronCookie = {
+            url: cookieUrl,
+            name: cookie.name,
+            value: cookie.value,
+            domain: domain,
+            path: cookie.path || '/',
+            secure: cookie.secure !== false,
+            httpOnly: cookie.httpOnly || false,
+            expirationDate: cookie.expires ? Math.floor(cookie.expires.getTime() / 1000) : undefined,
+            sameSite: cookie.sameSite || 'lax'
+          };
+
+          // Remove undefined properties
+          Object.keys(electronCookie).forEach(key => {
+            if ((electronCookie as any)[key] === undefined) {
+              delete (electronCookie as any)[key];
+            }
+          });
+
+          // Set cookie with single attempt (no retries for performance)
+          await defaultSession.cookies.set(electronCookie);
+          return { success: true, name: cookie.name };
+        } catch (error) {
+          logger.warn(`Failed to set cookie ${cookie.name}:`, error instanceof Error ? error.message : String(error));
+          return { success: false, name: cookie.name, error: error instanceof Error ? error.message : String(error) };
+        }
+      });
+
+      // Wait for all cookies to be processed
+      const results = await Promise.all(cookiePromises);
+      
+      const successful = results.filter(r => r.success);
+      const failed = results.filter(r => !r.success);
+      
+      logger.info(`🍪 Cookie sync completed: ${successful.length}/${cookies.length} successful`);
+      
+      if (failed.length > 0) {
+        logger.warn(`🍪 Failed cookies: ${failed.map(f => f.name).join(', ')}`);
+      }
+      
+      // Return true if at least one cookie was set successfully
+      return successful.length > 0;
+    } catch (error) {
+      logger.error('Failed to set multiple cookies:', error instanceof Error ? error.message : String(error));
+      return false;
+    }
   }
 }

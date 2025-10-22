@@ -36,7 +36,7 @@ export class HttpClientService extends EventEmitter {
   private heartbeatIntervalMs: number = 30000; // 30 seconds
   
   private commandPollInterval: NodeJS.Timeout | null = null;
-  private commandPollIntervalMs: number = 5000; // 5 seconds - poll for commands
+  private commandPollIntervalMs: number = 2000; // 2 seconds - faster polling for better responsiveness
   
   private metricsInterval: NodeJS.Timeout | null = null;
   private metricsIntervalMs: number = 10000; // 10 seconds
@@ -299,6 +299,9 @@ export class HttpClientService extends EventEmitter {
             dashboardId: payload.dashboardId || 'dashboard'
           });
           this.hostService.forceRefreshFromSystem();
+          
+          // 🍪 AUTO-SYNC COOKIES: Apply cookies automatically when dashboard is deployed
+          await this.autoSyncCookiesForDashboard(payload.url);
           break;
 
         case 'REFRESH_DASHBOARD':
@@ -525,6 +528,52 @@ export class HttpClientService extends EventEmitter {
         return; // Servidor offline, não logar
       }
       logger.warn('Failed to send logs', { error: error instanceof Error ? error.message : error });
+    }
+  }
+
+  /**
+   * 🍪 AUTO-SYNC COOKIES: Automatically sync cookies for a dashboard URL
+   * This method fetches cookies from the web-admin and applies them to the current session
+   */
+  private async autoSyncCookiesForDashboard(dashboardUrl: string): Promise<void> {
+    try {
+      logger.info('🍪 Auto-syncing cookies for dashboard', { url: dashboardUrl });
+      
+      // Extract domain from dashboard URL
+      const url = new URL(dashboardUrl);
+      const domain = url.hostname;
+      
+      logger.debug('🍪 Extracted domain for cookie sync', { domain, dashboardUrl });
+      
+      // Fetch cookies for this domain from web-admin
+      const response = await this.httpClient.get(`/api/cookies/domain/${encodeURIComponent(domain)}`);
+      
+      if (response.data.success && response.data.data && response.data.data.cookies) {
+        const cookies = response.data.data.cookies;
+        
+        if (Array.isArray(cookies) && cookies.length > 0) {
+          logger.info('🍪 Found cookies to auto-sync', { domain, count: cookies.length });
+          
+          // Apply cookies to the current session
+          const cookiePayload = {
+            domain: domain,
+            cookies: cookies
+          };
+          
+          await this.hostService.setCookie(cookiePayload);
+          logger.info('🍪 Auto-sync completed successfully', { domain, count: cookies.length });
+        } else {
+          logger.debug('🍪 No cookies found for domain', { domain });
+        }
+      } else {
+        logger.debug('🍪 No cookie data available for domain', { domain });
+      }
+    } catch (error) {
+      // Don't fail the dashboard deployment if cookie sync fails
+      logger.warn('🍪 Auto-sync cookies failed (non-critical)', { 
+        error: error instanceof Error ? error.message : error,
+        dashboardUrl 
+      });
     }
   }
 
