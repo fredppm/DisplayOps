@@ -425,7 +425,11 @@ export class WindowManager extends EventEmitter {
   }
 
   private getDisplayByIndex(index: number): Display | undefined {
-    return this.displays[index] || this.displays[0]; // Fallback to primary display
+    if (index < 0 || index >= this.displays.length) {
+      console.error(`❌ Display index ${index} out of range. Available displays: ${this.displays.length}`);
+      return undefined;
+    }
+    return this.displays[index];
   }
 
   private getDisplayByDisplayId(displayId: string): Display | undefined {
@@ -433,9 +437,18 @@ export class WindowManager extends EventEmitter {
     const match = displayId.match(/display-(\d+)/);
     if (match) {
       const index = parseInt(match[1]) - 1; // Convert to 0-based index
-      return this.getDisplayByIndex(index);
+      const display = this.getDisplayByIndex(index);
+      if (display) {
+        console.log(`✅ Found display for ${displayId}: index ${index}, bounds:`, display.bounds);
+        return display;
+      } else {
+        console.error(`❌ Display not found for ${displayId} (index ${index}). Available displays:`, this.displays.length);
+        throw new Error(`Display ${displayId} not found. Available displays: ${this.displays.length}`);
+      }
     }
-    return this.displays[0]; // Fallback to primary display
+    
+    console.error(`❌ Invalid displayId format: ${displayId}. Expected format: display-1, display-2, etc.`);
+    throw new Error(`Invalid displayId format: ${displayId}. Expected format: display-1, display-2, etc.`);
   }
 
   private calculateWindowBounds(config: WindowConfig, display: Display) {
@@ -686,6 +699,26 @@ export class WindowManager extends EventEmitter {
   // gRPC compatibility methods
   public async deployDashboard(config: { url: string; displayId: string; fullscreen?: boolean; refreshInterval?: number; dashboardId?: string }): Promise<{ success: boolean; url?: string; error?: string }> {
     try {
+      console.log(`🚀 Deploying dashboard to ${config.displayId}:`, {
+        url: config.url,
+        displayId: config.displayId,
+        fullscreen: config.fullscreen,
+        refreshInterval: config.refreshInterval,
+        dashboardId: config.dashboardId
+      });
+
+      // Validate displayId before proceeding
+      const targetDisplay = this.getDisplayByDisplayId(config.displayId);
+      if (!targetDisplay) {
+        throw new Error(`Display ${config.displayId} not found`);
+      }
+
+      console.log(`✅ Target display confirmed:`, {
+        displayId: config.displayId,
+        bounds: targetDisplay.bounds,
+        isPrimary: targetDisplay === screen.getPrimaryDisplay()
+      });
+
       const windowConfig: WindowConfig = {
         id: `dashboard_${config.displayId}_${Date.now()}`,
         url: config.url,
@@ -707,8 +740,10 @@ export class WindowManager extends EventEmitter {
         logger.debug(`Saved dashboard deployment for ${config.displayId}`);
       }
       
+      console.log(`✅ Dashboard deployed successfully to ${config.displayId} (window: ${windowId})`);
       return { success: true, url: config.url };
     } catch (error) {
+      console.error(`❌ Failed to deploy dashboard to ${config.displayId}:`, error);
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   }

@@ -33,10 +33,10 @@ export class HttpClientService extends EventEmitter {
   private agentId: string;
   
   private heartbeatInterval: NodeJS.Timeout | null = null;
-  private heartbeatIntervalMs: number = 30000; // 30 seconds
+  private heartbeatIntervalMs: number = 15000; // 15 seconds - more frequent for better responsiveness
   
   private commandPollInterval: NodeJS.Timeout | null = null;
-  private commandPollIntervalMs: number = 2000; // 2 seconds - faster polling for better responsiveness
+  private commandPollIntervalMs: number = 1000; // 1 second - even faster polling for better responsiveness
   
   private metricsInterval: NodeJS.Timeout | null = null;
   private metricsIntervalMs: number = 10000; // 10 seconds
@@ -152,21 +152,29 @@ export class HttpClientService extends EventEmitter {
       const baseDisplays = await this.displayIdentifier.getDisplayInfo();
       const activeWindows = this.windowManager.getAllWindows();
       
-      // Enrich displays with active dashboard information
+      // Enrich displays with active dashboard information from both WindowManager and StateManager
       const displays = baseDisplays.map(display => {
         // Find window for this display
         const activeWindow = activeWindows.find(w => w.config.displayId === display.id);
         
+        // Get state from StateManager for more accurate information
+        const displayState = this.stateManager.getDisplayState(display.id);
+        const assignedDashboard = displayState?.assignedDashboard;
+        
         return {
           ...display,
-          assignedDashboard: activeWindow ? {
-            dashboardId: activeWindow.config.id,
-            url: activeWindow.config.url,
-            refreshInterval: activeWindow.config.refreshInterval,
-            lastNavigation: activeWindow.lastNavigation.toISOString(),
-            isResponsive: activeWindow.isResponsive
+          assignedDashboard: assignedDashboard ? {
+            dashboardId: assignedDashboard.dashboardId,
+            url: assignedDashboard.url,
+            refreshInterval: assignedDashboard.refreshInterval,
+            deployedAt: assignedDashboard.deployedAt?.toISOString() || null,
+            lastNavigation: activeWindow?.lastNavigation.toISOString() || null,
+            isResponsive: activeWindow?.isResponsive || displayState?.isResponsive || false
           } : null,
-          isActive: !!activeWindow
+          isActive: displayState?.isActive || !!activeWindow,
+          isResponsive: displayState?.isResponsive || activeWindow?.isResponsive || false,
+          lastRefresh: displayState?.lastRefresh?.toISOString() || null,
+          windowId: displayState?.windowId || activeWindow?.id || null
         };
       });
       
@@ -306,6 +314,16 @@ export class HttpClientService extends EventEmitter {
 
         case 'REFRESH_DASHBOARD':
           result = await this.windowManager.refreshDisplay(targetDisplay);
+          
+          // 🍪 AUTO-SYNC COOKIES: Apply cookies automatically when dashboard is refreshed
+          // Get the dashboard URL from the display state to sync cookies
+          const refreshDisplayState = this.stateManager.getDisplayState(targetDisplay);
+          if (refreshDisplayState?.assignedDashboard?.url) {
+            await this.autoSyncCookiesForDashboard(refreshDisplayState.assignedDashboard.url);
+            logger.info(`🍪 Cookies synced for refreshed dashboard on ${targetDisplay}`);
+          } else {
+            logger.warn(`⚠️ No assigned dashboard found for ${targetDisplay}, skipping cookie sync`);
+          }
           break;
 
         case 'SET_COOKIES':
@@ -335,6 +353,16 @@ export class HttpClientService extends EventEmitter {
 
         case 'RESTART_DASHBOARD':
           result = await this.windowManager.refreshDisplay(targetDisplay);
+          
+          // 🍪 AUTO-SYNC COOKIES: Apply cookies automatically when dashboard is restarted
+          // Get the dashboard URL from the display state to sync cookies
+          const displayState = this.stateManager.getDisplayState(targetDisplay);
+          if (displayState?.assignedDashboard?.url) {
+            await this.autoSyncCookiesForDashboard(displayState.assignedDashboard.url);
+            logger.info(`🍪 Cookies synced for restarted dashboard on ${targetDisplay}`);
+          } else {
+            logger.warn(`⚠️ No assigned dashboard found for ${targetDisplay}, skipping cookie sync`);
+          }
           break;
 
         case 'REMOVE_DASHBOARD':
@@ -405,11 +433,19 @@ export class HttpClientService extends EventEmitter {
           throw new Error(`Unknown command type: ${type}`);
       }
 
-      // Send success response
+      // Send success response with additional context
       await this.sendCommandResponse({
         commandId,
         success: true,
-        data: result
+        data: {
+          ...result,
+          // Include display state information for display-related commands
+          ...(type.startsWith('OPEN_DASHBOARD') || type.startsWith('REFRESH_DASHBOARD') || type.startsWith('RESTART_DASHBOARD') || type.startsWith('REMOVE_DASHBOARD') ? {
+            displayId: targetDisplay,
+            timestamp: new Date().toISOString(),
+            displayState: this.stateManager.getDisplayState(targetDisplay)
+          } : {})
+        }
       });
 
       logger.info('✅ Command executed successfully', {
@@ -427,9 +463,12 @@ export class HttpClientService extends EventEmitter {
       
       if (displayChangeCommands.includes(type)) {
         logger.info('🔄 Display state changed, forcing immediate heartbeat');
-        this.sendHeartbeat().catch(err => 
-          logger.error('Failed to force heartbeat:', err)
-        );
+        // Wait a moment for the display state to be updated, then send heartbeat
+        setTimeout(() => {
+          this.sendHeartbeat().catch(err => 
+            logger.error('Failed to force heartbeat:', err)
+          );
+        }, 1000); // Wait 1 second for state to be updated
       }
 
     } catch (error) {

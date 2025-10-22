@@ -16,6 +16,12 @@
     },
     "pages/api/hosts/commands/pending.js": {
       "maxDuration": 30
+    },
+    "pages/api/updates/**/*.js": {
+      "maxDuration": 60
+    },
+    "pages/api/extension/**/*.js": {
+      "maxDuration": 60
     }
   },
   "headers": [
@@ -26,6 +32,20 @@
         { "key": "Access-Control-Allow-Methods", "value": "GET, POST, PUT, DELETE, OPTIONS" },
         { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Authorization, Cache-Control" },
         { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+      ]
+    },
+    {
+      "source": "/api/updates/(.*)",
+      "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "*" },
+        { "key": "Cache-Control", "value": "public, max-age=300" }
+      ]
+    },
+    {
+      "source": "/api/extension/version",
+      "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "*" },
+        { "key": "Cache-Control", "value": "public, max-age=300" }
       ]
     },
     {
