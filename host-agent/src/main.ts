@@ -83,10 +83,12 @@ class HostAgent {
     this.configManager = new ConfigManager();
     this.stateManager = new StateManager();
     this.hostService = new HostService(this.configManager, this.stateManager);
-    this.debugService = new DebugService(this.configManager);
     this.displayIdentifier = new DisplayIdentifier();
     this.displayMonitor = new DisplayMonitor();
     this.windowManager = new WindowManager(this.stateManager);
+    
+    // Initialize DebugService with dependencies
+    this.debugService = new DebugService(this.configManager, this.stateManager, this.windowManager);
     
     // Initialize HTTP client after dependencies
     this.httpClientService = new HttpClientService(

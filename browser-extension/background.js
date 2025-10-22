@@ -1,5 +1,24 @@
 // DisplayOps Credentials Sync - Background Service Worker
 
+// Configuration
+const CONFIG = {
+  environment: 'production', // Mude para 'development' ou 'staging' conforme necessário
+  
+  endpoints: {
+    production: [
+      'https://displayops.vtex.com'
+    ],
+    staging: [
+      'https://staging.displayops.vtex.com'
+    ],
+    development: [
+      'http://localhost:3000',
+      'http://localhost:3002', 
+      'http://127.0.0.1:3000'
+    ]
+  }
+};
+
 // Enhanced logging system
 const Logger = {
   levels: {
@@ -77,12 +96,8 @@ const Logger = {
   }
 };
 
-// Configuration
-const DEFAULT_ENDPOINTS = [
-  'http://localhost:3000',
-  'http://localhost:3002', 
-  'http://127.0.0.1:3000'
-];
+// Configuration - Usar endpoints baseados no ambiente atual
+const DEFAULT_ENDPOINTS = CONFIG.endpoints[CONFIG.environment];
 
 // Icon states
 const ICON_STATES = {

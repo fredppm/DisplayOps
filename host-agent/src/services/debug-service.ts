@@ -1,5 +1,7 @@
 import { EventEmitter } from 'events';
 import { ConfigManager } from '../managers/config-manager';
+import { StateManager } from './state-manager';
+import { WindowManager } from '../managers/window-manager';
 
 export interface DebugEvent {
   id: string;
@@ -24,13 +26,17 @@ export class DebugService extends EventEmitter {
   private events: DebugEvent[] = [];
   private maxEvents: number = 100;
   private configManager: ConfigManager;
+  private stateManager?: StateManager;
+  private windowManager?: WindowManager;
   private apiRequestCount: number = 0;
   private apiRequestTimes: number[] = [];
   private isEnabled: boolean = false;
 
-  constructor(configManager: ConfigManager) {
+  constructor(configManager: ConfigManager, stateManager?: StateManager, windowManager?: WindowManager) {
     super();
     this.configManager = configManager;
+    this.stateManager = stateManager;
+    this.windowManager = windowManager;
   }
 
   public enable(): void {
@@ -240,17 +246,44 @@ export class DebugService extends EventEmitter {
   }
 
   private getActiveWindowsCount(): number {
-    // This should be connected to the WindowManager
-    // For now, return a mock value
-    return 0; // Will be updated when integrated
+    // Get actual count from WindowManager if available
+    if (this.windowManager) {
+      return this.windowManager.getAllWindows().length;
+    }
+    return 0;
   }
 
   private getDisplays(): any[] {
     try {
-      // Get displays from ConfigManager
-      return this.configManager.getDisplays();
+      // Get base display configuration from ConfigManager
+      const baseDisplays = this.configManager.getDisplays();
+      
+      // Enrich with active dashboard information from StateManager and WindowManager
+      return baseDisplays.map(display => {
+        // Get assigned dashboard from StateManager
+        const assignedDashboard = this.stateManager?.getAssignedDashboard(display.id);
+        
+        // Get active window from WindowManager
+        const activeWindow = this.windowManager?.getAllWindows().find(w => w.config.displayId === display.id);
+        
+        return {
+          ...display,
+          // Add dashboard information for debug display
+          dashboard: assignedDashboard ? {
+            dashboardId: assignedDashboard.dashboardId,
+            url: assignedDashboard.url,
+            refreshInterval: assignedDashboard.refreshInterval,
+            deployedAt: assignedDashboard.deployedAt.toISOString(),
+            isActive: !!activeWindow
+          } : null,
+          // Add window information
+          windowId: activeWindow?.id,
+          isActive: !!activeWindow,
+          isResponsive: activeWindow?.isResponsive || false
+        };
+      });
     } catch (error) {
-      console.error('Error getting displays:', error);
+      console.error('Error getting displays for debug:', error);
       return [];
     }
   }

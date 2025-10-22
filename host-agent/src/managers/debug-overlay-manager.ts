@@ -73,7 +73,7 @@ export class DebugOverlayManager {
         x,
         y,
         frame: false,
-        transparent: true,
+        transparent: false,
         skipTaskbar: true,
         resizable: false,
         minimizable: false,
@@ -81,7 +81,7 @@ export class DebugOverlayManager {
         closable: true,
         alwaysOnTop: true,
         focusable: true,
-        opacity: this.config.opacity,
+        opacity: 1.0,
         webPreferences: {
           nodeIntegration: false,
           contextIsolation: true,

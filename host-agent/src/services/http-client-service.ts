@@ -338,7 +338,33 @@ export class HttpClientService extends EventEmitter {
           break;
 
         case 'REMOVE_DASHBOARD':
+          // Find and close the window for this display
+          const windows = this.windowManager.getAllWindows();
+          const targetWindow = windows.find(w => w.config.displayId === targetDisplay);
+          
+          if (targetWindow) {
+            logger.info(`🔴 Closing dashboard window for display ${targetDisplay}`, {
+              windowId: targetWindow.id,
+              url: targetWindow.config.url
+            });
+            
+            // Close the window
+            const closed = await this.windowManager.closeWindow(targetWindow.id);
+            if (closed) {
+              logger.info(`✅ Successfully closed window ${targetWindow.id} for display ${targetDisplay}`);
+            } else {
+              logger.warn(`⚠️ Failed to close window ${targetWindow.id} for display ${targetDisplay}`);
+            }
+          } else {
+            logger.warn(`⚠️ No window found for display ${targetDisplay} to close`);
+          }
+          
+          // Clear the display state
           this.stateManager.clearDisplayState(targetDisplay);
+          
+          // Force refresh HostService to update display statuses
+          this.hostService.forceRefreshFromSystem();
+          
           result = { success: true };
           break;
 
