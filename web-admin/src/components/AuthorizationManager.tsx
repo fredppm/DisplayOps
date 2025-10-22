@@ -345,7 +345,7 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
         
         const displayRefreshPromises = activeDisplays.map(async (displayId: string) => {
           try {
-            const response = await fetch(`/api/host/${host.id}/command`, {
+            const response = await fetch(`/api/hosts/${host.id}/command`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -493,7 +493,9 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
             // Send cookies to each host
             const syncPromises = hostsData.data.map(async (host: any) => {
               try {
-                const hostResponse = await fetch(`/api/host/${host.id}/command`, {
+                console.log(`🍪 [SYNC] Sending cookies to host ${host.hostname || host.ipAddress} (${host.id})`);
+                
+                const hostResponse = await fetch(`/api/hosts/${host.id}/command`, {
                   method: 'POST',
                   headers: {
                     'Content-Type': 'application/json',
@@ -508,17 +510,25 @@ export const AuthorizationManager: React.FC<AuthorizationManagerProps> = ({ host
                   })
                 });
 
+                console.log(`🍪 [SYNC] Response from ${host.hostname || host.ipAddress}:`, hostResponse.status);
+
                 if (hostResponse.ok) {
                   const hostResult = await hostResponse.json();
+                  console.log(`🍪 [SYNC] Result from ${host.hostname || host.ipAddress}:`, hostResult);
+                  
                   if (hostResult.success) {
+                    console.log(`✅ [SYNC] Successfully synced to ${host.hostname || host.ipAddress}`);
                     return { success: true, host: host.hostname || host.ipAddress };
                   } else {
+                    console.error(`❌ [SYNC] Failed to sync to ${host.hostname || host.ipAddress}:`, hostResult.error);
                     return { success: false, host: host.hostname || host.ipAddress, error: hostResult.error };
                   }
                 } else {
+                  console.error(`❌ [SYNC] HTTP error from ${host.hostname || host.ipAddress}:`, hostResponse.status, hostResponse.statusText);
                   return { success: false, host: host.hostname || host.ipAddress, error: `HTTP ${hostResponse.status}` };
                 }
               } catch (error) {
+                console.error(`❌ [SYNC] Exception syncing to ${host.hostname || host.ipAddress}:`, error);
                 return { 
                   success: false, 
                   host: host.hostname || host.ipAddress, 

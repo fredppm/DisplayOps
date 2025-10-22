@@ -10,15 +10,24 @@ const clients = new Set<NextApiResponse>();
 export function broadcastHostEvent(event: { type: string; host?: any; hostId?: string }) {
   const data = JSON.stringify(event);
   
-  logger.info('📣 Broadcasting SSE event', { 
-    type: event.type,
-    hostId: event.host?.id || event.hostId,
-    clientCount: clients.size,
-    hasDisplays: event.host?.displays?.length || 0
-  });
+  // Only log info if there are clients connected
+  if (clients.size > 0) {
+    logger.info('📣 Broadcasting SSE event', { 
+      type: event.type,
+      hostId: event.host?.id || event.hostId,
+      clientCount: clients.size,
+      hasDisplays: event.host?.displays?.length || 0
+    });
+  }
   
   if (clients.size === 0) {
-    logger.warn('⚠️ No SSE clients connected to receive broadcast');
+    // Only log warning for important events, not routine heartbeats
+    if (event.type === 'host_registered' || event.type === 'host_disconnected') {
+      logger.warn('⚠️ No SSE clients connected to receive broadcast', { 
+        type: event.type,
+        hostId: event.host?.id || event.hostId 
+      });
+    }
     return;
   }
   

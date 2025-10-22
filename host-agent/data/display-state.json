@@ -1,7 +1,21 @@
 {
   "version": "1.0.0",
-  "lastUpdated": "2025-10-16T18:44:37.719Z",
+  "lastUpdated": "2025-10-22T14:39:01.861Z",
   "displays": {
+    "2528732444": {
+      "displayId": "2528732444",
+      "isActive": false,
+      "lastRefresh": "2025-10-17T21:27:39.692Z",
+      "isResponsive": true,
+      "windowId": "dashboard_2528732444_1760736446620"
+    },
+    "2779098405": {
+      "displayId": "2779098405",
+      "isActive": false,
+      "lastRefresh": "2025-10-22T14:39:00.842Z",
+      "isResponsive": true,
+      "windowId": "dashboard_2779098405_1761143936472"
+    },
     "display-3": {
       "displayId": "display-3",
       "isActive": false,

@@ -8,7 +8,7 @@ function getPackageVersion(): string {
   try {
     const packageJsonPath = app.isPackaged
       ? join(process.resourcesPath, 'app.asar', 'package.json')
-      : join(__dirname, '../../../package.json');
+      : join(__dirname, '../../../../package.json'); // Corrigido: mais um nível para sair do dist
     
     const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
     return packageJson.version || '1.0.0';

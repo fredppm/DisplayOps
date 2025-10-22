@@ -46,7 +46,7 @@ class HttpHostManager {
     }
 
     const commandId = command.commandId || `cmd_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const timeout = command.timeout || 30000;
+    const timeout = command.timeout || 10000; // Reduced default timeout from 30s to 10s
 
     logger.info('📤 Enqueuing command for host', {
       agentId,
